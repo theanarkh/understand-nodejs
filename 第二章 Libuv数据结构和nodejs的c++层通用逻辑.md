@@ -941,7 +941,9 @@ InstanceTemplate返回的是一个ObjectTemplate对象。SetInternalFieldCount�
 我们看到internal_field_count的值的意义是，会扩张对象的内存，比如一个对象本身只有n字节，如果定义internal_field_count的值是1，对象的内存就会变成n+internal_field_count * 一个指针的字节数。内存布局如下。 ![](https://img-blog.csdnimg.cn/20200831232156395.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
 
 #### 通过函数模板创建一个函数
+```c
 1.	global->Set('demo', AFunctionTemplate->GetFunction());  
+```
 这样我们就可以在js里直接调用demo这个变量，然后对应的函数就会被执行。这就是js调用c++的原理。
 
 #### nodejs是如何处理js调用c++问题的
@@ -1052,7 +1054,7 @@ v8中，js调用c++函数的规则是函数入参const FunctionCallbackInfo<Valu
 ```
 
 上面就定义了我们在js层可以拿到的值。
-2.4.3 Libuv通用逻辑
+### 2.4.3 Libuv通用逻辑
 1 uv__handle_init
 uv__handle_init初始化handle的类型，设置REF标记，插入handle队列。
 
