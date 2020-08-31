@@ -393,6 +393,9 @@ uv_write是直接调用uv_write2。第四个参数是NULL。代表是一般的�
 uv_write2的主要逻辑就是封装一个写请求，插入到流的待写队列。然后根据当前流的情况。看是直接写入还是等待会再写入。架构大致如下。    
 <img src="https://img-blog.csdnimg.cn/20200901000205800.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center" />    
 
+[架构图](https://img-blog.csdnimg.cn/20200901000205800.png)
+
+
 真正执行写的函数是uv__write 
 
 ```c
@@ -958,6 +961,8 @@ maybe_new_socket函数的逻辑分支很多
 client是用于和客户端进行通信的流，accept就是把accept_fd保存到client中，client就可以和客户端进行通信了。消费完accept_fd后，如果还有待处理的fd的话，需要补充一个到accept_fd，其他的继续排队。
 除了通过accept从tcp底层获取已完成连接的节点，还有一种方式。那就是描述符传递。我们看一下描述符传递的原理。我们知道，父进程fork出子进程的时候，子进程是继承父进程的文件描述符列表的。我们看一下进程和文件描述符的关系  
 <img src="https://img-blog.csdnimg.cn/20200901000241760.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center" />
+
+[关系图](https://img-blog.csdnimg.cn/20200901000241760.png)
 
 如果父进程或者子进程在fork之后创建了新的文件描述符，那父子进程间就不能共享了，假设父进程要把一个文件描述符传给子进程，那怎么办呢？根据进程和文件描述符的关系。传递文件描述符要做的事情，不仅仅是在子进程中新建一个fd，还要建立起fd->file->inode的关联，我们看一下如何发送一个描述符。下面的代码摘自uv__write
 
