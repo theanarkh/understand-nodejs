@@ -19,9 +19,7 @@ Libuv是nodejs底层的异步io库。但他提供的功能不仅仅是io，还�
 •	High resolution clock
 •	Threading and synchronization primitives
 libuv的实现是一个经典的生产者-消费者模型。libuv在整个生命周期中，每一轮循环都会处理每个阶段（phase）维护的任务队列。然后逐个执行任务队列中节点的回调，在回调中，不断生产新的任务，从而不断驱动libuv。下面是Libuv的整体执行流程
-
-![](https://img-blog.csdnimg.cn/20200831233502707.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
-
+<img src="https://img-blog.csdnimg.cn/20200831233502707.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center" />
 从上图中我们大致了解到，Libuv分为几个阶段，然后在一个循环里不断执行每个阶段里的任务。下面我们具体看一下每个阶段。
 1 更新当前事件，在每次事件循环开始的时候，libuv会更新当前事件到变量中，这一轮循环的剩下操作可以使用这个变量获取当前时间，避免过多的系统调用影响性能。额外的影响就是时间不是那么精确。但是在一轮事件循环中，libuv在必要的时候，会主动更新这个时间，比如在epoll中阻塞了timeout时间后返回时，会再次更新当前时间变量。
 
