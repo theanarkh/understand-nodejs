@@ -5,19 +5,19 @@ nodejs主要由v8、libuv，还有一些其他的第三方模块组成（cares�
 ### 1.1.1 js引擎v8
  nodejs是基于v8的js运行时，他利用v8提供的能力，极大地拓展了js的能力。这种拓展不是为js增加了新的语言特性，而是拓展了功能模块，比如在前端，我们可以使用Date这个函数。但是我们不能使用TCP这个函数，因为js中并没有内置这个函数。而在nodejs中，我们可以使用TCP。这就是nodejs做的事情。让用户可以使用js中本来不存在的功能，比如文件、网络。nodejs中最核心的部分是libuv和v8。v8不仅负责执行js，还支持自定义的拓展，实现了js调用c++和c++调用js的能力。比如我们可以写一个c++模块，然后在js调用。Nodejs正是利用了这个能力，完成了功能的拓展。所有c、c++模块和js的调用都是通过v8来完成。
 ### 1.1.2 libuv
-Libuv是nodejs底层的异步io库。但他提供的功能不仅仅是io，还包括进程、线程、信号、定时器、进程间通信等，而且libuv抹平了各个操作系统之间的差异。Libuv提供的功能大概如下
-•	Full-featured event loop backed by epoll, kqueue, IOCP, event ports.
-•	Asynchronous TCP and UDP sockets
-•	Asynchronous DNS resolution
-•	Asynchronous file and file system operations
-•	File system events
-•	ANSI escape code controlled TTY
-•	IPC with socket sharing, using Unix domain sockets or named pipes (Windows)
-•	Child processes
-•	Thread pool
-•	Signal handling
-•	High resolution clock
-•	Threading and synchronization primitives
+Libuv是nodejs底层的异步io库。但他提供的功能不仅仅是io，还包括进程、线程、信号、定时器、进程间通信等，而且libuv抹平了各个操作系统之间的差异。Libuv提供的功能大概如下<br/>
+•	Full-featured event loop backed by epoll, kqueue, IOCP, event ports.<br/>
+•	Asynchronous TCP and UDP sockets<br/>
+•	Asynchronous DNS resolution<br/>
+•	Asynchronous file and file system operations<br/>
+•	File system events<br/>
+•	ANSI escape code controlled TTY<br/>
+•	IPC with socket sharing, using Unix domain sockets or named pipes (Windows)<br/>
+•	Child processes<br/>
+•	Thread pool<br/>
+•	Signal handling<br/>
+•	High resolution clock<br/>
+•	Threading and synchronization primitives<br/>
 libuv的实现是一个经典的生产者-消费者模型。libuv在整个生命周期中，每一轮循环都会处理每个阶段（phase）维护的任务队列。然后逐个执行任务队列中节点的回调，在回调中，不断生产新的任务，从而不断驱动libuv。下面是Libuv的整体执行流程
 <img src="https://img-blog.csdnimg.cn/20200831233502707.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center" />
 从上图中我们大致了解到，Libuv分为几个阶段，然后在一个循环里不断执行每个阶段里的任务。下面我们具体看一下每个阶段。
@@ -124,8 +124,7 @@ nodejs中第三方库包括异步dns解析（cares）、http解析器（旧版�
 Nodejs并不是给每个功能拓展一个对象，而是拓展一个process对象，再通过process.binding拓展js功能。Nodejs定义了一个js对象process，映射到一个c++对象process，底层维护了一个c++模块的链表，js通过调用js层的process.binding，访问到c++的process对象，从而访问c++模块(类似访问js的Object、Date等)。不过nodejs 14版本已经改成internalBinding的方式。通过internalBinding就可以访问c++模块，原理类似。
 ## 1.3 nodejs启动过程
 下面是nodejs启动的主流程图
-![](https://img-blog.csdnimg.cn/20200831233827398.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
-
+<img src="https://img-blog.csdnimg.cn/20200831233827398.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center" />
  我们从上往下，看一下每个过程都做了些什么事情。
 ### 1.3.1 注册c++模块 
 
