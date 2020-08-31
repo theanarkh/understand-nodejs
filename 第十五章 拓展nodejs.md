@@ -2,8 +2,11 @@
 拓展nodejs从宏观来说，有几种方式，包括直接修改nodejs内核重新编译分发、提供npm包。Npm包又可以分为js和c++拓展。本章主要是介绍修改nodejs内核和c++插件。
 ## 15.1 修改nodejs内核
 修改nodejs内核的方式也有很多种，我们可以修改js层、c++、c语言层的代码。也可以新增一些功能或模块。本节介绍如果新增一个nodejs的c++模块。相比修改nodejs内核代码，新增一个nodejs内置模块需要了解更多的知识。下面我们开始。
+
 **1 首先在src文件夹下新增两个文件。**
+
 cyb.h
+
 ```c
 1.#ifndef SRC_CYB_H_  
 2.#define SRC_CYB_H_  
@@ -27,7 +30,7 @@ cyb.h
 20.#endif  
 ```
 
-http://cyb.cc
+cyb.cc
 
 ```c
 1.#include "cyb.h"  
@@ -129,6 +132,7 @@ http://cyb.cc
 ```
 
 这时候，nodejs不仅可以编译我们的代码，还把我们的代码定义的模块注册到内置c++模块里了。接下来就是如何使用c++模块了。
+
 **2 在lib文件夹新建一个cyb.js，作为nodejs原生模块**
 
 ```c
@@ -136,9 +140,12 @@ http://cyb.cc
 2.module.exports = cyb;  
 ```
 
-internalBinding函数是在执行cyb.js，注入的函数。不能在用户js里使用。internalBinding函数就是根据模块名从内置模块里找到对应的模块。即我们的http://cyb.cc。新增原生模块，我们也需要修改node.gyp文件，否则代码也不会被编译进node内核。我们找到node.gyp文件的lib/net.js。在后面追加lib/cyb.js。该配置下的文件是给js2c.py使用的。如果不修改，我们在require的时候，就会找不到该模块。最后我们在lib/internal/bootstrap/loader文件里找到internalBindingWhitelist变量，在数组最后增加cyb_wrap。这个配置是给process.binding函数使用的，如果不修改这个配置，通过process.binding就找不到我们的模块。process.binding是可以在用户js里使用的。
+internalBinding函数是在执行cyb.js，注入的函数。不能在用户js里使用。internalBinding函数就是根据模块名从内置模块里找到对应的模块, 即我们的cyb.cc。 新增原生模块，我们也需要修改node.gyp文件，否则代码也不会被编译进node内核。我们找到node.gyp文件的lib/net.js。在后面追加lib/cyb.js。该配置下的文件是给js2c.py使用的。如果不修改，我们在require的时候，就会找不到该模块。最后我们在lib/internal/bootstrap/loader文件里找到internalBindingWhitelist变量，在数组最后增加cyb_wrap。这个配置是给process.binding函数使用的，如果不修改这个配置，通过process.binding就找不到我们的模块。process.binding是可以在用户js里使用的。
 到此，我们完成了所有的修改工作，重新编译nodejs。然后编写测试程序。
-**3 新建一个测试文件testcyb.js**
+
+**3 新建一个测试文件**
+
+testcyb.js
 
 ```c
 1.// const cyb = process.binding('cyb_wrap');  
