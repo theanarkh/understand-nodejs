@@ -412,8 +412,8 @@ Libuv中的queue实现非常复杂。队列在Libuv中到处可见，所以理�
 typedef void *QUEUE[2];
 这个是c语言中定义类型别名的一种方式。比如我们定义一个变量
 QUEUE q相当于void *q[2];
-即一个数组，他每个元素是void型的指针。
- ![](https://img-blog.csdnimg.cn/20200831234557153.png#pic_center)
+即一个数组，他每个元素是void型的指针。  
+ ![](https://img-blog.csdnimg.cn/20200831234557153.png#pic_center)  
 下面我们接着分析四个举足轻重的宏定义，理解他们就相当于理解了libuv的队列。在分析之前，我们先来回顾一下数组指针和二维数组的知识。
 ```c
 int a[2];
@@ -425,10 +425,10 @@ int (*p)[2] = a;
 ```c
 int a[2][2];
 ```
-我们知道二维数组在内存中的布局是一维。
- ![](https://img-blog.csdnimg.cn/20200831234610392.png#pic_center)
-但是为了方便理解我们画成二维的。
- ![](https://img-blog.csdnimg.cn/20200831234617284.png#pic_center)
+我们知道二维数组在内存中的布局是一维。  
+ ![](https://img-blog.csdnimg.cn/20200831234610392.png#pic_center)  
+但是为了方便理解我们画成二维的。  
+ ![](https://img-blog.csdnimg.cn/20200831234617284.png#pic_center)  
 1. &a代表二维数组的首地址。类型是int (*)[2][2]，他是一个指针，他指向的元素是一个二维数组。假设int是四个字节。数组首地址是0，那么&a + 1等于16.
 2.  a代表第一行的首地址，类型是int (*)[2]，他是一个指针，指向的元素是一个一维数组。a+1等于8。
 3. a[0]也是第一行的首地址，类型是int *。
@@ -441,24 +441,24 @@ QUEUE_NEXT看起来是获取当前节点的next字段的地址。但是他的实
 1.	 void *p[2][2];  
 2.	 QUEUE* q = &p[0]; // void *(*q)[2] = &p[0];  
 3.	 QUEUE_NEXT(q);  
-我们看到QUEUE_NEXT的参数是一个指针，他指向一个大小为2的数组，数组里的每个元素是void 。内存布局如下。
-![](https://img-blog.csdnimg.cn/20200831234632286.png#pic_center)
+我们看到QUEUE_NEXT的参数是一个指针，他指向一个大小为2的数组，数组里的每个元素是void 。内存布局如下。  
+![](https://img-blog.csdnimg.cn/20200831234632286.png#pic_center)  
 因为libuv的数组只有两个元素。相当于p[2][2]变成了*p[2][1]。所以上面的代码简化为。
 ```c
 1.	void *p[2];  
 2.	QUEUE* q = &p; // void *(*q)[2] = &p;  
 3.	QUEUE_NEXT(q);  
-```
-![](https://img-blog.csdnimg.cn/20200831234718343.png#pic_center)
+```  
+![](https://img-blog.csdnimg.cn/20200831234718343.png#pic_center)  
 
 根据上面的代码我们逐步展开宏定义。
 q指向整个数组p的首地址，*(q)还指向数组第一行的首地址（这时候指针类型为void *，见上面二维数组的分析5）。
 (*(q))[0]即把指针定位到第一行第一列的内存地址（这时候指针类型还是void *，见上面二维数组的分析5）。
-&((*(q))[0])把2中的结果（即void *）转成二级指针（void **），然后强制转换类型(QUEUE **) 。为什么需要强制转成等于QUEUE **呢？因为需要保持类型。转成QUEUE **后（即void * (**)[2]）。说明他是一个二级指针，他指向一个指针数组，每个元素指向一个大小为2的数组。这个大小为2的数组就是下一个节点的地址。
- ![](https://img-blog.csdnimg.cn/20200831234730867.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
+&((*(q))[0])把2中的结果（即void *）转成二级指针（void **），然后强制转换类型(QUEUE **) 。为什么需要强制转成等于QUEUE **呢？因为需要保持类型。转成QUEUE **后（即void * (**)[2]）。说明他是一个二级指针，他指向一个指针数组，每个元素指向一个大小为2的数组。这个大小为2的数组就是下一个节点的地址。  
+ ![](https://img-blog.csdnimg.cn/20200831234730867.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)  
 
-在libuv中如下
- ![在这里插入图片描述](https://img-blog.csdnimg.cn/20200831234738833.png#pic_center)
+在libuv中如下  
+ ![在这里插入图片描述](https://img-blog.csdnimg.cn/20200831234738833.png#pic_center)  
 
 *(QUEUE *) &(((q))[0])解引用取得q下一个节点的地址（作为右值），或者修改当前节点的next域内存里的值（作为左值）,类型是void (*)[2]。
 ### 2.2.2 QUEUE_PREV
@@ -476,8 +476,8 @@ prev的宏和next是类似的，区别是prev得到的是当前节点的上一�
 4.	    QUEUE_NEXT_PREV(q) = QUEUE_PREV(q);   \  
 5.	  }                             \  
 6.	  while (0)  
-```
-![](https://img-blog.csdnimg.cn/20200831234756392.png#pic_center)
+``` 
+![](https://img-blog.csdnimg.cn/20200831234756392.png#pic_center)  
 
 1 QUEUE_NEXT(q); 拿到q下一个节点的地址，即p
 2 QUEUE_PREV_NEXT(q)分为两步，第一步拿到q前一个节点的地址。即o。然后再执行QUEUE_NEXT(o),分析之前我们先看一下关于指针变量作为左值和右值的问题。
@@ -499,8 +499,8 @@ int *cyb = 1101;
 7.	    QUEUE_PREV(h) = (q);                                                        
 8.	  }                                                                             
 9.	  while (0)  
-```
-![](https://img-blog.csdnimg.cn/202008312348129.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
+```  
+![](https://img-blog.csdnimg.cn/202008312348129.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)  
 
 ## 2.3 io观察者
 io观察者是Libuv中的核心概念和数据结构。我们看一下他的定义
