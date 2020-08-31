@@ -124,6 +124,8 @@ nodejs中第三方库包括异步dns解析（cares）、http解析器（旧版�
 Nodejs并不是给每个功能拓展一个对象，而是拓展一个process对象，再通过process.binding拓展js功能。Nodejs定义了一个js对象process，映射到一个c++对象process，底层维护了一个c++模块的链表，js通过调用js层的process.binding，访问到c++的process对象，从而访问c++模块(类似访问js的Object、Date等)。不过nodejs 14版本已经改成internalBinding的方式。通过internalBinding就可以访问c++模块，原理类似。
 ## 1.3 nodejs启动过程
 下面是nodejs启动的主流程图
+![](https://img-blog.csdnimg.cn/20200831233827398.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
+
  我们从上往下，看一下每个过程都做了些什么事情。
 ### 1.3.1 注册c++模块 
 
