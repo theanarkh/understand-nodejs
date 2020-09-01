@@ -31,6 +31,7 @@ connect是发起tcp连接的api。本质上是对底层tcp协议connect函数的
  3. Socket的connect
 
 **1 new Socket**  
+
 我们看看新建一个Socket对象，做了什么事情。  
 
 ```c
@@ -58,6 +59,7 @@ connect是发起tcp连接的api。本质上是对底层tcp协议connect函数的
 ```
 
 其实也没有做太多的事情，就是初始化一些属性。
+
 **2 setTimeout** 	
 
 ```c
@@ -90,6 +92,7 @@ setTimeout做的事情就是设置一个超时时间，如果超时则执行回�
 ```
 
 直接触发timeout函数，回调用户的函数。  
+
 **3 connect函数**  
 
 ```c
@@ -1175,7 +1178,14 @@ C++层几乎是透传到libuv，主要是设置了回调函数OnConnection，有
 
 我们看到，new TCP的时候其实是执行libuv的uv_tcp_init函数，初始化一个uv_tcp_t的结构体。首先我们先看一下uv_tcp_t结构体的结构。
 
-[uv_tcp_t结构体.png](https://img-blog.csdnimg.cn/20200901000258106.png)
+
+
+![uv_tcp_t结构体](https://img-blog.csdnimg.cn/20200902005231582.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2h1aWh1b3hxYw==,size_16,color_FFFFFF,t_70#pic_center)
+
+
+
+
+[uv_tcp_t结构体](https://img-blog.csdnimg.cn/20200901000258106.png)
 
 ```c
    // 初始化一个tcp流的结构体  
