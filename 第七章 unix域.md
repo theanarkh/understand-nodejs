@@ -1,14 +1,13 @@
 # 第七章 unix域
-Unix域一种进程间通信的方式，他类似socket通信，但是他是基于单主机的。可以说是单机上的socket通信。因为在同一个主机内，所以就少了很多网络上的问题，那就减少了复杂度。unix域和传统的socket通信类型，服务器监听，客户端连接，由于在同主机，就不必要使用ip和端口的方式，浪费一个端口。unix域采用的是一个文件作为标记。大致原理如下。
-1 服务器首先拿到一个socket结构体，和一个unix域相关的unix_proto_data结构体。
-2 服务器bind一个文件。对于操作系统来说，就是新建一个文件，然后把文件路径信息存在unix_proto_data中。
-3 listen
-4 客户端通过同样的文件路径调用connect去连接服务器。这时候客户端的结构体插入服务器的连接队列，等待处理。
-5 服务器调用accept摘取队列的节点，然后新建一个通信socket进行通信。
+Unix域一种进程间通信的方式，他类似socket通信，但是他是基于单主机的。可以说是单机上的socket通信。因为在同一个主机内，所以就少了很多网络上的问题，那就减少了复杂度。unix域和传统的socket通信类型，服务器监听，客户端连接，由于在同主机，就不必要使用ip和端口的方式，浪费一个端口。unix域采用的是一个文件作为标记。大致原理如下。<br/>
+1 服务器首先拿到一个socket结构体，和一个unix域相关的unix_proto_data结构体。<br/>
+2 服务器bind一个文件。对于操作系统来说，就是新建一个文件，然后把文件路径信息存在unix_proto_data中。<br/>
+3 listen<br/>
+4 客户端通过同样的文件路径调用connect去连接服务器。这时候客户端的结构体插入服务器的连接队列，等待处理。<br/>
+5 服务器调用accept摘取队列的节点，然后新建一个通信socket进行通信。<br/>
 unix域通信本质还是基于内存之间的通信，客户端和服务器都维护一块内存，然后实现全双工通信，而unix域的文件路径，只不过是为了让客户端进程可以找到服务端进程。而通过connect和accept让客户端和服务器对应的结构体关联起来，后续就可以互相往对方维护的内存里写东西了。就可以实现进程间通信。下面我们来看一下他在操作系统的实现。
 ## 7.1 unix域在操作系统的实现
 本章以早期linux内核源码分析一下unix域的实现，一者可以深入了解和理解unix域的原理，二者unix域的实现和socket的实现也有些相似之处，只不过unix是基于单机的进程间通信。下面是unix域实现的架构图。
- 
  ![](https://img-blog.csdnimg.cn/20200901232449975.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
 
 
