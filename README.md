@@ -17,9 +17,9 @@ nodejs的源码由js、c++、c组成。<br/>
 3 js层代码相信学习nodejs的同学都没什么问题。<br/>
 4 如果你在阅读上面有任何问题，可以联系我或者留言，我会的我都会尽量帮你解答。
 
-下载：v0.0.1 https://file-1252105172.cos.ap-guangzhou.myqcloud.com/%E7%90%86%E8%A7%A3nodejs%E5%8E%9F%E7%90%86v0.0.1.docx
-微信：theratliter
-公众号：编程杂技
-<img src="https://img-blog.csdnimg.cn/20200906233841770.jpg?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center" height="300px" width="300px"/>
+下载：v0.0.1 https://file-1252105172.cos.ap-guangzhou.myqcloud.com/%E7%90%86%E8%A7%A3nodejs%E5%8E%9F%E7%90%86v0.0.1.docx <br />
+微信：theratliter<br />
+公众号：编程杂技<br />
+<img src="https://img-blog.csdnimg.cn/20200906233841770.jpg?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center" height="300px" width="300px"/><br />
 赞助：<img height="300px" width="300px"  src="https://img-blog.csdnimg.cn/20200831135053466.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)" />
 
