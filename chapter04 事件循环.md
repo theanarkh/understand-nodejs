@@ -163,9 +163,9 @@ uv_fs_poll_stop通过uv_close函数关闭handle，传的回调是timer_close_cb�
 所以在close阶段就会释放这块内存。
 ## 4.2 事件循环之poll io
 poll io是libuv非常重要的一个阶段，文件io、网络io、信号处理等都在这个阶段处理。这也是最复杂的一个阶段。处理逻辑在uv__io_poll这个函数。这个函数比较复杂，我们分开分析。
-开始说poll io之前，先了解一下他相关的一些数据结构。
-1 io观察者uv__io_t。这个结构体是poll io阶段核心结构体。他主要是保存了io相关的文件描述符、回调、感兴趣的事件等信息。
-2 watcher_queue观察者队列。所有需要libuv处理的io观察者都挂载在这个队列里。libuv会逐个处理。
+开始说poll io之前，先了解一下他相关的一些数据结构。<br/>
+1 io观察者uv__io_t。这个结构体是poll io阶段核心结构体。他主要是保存了io相关的文件描述符、回调、感兴趣的事件等信息。<br/>
+2 watcher_queue观察者队列。所有需要libuv处理的io观察者都挂载在这个队列里。libuv会逐个处理。<br/>
 下面我们开始分析poll io阶段。先看第一段逻辑。
 
 ```c
