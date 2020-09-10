@@ -107,12 +107,10 @@ file结构体是实现多个进程操作文件的结构体。他指向一个inod
 
 内存中的结构
 
+[文件系统在内存中的结构1](https://img-blog.csdnimg.cn/20200902002635200.png)
+[文件系统在内存中的结构2](https://www.processon.com/view/link/5bcad5aae4b015327b10e605)
 
-![在这里插入图片描述](https://img-blog.csdnimg.cn/20200902002635200.png#pic_center)
-
-
-[文件系统在内存中的结构](https://img-blog.csdnimg.cn/20200902002635200.png)
-[文件系统在内存中的结构](https://www.processon.com/view/link/5bcad5aae4b015327b10e605)
+总体视图
 [文件系统总览](https://www.processon.com/view/link/5c431493e4b025fe7c83c014)
 
 
