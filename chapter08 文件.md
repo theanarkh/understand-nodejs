@@ -38,10 +38,6 @@ inode位图是标记文件系统中，哪些inode节点已经被使用了，数�
 
 
 
-
-[文件系统在硬盘的布局](https://img-blog.csdnimg.cn/20200902002320869.png)
-
-
 ### 8.1.2 inode节点
 文件系统中，每个文件对应一个inode节点，inode节点记录了文件的元数据。比如创建者、创建时间、文件大小、权限、数据块信息等。inode节点是文件系统中非常重要的概念，unix/linux系统万物皆文件的实现和inode有很大的关系。inode节点屏蔽了不同类型文件的细节，为上层提供抽象的接口。
 
@@ -97,10 +93,6 @@ file结构体是实现多个进程操作文件的结构体。他指向一个inod
 
 ## 8.2 文件系统的结构
 文件系统的结构大概分为2个部分。分别是在硬盘中的结构、在内存中的结构。
-
-
-![文件系统在硬盘中的结构](https://img-blog.csdnimg.cn/20200902002621576.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2h1aWh1b3hxYw==,size_16,color_FFFFFF,t_70#pic_center)
-
 
 [文件系统在硬盘中的结构](https://11111-1252105172.cos.ap-shanghai.myqcloud.com/%E4%BC%81%E4%B8%9A%E5%BE%AE%E4%BF%A1%E6%88%AA%E5%9B%BE_15997601388401.png)
 
