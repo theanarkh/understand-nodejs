@@ -94,9 +94,9 @@ file结构体是实现多个进程操作文件的结构体。他指向一个inod
 ## 8.2 文件系统的结构
 文件系统的结构大概分为2个部分。分别是在硬盘中的结构、在内存中的结构。
 
-[文件系统在硬盘中的结构](https://11111-1252105172.cos.ap-shanghai.myqcloud.com/%E4%BC%81%E4%B8%9A%E5%BE%AE%E4%BF%A1%E6%88%AA%E5%9B%BE_15997601388401.png)
+[文件系统在硬盘中的结构](https://11111-1252105172.cos.ap-shanghai.myqcloud.com/%E4%BC%81%E4%B8%9A%E5%BE%AE%E4%BF%A1%E6%88%AA%E5%9B%BE_15997601388401.png)<br/>
 [文件系统在内存中的结构1](https://img-blog.csdnimg.cn/20200902002635200.png)<br/>
-[文件系统在内存中的结构2](https://www.processon.com/view/link/5bcad5aae4b015327b10e605)
+[文件系统在内存中的结构2](https://www.processon.com/view/link/5bcad5aae4b015327b10e605)<br/>
 [文件系统总览](https://www.processon.com/view/link/5c431493e4b025fe7c83c014)
 
 
