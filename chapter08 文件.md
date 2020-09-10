@@ -102,7 +102,7 @@ file结构体是实现多个进程操作文件的结构体。他指向一个inod
 ![文件系统在硬盘中的结构](https://img-blog.csdnimg.cn/20200902002621576.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L2h1aWh1b3hxYw==,size_16,color_FFFFFF,t_70#pic_center)
 
 
-[文件系统在硬盘中的结构](https://img-blog.csdnimg.cn/20200902002621576.png)
+[文件系统在硬盘中的结构](https://img-blog.csdnimg.cn/20191103145513683.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 
 
 内存中的结构
@@ -112,6 +112,8 @@ file结构体是实现多个进程操作文件的结构体。他指向一个inod
 
 
 [文件系统在内存中的结构](https://img-blog.csdnimg.cn/20200902002635200.png)
+[文件系统在内存中的结构](https://www.processon.com/view/link/5bcad5aae4b015327b10e605)
+[文件系统总览](https://www.processon.com/view/link/5c431493e4b025fe7c83c014)
 
 
 ## 8.3 操作文件
