@@ -314,3 +314,183 @@ static void uv__udp_recvmsg(uv_udp_t* handle) {
 }
 ```
 libuv会回调c++层，然后c++层回调到js层，最后触发message事件，这就是对应开始那段代码的message事件。
+
+## 客户端
+udp客户端的流程是
+1 调用bind绑定客户端的地址信息
+2 调用connect绑定服务器的地址信息
+3 调用sendmsg和recvmsg进行数据通信
+我们看一下nodejs里的流程
+```go
+const dgram = require('dgram');
+const message = Buffer.from('Some bytes');
+const client = dgram.createSocket('udp4');
+client.connect(41234, 'localhost', (err) => {
+  client.send(message, (err) => {
+    client.close();
+  });
+});
+```
+我们看到nodejs首先调用connect绑定服务器的地址，然后调用send发送信息，最后调用close。我们一个个分析。首先看connect。
+```go
+Socket.prototype.connect = function(port, address, callback) {
+  port = validatePort(port);
+  // 参数处理
+  if (typeof address === 'function') {
+    callback = address;
+    address = '';
+  } else if (address === undefined) {
+    address = '';
+  }
+
+  validateString(address, 'address');
+  const state = this[kStateSymbol];
+  // 不是初始化状态
+  if (state.connectState !== CONNECT_STATE_DISCONNECTED)
+    throw new ERR_SOCKET_DGRAM_IS_CONNECTED();
+  // 设置socket状态
+  state.connectState = CONNECT_STATE_CONNECTING;
+  // 还没有绑定客户端地址信息，则先绑定随机地址（操作系统决定）
+  if (state.bindState === BIND_STATE_UNBOUND)
+    this.bind({ port: 0, exclusive: true }, null);
+  // 执行bind的时候，state.bindState不是同步设置的
+  if (state.bindState !== BIND_STATE_BOUND) {
+    enqueue(this, _connect.bind(this, port, address, callback));
+    return;
+  }
+
+  _connect.call(this, port, address, callback);
+};
+```
+这里分为两种情况，一种是在connect之前已经调用了bind，第二种是没有调用bind，如果没有调用bind，则在connect之前先要调用bind。我们只分析没有调用bind的情况，因为这是最长的链路。我们看一下bind的逻辑。
+```go
+// port = {posrt: 0, exclusive : true}, address_ = null
+Socket.prototype.bind = function(port_, address_ /* , callback */) {
+  let port = port_;
+  const state = this[kStateSymbol];
+  state.bindState = BIND_STATE_BINDING;
+
+  let address;
+  let exclusive;
+  // 修正参数，这里的port是0，address是null
+  if (port !== null && typeof port === 'object') {
+    address = port.address || '';
+    exclusive = !!port.exclusive;
+    port = port.port;
+  } else {
+    address = typeof address_ === 'function' ? '' : address_;
+    exclusive = false;
+  }
+  // 没传地址默认取全部ip
+  if (!address) {
+    if (this.type === 'udp4')
+      address = '0.0.0.0';
+    else
+      address = '::';
+  }
+  // 这里的地址是ip地址，所以不需要dns解析，但是lookup会在nexttick的时候执行回调
+  state.handle.lookup(address, (err, ip) => {
+      const err = state.handle.bind(ip, port || 0, flags);
+      startListening(this);
+  });
+  return this;
+};
+```
+因为bind函数中的lookup不是同步执行传入的callback，所以这时候会先返回到connect函数。从而connect函数执行以下代码。
+
+```go
+if (state.bindState !== BIND_STATE_BOUND) {
+    enqueue(this, _connect.bind(this, port, address, callback));
+    return;
+  }
+```
+connect函数先把回调加入队列。
+```go
+
+function enqueue(self, toEnqueue) {
+  const state = self[kStateSymbol];
+  if (state.queue === undefined) {
+    state.queue = [];
+    self.once('error', onListenError);
+    self.once('listening', onListenSuccess);
+  }
+  state.queue.push(toEnqueue);
+}
+```
+enqueue把回调加入队列，并且监听了listening事件，该事件在bind成功后触发。这时候connect函数就执行完了，等待bind成功后（nexttick）会执行 startListening(this)。
+```go
+function startListening(socket) {
+  const state = socket[kStateSymbol];
+  state.handle.onmessage = onMessage;
+  // 注册等待可读事件
+  state.handle.recvStart();
+  state.receiving = true;
+  // 标记已bind成功
+  state.bindState = BIND_STATE_BOUND;
+
+  if (state.recvBufferSize)
+    bufferSize(socket, state.recvBufferSize, RECV_BUFFER);
+
+  if (state.sendBufferSize)
+    bufferSize(socket, state.sendBufferSize, SEND_BUFFER);
+  // 触发listening事件
+  socket.emit('listening');
+}
+```
+我们看到这里（bind成功后）触发了listening事件，从而执行我们刚才入队的回调onListenSuccess。
+
+```go
+function onListenSuccess() {
+  this.removeListener('error', onListenError);
+  clearQueue.call(this);
+}
+
+function clearQueue() {
+  const state = this[kStateSymbol];
+  const queue = state.queue;
+  state.queue = undefined;
+
+  for (const queueEntry of queue)
+    queueEntry();
+}
+
+```
+回调就是把队列中的回调执行一遍，connect函数设置的回调是_connect。
+```go
+function _connect(port, address, callback) {
+  const state = this[kStateSymbol];
+  if (callback)
+    this.once('connect', callback);
+
+  const afterDns = (ex, ip) => {
+    defaultTriggerAsyncIdScope(
+      this[async_id_symbol],
+      doConnect,
+      ex, this, ip, address, port, callback
+    );
+  };
+
+  state.handle.lookup(address, afterDns);
+}
+```
+这里的address是服务器地址，_connect函数主要逻辑是
+1 监听connect事件
+2 对服务器地址进行dns解析（如果需要的话）。解析成功后执行afterDns，最后执行doConnect，并传入解析出来的ip。我们看看doConnect
+```go
+function doConnect(ex, self, ip, address, port, callback) {
+  const state = self[kStateSymbol];
+  // dns解析成功，执行底层的connect
+  if (!ex) {
+    const err = state.handle.connect(ip, port);
+    if (err) {
+      ex = exceptionWithHostPort(err, 'connect', address, port);
+    }
+  }
+
+  // connect成功，触发connect事件
+  state.connectState = CONNECT_STATE_CONNECTED;
+  process.nextTick(() => self.emit('connect'));
+}
+```
+connect函数通过c++层，然后调用libuv，到操作系统的connect。作用是把服务器地址保存到socket中。connect的流程就走完了。接下来我们就可以调用send和recv发送和接收数据。
+
