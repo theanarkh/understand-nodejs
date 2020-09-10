@@ -316,10 +316,10 @@ static void uv__udp_recvmsg(uv_udp_t* handle) {
 libuv会回调c++层，然后c++层回调到js层，最后触发message事件，这就是对应开始那段代码的message事件。
 
 ## 客户端
-udp客户端的流程是
-1 调用bind绑定客户端的地址信息
-2 调用connect绑定服务器的地址信息
-3 调用sendmsg和recvmsg进行数据通信
+udp客户端的流程是<br />
+1 调用bind绑定客户端的地址信息<br />
+2 调用connect绑定服务器的地址信息<br />
+3 调用sendmsg和recvmsg进行数据通信<br />
 我们看一下nodejs里的流程
 ```go
 const dgram = require('dgram');
@@ -473,8 +473,8 @@ function _connect(port, address, callback) {
   state.handle.lookup(address, afterDns);
 }
 ```
-这里的address是服务器地址，_connect函数主要逻辑是
-1 监听connect事件
+这里的address是服务器地址，_connect函数主要逻辑是<br />
+1 监听connect事件<br />
 2 对服务器地址进行dns解析（如果需要的话）。解析成功后执行afterDns，最后执行doConnect，并传入解析出来的ip。我们看看doConnect
 ```go
 function doConnect(ex, self, ip, address, port, callback) {
