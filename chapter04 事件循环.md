@@ -46,7 +46,7 @@
 42.	}  
 ```
 
-libuv分为几个阶段，下面分别分析各个阶段的相关代码。
+libuv分为几个阶段，下面分别分析各个阶段的相关代码（timer阶段见定时器章节）。
 ## 4.1 事件循环之close
 close是libuv每轮事件循环中最后的一个阶段。我们看看怎么使用。我们知道对于一个handle，他的使用一般是init，start，stop。但是如果我们在stop一个handle之后，还有些事情需要处理怎么办？这时候就可以使用close阶段。close阶段可以用来关闭一个handle，并且执行一个回调。比如用于释放动态申请的内存。close阶段的任务由uv_close产生。
 
@@ -409,3 +409,56 @@ init函数主要是做一些初始化操作。我们继续要看start函数。
 ```
 
 stop函数和start函数是相反的作用，就不分析了。这就是nodejs中prepare阶段的过程。
+
+## 4.5 pending阶段
+官网解释是在上一轮的poll io阶段没有执行的io回调，会在下一轮循环的pending阶段被执行。我们先看pending阶段的处理。
+
+```c
+static int uv__run_pending(uv_loop_t* loop) {
+  QUEUE* q;
+  QUEUE pq;
+  uv__io_t* w;
+
+  if (QUEUE_EMPTY(&loop->pending_queue))
+    return 0;
+  // 把pending_queue队列的节点移到pq，即清空了pending_queue
+  QUEUE_MOVE(&loop->pending_queue, &pq);
+
+  // 遍历pq队列
+  while (!QUEUE_EMPTY(&pq)) {
+    // 取出当前第一个需要处理的节点，即pq.next
+    q = QUEUE_HEAD(&pq);
+    // 把当前需要处理的节点移出队列
+    QUEUE_REMOVE(q);
+    // 重置一下prev和next指针，因为这时候这两个指针是指向队列中的两个节点
+    QUEUE_INIT(q);
+    w = QUEUE_DATA(q, uv__io_t, pending_queue);
+    w->cb(loop, w, POLLOUT);
+  }
+
+  return 1;
+}
+```
+就是把pending队列了的节点逐个执行。然后我们看一下pending队列的节点是如何生产出来的。
+
+```c
+void uv__io_feed(uv_loop_t* loop, uv__io_t* w) {
+  if (QUEUE_EMPTY(&w->pending_queue))
+    QUEUE_INSERT_TAIL(&loop->pending_queue, &w->pending_queue);
+}
+```
+libuv通过uv__io_feed函数生产pending任务，从libuv的代码中我们看到io错误的时候会调这个函数（还有其他情况）。
+
+```c
+if (handle->delayed_error)
+    uv__io_feed(handle->loop, &handle->io_watcher);
+```
+最后io关闭的时候会从pending队列移除对应的节点。
+
+```c
+void uv__io_close(uv_loop_t* loop, uv__io_t* w) {
+  uv__io_stop(loop, w, POLLIN | POLLOUT | UV__POLLRDHUP | UV__POLLPRI);
+  QUEUE_REMOVE(&w->pending_queue);
+  uv__platform_invalidate_fd(loop, w->fd);
+}
+```
