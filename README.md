@@ -19,4 +19,5 @@ nodejs的源码由js、c++、c组成。<br/>
 
 下载：v0.0.1 https://file-1252105172.cos.ap-guangzhou.myqcloud.com/%E7%90%86%E8%A7%A3nodejs%E5%8E%9F%E7%90%86v0.0.1.docx <br />
 微信：theratliter<br />
+深圳imweb团队招前端、nodejs，如果你有兴趣欢迎联系。
 
