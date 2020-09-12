@@ -552,4 +552,299 @@ udp支持多播，tcp则不支持，因为tcp是基于连接和可靠的，多�
 ![](https://img-blog.csdnimg.cn/2020091201131651.png#pic_center)
 当主机1给多播组1发送数据的时候，主机2，4可以收到，主机3则无法收到。我们再来看看广域网的多播。广域网的多播需要路由器的支持，多个路由器之间会使用多播路由协议交换多播组的信息。假设有以下广域网。
 ![](https://img-blog.csdnimg.cn/20200912012350687.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
-当主机1给多播组1发送数据的时候，路由器1会给路由器2发送一份数据（通过多播路由协议交换了信息，路由1知道路由器2的主机4在多播组1中），但是路由器2不会给路由器3发送数据，因为他知道路由器3对应的网络中没有主机在多播组1。以上是多播的一些概念。我们看看nodejs中的使用。待续...
+当主机1给多播组1发送数据的时候，路由器1会给路由器2发送一份数据（通过多播路由协议交换了信息，路由1知道路由器2的主机4在多播组1中），但是路由器2不会给路由器3发送数据，因为他知道路由器3对应的网络中没有主机在多播组1。以上是多播的一些概念。nodejs中关于多播的实现，基本是对操作系统api的封装，所以就不打算讲解，我们直接看操作系统中对于多播的实现。
+
+在网络驱动层中也维护了多播的信息
+![](https://img-blog.csdnimg.cn/20200913012934978.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
+device是对网络驱动层的抽象，每个device维护了当前多播组ip和device间的关系。还有多播组ip和对应的mac多播地址的关系。下面我们看看操作系统的一些具体的实现。我们看一下多播的实现。
+### 2.3.1 加入一个多播组
+可以通过以下代码加入一个多播组。
+```go
+setsockopt(fd,
+           IPPROTO_IP,
+           IP_ADD_MEMBERSHIP,
+           &mreq, // device对应的ip和加入多播组的ip
+           sizeof(mreq));
+```
+mreq的结构体定义如下
+```go
+struct ip_mreq 
+{
+	struct in_addr imr_multiaddr;	/* IP multicast address of group */
+	struct in_addr imr_interface;	/* local IP address of interface */
+};
+```
+我们看一下setsockopt的实现（只列出相关部分代码）
+```go
+	case IP_ADD_MEMBERSHIP: 
+		{
+			struct ip_mreq mreq;
+			static struct options optmem;
+			unsigned long route_src;
+			struct rtable *rt;
+			struct device *dev=NULL;
+			err=verify_area(VERIFY_READ, optval, sizeof(mreq));
+			memcpy_fromfs(&mreq,optval,sizeof(mreq));
+ 			// 没有设置device则根据多播组ip选择一个device
+			if(mreq.imr_interface.s_addr==INADDR_ANY) 
+			{
+				if((rt=ip_rt_route(mreq.imr_multiaddr.s_addr,&optmem, &route_src))!=NULL)
+				{
+					dev=rt->rt_dev;
+					rt->rt_use--;
+				}
+			}
+			else
+			{
+				// 根据device ip找到，找到对应的device
+				for(dev = dev_base; dev; dev = dev->next)
+				{
+					// 在工作状态、支持多播，ip一样
+					if((dev->flags&IFF_UP)&&(dev->flags&IFF_MULTICAST)&&
+						(dev->pa_addr==mreq.imr_interface.s_addr))
+						break;
+				}
+			}
+			// 加入多播组
+			return ip_mc_join_group(sk,dev,mreq.imr_multiaddr.s_addr);
+		}
+		
+```
+拿到加入的多播组ip和device后，调用ip_mc_join_group，在socket结构体中，有一个字段维护了该socket加入的多播组信息。
+![](https://img-blog.csdnimg.cn/20200913012214847.png#pic_center)
+```go
+int ip_mc_join_group(struct sock *sk , struct device *dev, unsigned long addr)
+{
+	int unused= -1;
+	int i;
+	// 还没有加入过多播组
+	if(sk->ip_mc_list==NULL)
+	{
+		if((sk->ip_mc_list=(struct ip_mc_socklist *)kmalloc(sizeof(*sk->ip_mc_list), GFP_KERNEL))==NULL)
+			return -ENOMEM;
+		memset(sk->ip_mc_list,'\0',sizeof(*sk->ip_mc_list));
+	}
+	// 遍历加入的多播组队列，判断是否已经加入过
+	for(i=0;i<IP_MAX_MEMBERSHIPS;i++)
+	{
+		if(sk->ip_mc_list->multiaddr[i]==addr && sk->ip_mc_list->multidev[i]==dev)
+			return -EADDRINUSE;
+		if(sk->ip_mc_list->multidev[i]==NULL)
+			unused=i;
+	}
+	// 到这说明没有加入过当前设置的多播组，则记录并且加入
+	if(unused==-1)
+		return -ENOBUFS;
+	sk->ip_mc_list->multiaddr[unused]=addr;
+	sk->ip_mc_list->multidev[unused]=dev;
+	// addr为多播组ip
+	ip_mc_inc_group(dev,addr);
+	return 0;
+}
+```
+ip_mc_join_group函数的主要逻辑是把socket想加入的多播组信息记录到socket的ip_mc_list字段中（如果还没有加入过该多播组的话）。接着调ip_mc_inc_group往下走。device层维护了主机中使用了该device的多播组信息。![](https://img-blog.csdnimg.cn/20200913025353172.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
+```go
+static void ip_mc_inc_group(struct device *dev, unsigned long addr)
+{
+	struct ip_mc_list *i;
+	// 遍历该设置维护的多播组队列，判断是否已经有socket加入过该多播组，是则引用数加一
+	for(i=dev->ip_mc_list;i!=NULL;i=i->next)
+	{
+		if(i->multiaddr==addr)
+		{
+			i->users++;
+			return;
+		}
+	}
+	// 到这说明，还没有socket加入过当前多播组，则记录并加入
+	i=(struct ip_mc_list *)kmalloc(sizeof(*i), GFP_KERNEL);
+	if(!i)
+		return;
+	i->users=1;
+	i->interface=dev;
+	i->multiaddr=addr;
+	i->next=dev->ip_mc_list;
+	// 通过igmp通知其他方
+	igmp_group_added(i);
+	dev->ip_mc_list=i;
+}
+```
+ip_mc_inc_group函数的主要逻辑是判断socket想要加入的多播组是不是已经存在于当前device中，如果不是则新增一个节点。继续调用igmp_group_added
+```go
+static void igmp_group_added(struct ip_mc_list *im)
+{
+	// 初始化定时器
+	igmp_init_timer(im);
+	// 发送一个igmp数据包，同步多播组信息（socket加入了一个新的多播组）
+	igmp_send_report(im->interface, im->multiaddr, IGMP_HOST_MEMBERSHIP_REPORT);
+	// 转换多播组ip到多播mac地址，并记录到device中
+	ip_mc_filter_add(im->interface, im->multiaddr);
+}
+```
+我们看看igmp_send_report和ip_mc_filter_add的具体逻辑。
+```go
+static void igmp_send_report(struct device *dev, unsigned long address, int type)
+{
+	// 申请一个skb表示一个数据包
+	struct sk_buff *skb=alloc_skb(MAX_IGMP_SIZE, GFP_ATOMIC);
+	int tmp;
+	struct igmphdr *igh;
+	// 构建ip头，ip协议头的源ip是INADDR_ANY，即随机选择一个本机的，目的ip为多播组ip（address）
+	tmp=ip_build_header(skb, INADDR_ANY, address, &dev, IPPROTO_IGMP, NULL,
+				skb->mem_len, 0, 1);
+	// data表示所有的数据部分，tmp表示ip头大小，所以igh就是ip协议的数据部分，即igmp报文的内容
+	igh=(struct igmphdr *)(skb->data+tmp);
+	skb->len=tmp+sizeof(*igh);
+	igh->csum=0;
+	igh->unused=0;
+	igh->type=type;
+	igh->group=address;
+	igh->csum=ip_compute_csum((void *)igh,sizeof(*igh));
+	// 调用ip层发送出去
+	ip_queue_xmit(NULL,dev,skb,1);
+}
+```
+igmp_send_report其实就是构造一个igmp协议数据包，然后发送出去，igmp的协议格式如下
+```go
+struct igmphdr
+{
+	// 类型
+	unsigned char type;
+	unsigned char unused;
+	// 校验和
+	unsigned short csum;
+	// igmp的数据部分，比如加入多播组的时候，group表示多播组ip
+	unsigned long group;
+};
+```
+接着我们看ip_mc_filter_add
+```go
+void ip_mc_filter_add(struct device *dev, unsigned long addr)
+{
+	char buf[6];
+	// 把多播组ip转成mac多播地址
+	addr=ntohl(addr);
+	buf[0]=0x01;
+	buf[1]=0x00;
+	buf[2]=0x5e;
+	buf[5]=addr&0xFF;
+	addr>>=8;
+	buf[4]=addr&0xFF;
+	addr>>=8;
+	buf[3]=addr&0x7F;
+	dev_mc_add(dev,buf,ETH_ALEN,0);
+}
+```
+我们知道ip地址是32位，mac地址是48位，但是IANA规定，ipv4组播MAC地址的高24位是0x01005E，第25位是0，低23位是ipv4组播地址的低23位。而多播的ip地址高四位固定是1110。另外低23位被映射到mac多播地址的23位，所以多播ip地址中，有5位是可以随机组合的。这就意味着，每32个多播ip地址，映射到一个mac地址。这会带来一些问题，假设主机x加入了多播组a，主机y加入了多播组b，而a和b对应的mac多播地址是一样的。当主机z给多播组a发送一个数据包的时候，这时候主机x和y的网卡都会处理该数据包，并上报到上层，但是多播组a对应的mac多播地址和多播组b是一样的。我们拿到一个多播组ip的时候，可以计算出他的多播mac地址，但是反过来就不行，因为一个多播mac地址对应了32个多播ip地址。那主机x和y怎么判断是不是发给自己的数据包？因为device维护了一个本device上的多播ip列表，操作系统根据收到的数据包中的ip目的地址和device的多播ip列表对比。如果在列表中，则说明是发给自己的。最后我们看看dev_mc_add。device中维护了当前的mac多播地址列表，他会把这个列表信息同步到网卡中，使得网卡可以处理该列表中多播mac地址的数据包。
+![](https://img-blog.csdnimg.cn/20200913025632652.png#pic_center)
+```go
+void dev_mc_add(struct device *dev, void *addr, int alen, int newonly)
+{
+	struct dev_mc_list *dmi;
+	// device维护的多播mac地址列表
+	for(dmi=dev->mc_list;dmi!=NULL;dmi=dmi->next)
+	{
+		// 已存在，则引用计数加一
+		if(memcmp(dmi->dmi_addr,addr,dmi->dmi_addrlen)==0 && dmi->dmi_addrlen==alen)
+		{
+			if(!newonly)
+				dmi->dmi_users++;
+			return;
+		}
+	}
+	// 不存在则新增一个项到device列表中
+	dmi=(struct dev_mc_list *)kmalloc(sizeof(*dmi),GFP_KERNEL);
+	memcpy(dmi->dmi_addr, addr, alen);
+	dmi->dmi_addrlen=alen;
+	dmi->next=dev->mc_list;
+	dmi->dmi_users=1;
+	dev->mc_list=dmi;
+	dev->mc_count++;
+	// 通知网卡需要处理该多播mac地址
+	dev_mc_upload(dev);
+}
+```
+网卡的工作模式有几种，分别是正常模式（只接收发给自己的数据包）、混杂模式（接收所有数据包）、多播模式（接收一般数据包和多播数据包）。网卡默认是只处理发给自己的数据包，所以当我们加入一个多播组的时候，我们需要告诉网卡，当收到该多播组的数据包时，需要处理，而不是忽略。dev_mc_upload函数就是通知网卡。
+
+```go
+void dev_mc_upload(struct device *dev)
+{
+	struct dev_mc_list *dmi;
+	char *data, *tmp;
+	// 不工作了
+	if(!(dev->flags&IFF_UP))
+		return;
+	// 当前是混杂模式，则不需要设置多播了，因为网卡会处理所有收到的数据，不管是不是发给自己的
+	if(dev->flags&IFF_PROMISC)
+	{
+		dev->set_multicast_list(dev, -1, NULL);
+		return;
+	}
+	// 多播地址个数，为0，则设置网卡工作模式为正常模式，因为不需要处理多播了
+	if(dev->mc_count==0)
+	{
+		dev->set_multicast_list(dev,0,NULL);
+		return;
+	}
+	
+	data=kmalloc(dev->mc_count*dev->addr_len, GFP_KERNEL);
+	// 复制所有的多播mac地址信息
+	for(tmp = data, dmi=dev->mc_list;dmi!=NULL;dmi=dmi->next)
+	{
+		memcpy(tmp,dmi->dmi_addr, dmi->dmi_addrlen);
+		tmp+=dev->addr_len;
+	}
+	// 告诉网卡
+	dev->set_multicast_list(dev,dev->mc_count,data);
+	kfree(data);
+}
+```
+最后我们看一下set_multicast_list
+```go
+static void
+set_multicast_list(struct device *dev, int num_addrs, void *addrs)
+{
+    int ioaddr = dev->base_addr;
+	// 多播模式
+    if (num_addrs > 0) {
+	outb(RX_MULT, RX_CMD);
+	inb(RX_STATUS);		/* Clear status. */
+    } else if (num_addrs < 0) { // 混杂模式
+	outb(RX_PROM, RX_CMD);
+	inb(RX_STATUS);
+    } else { // 正常模式
+	outb(RX_NORM, RX_CMD);
+	inb(RX_STATUS);
+    }
+}
+```
+set_multicast_list就是设置网卡工作模式的函数。至此，我们就成功加入了一个多播组。离开一个多播组也是类似的过程。
+
+### 2.3.2 开启多播
+udp的多播能力是需要用户主动开启的，原因是防止用户发送udp数据包的时候，误传了一个多播地址，但其实用户是想发送一个单播的数据包。我们可以通过setBroadcast开启多播能力。我们看libuv的代码。
+```
+int uv_udp_set_broadcast(uv_udp_t* handle, int on) {
+  if (setsockopt(handle->io_watcher.fd,
+                 SOL_SOCKET,
+                 SO_BROADCAST,
+                 &on,
+                 sizeof(on))) {
+    return UV__ERR(errno);
+  }
+
+  return 0;
+}
+```
+再看看操作系统的实现。
+```
+int sock_setsockopt(struct sock *sk, int level, int optname,
+		char *optval, int optlen){
+	...
+	case SO_BROADCAST:
+		sk->broadcast=val?1:0;
+}
+```
+我们看到实现很简单，就是设置一个标记位。当我们发送消息的时候，如果目的地址是多播地址，但是又没有设置这个标记，则会报错。
+### 2.3.3 其他功能
+udp模块还提供了其他一些功能，比如设置读写缓冲区大小，ttl（单播的时候，ip协议头中的ttl字段）、多播ttl（多播的时候，ip协议的ttl字段）等。这些都是对操作系统api的封装，就不一一分析。
+
