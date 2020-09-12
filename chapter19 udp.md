@@ -553,10 +553,6 @@ udp支持多播，tcp则不支持，因为tcp是基于连接和可靠的，多�
 当主机1给多播组1发送数据的时候，主机2，4可以收到，主机3则无法收到。我们再来看看广域网的多播。广域网的多播需要路由器的支持，多个路由器之间会使用多播路由协议交换多播组的信息。假设有以下广域网。
 ![](https://img-blog.csdnimg.cn/20200912012350687.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
 当主机1给多播组1发送数据的时候，路由器1会给路由器2发送一份数据（通过多播路由协议交换了信息，路由1知道路由器2的主机4在多播组1中），但是路由器2不会给路由器3发送数据，因为他知道路由器3对应的网络中没有主机在多播组1。以上是多播的一些概念。nodejs中关于多播的实现，基本是对操作系统api的封装，所以就不打算讲解，我们直接看操作系统中对于多播的实现。
-
-在网络驱动层中也维护了多播的信息
-![](https://img-blog.csdnimg.cn/20200913012934978.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
-device是对网络驱动层的抽象，每个device维护了当前多播组ip和device间的关系。还有多播组ip和对应的mac多播地址的关系。下面我们看看操作系统的一些具体的实现。我们看一下多播的实现。
 ### 2.3.1 加入一个多播组
 可以通过以下代码加入一个多播组。
 ```go
