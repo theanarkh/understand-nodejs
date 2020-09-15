@@ -844,3 +844,4 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 ### 2.3.3 其他功能
 udp模块还提供了其他一些功能，比如设置读写缓冲区大小，ttl（单播的时候，ip协议头中的ttl字段）、多播ttl（多播的时候，ip协议的ttl字段）等。这些都是对操作系统api的封装，就不一一分析。
 
+更多参考[通过源码理解IGMP v1的实现（基于linux1.2.13）](https://mp.weixin.qq.com/s?__biz=MzUyNDE2OTAwNw==&mid=2247485002&idx=1&sn=9ee8601567844376326c40edff61edb0&chksm=fa303c0acd47b51cadb4d5a50e967b20d5824792605cdee3181fad721c767c8c15f011ee8ad1&token=1727487227&lang=zh_CN#rd)
