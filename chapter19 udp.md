@@ -841,7 +841,30 @@ int sock_setsockopt(struct sock *sk, int level, int optname,
 }
 ```
 我们看到实现很简单，就是设置一个标记位。当我们发送消息的时候，如果目的地址是多播地址，但是又没有设置这个标记，则会报错。
+```
+if(!sk->broadcast && ip_chk_addr(sin.sin_addr.s_addr)==IS_BROADCAST)
+	  return -EACCES;	
+```
+上面代码来自调用udp的发送函数（例如sendto）时，进行的校验，如果发送的目的ip是多播地址，但是没有设置多播标记，则报错。
 ### 2.3.3 其他功能
-udp模块还提供了其他一些功能，比如设置读写缓冲区大小，ttl（单播的时候，ip协议头中的ttl字段）、多播ttl（多播的时候，ip协议的ttl字段）等。这些都是对操作系统api的封装，就不一一分析。
-
+udp模块还提供了其他一些功能
+1 获取本端地址address
+如果用户没有显示调用bind绑定自己设置的ip和端口，那么操作系统就会随机选择。通过address函数就可以获取操作系统选择的源ip和端口。
+2 获取对端的地址
+通过remoteAddress函数可以获取对端地址。该地址由用户调用connect或sendto函数时设置。
+3 获取/设置缓冲区大小get/setRecvBufferSize，get/setSendBufferSize
+4 setMulticastLoopback
+发送多播数据包的时候，如果多播ip在出口设备的多播列表中，则给回环设备也发一份。
+5 setMulticastInterface
+设置多播数据的出口设备
+6 加入或退出多播组addMembership/dropMembership 
+7 addSourceSpecificMembership/dropSourceSpecificMembership
+这两个函数是设置本端只接收特性源（主机）的多播数据包。
+8 setTTL
+单播ttl（单播的时候，ip协议头中的ttl字段）。
+9 setMulticastTTL
+多播ttl（多播的时候，ip协议的ttl字段）。
+10 ref/unref
+这两个函数设置如果nodejs主进程中只有udp对应的handle时，是否允许nodejs退出。nodejs事件循环的退出的条件之一是是否还有ref状态的handle。
+这些都是对操作系统api的封装，就不一一分析。
 更多参考[通过源码理解IGMP v1的实现（基于linux1.2.13）](https://mp.weixin.qq.com/s?__biz=MzUyNDE2OTAwNw==&mid=2247485002&idx=1&sn=9ee8601567844376326c40edff61edb0&chksm=fa303c0acd47b51cadb4d5a50e967b20d5824792605cdee3181fad721c767c8c15f011ee8ad1&token=1727487227&lang=zh_CN#rd)
