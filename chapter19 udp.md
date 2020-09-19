@@ -13,7 +13,7 @@ recvmsg()；
 ```
 ## 1.2 客户端流程
 客户端的流程有多种方式，原因在于源ip和端口可以有多种设置方式，不像服务器一样，服务器的ip和端口是需要对外公布的，否则客户端就无法找到目的地进行通信。这就意味着服务器的ip端口是需要用户显式指定的，而客户端则不然，客户端的ip端口是随意选择的，用户可以自己指定，也可以由操作系统决定，下面我们看看各种使用方式。<br />
-1.2.1 显式指定ip端口
+### 1.2.1 显式指定ip端口
 ```c
 // 申请一个socket
 int fd = socket(...);
@@ -22,7 +22,7 @@ bind(fd, ip， port);
 // 给服务器发送数据
 sendto(fd, 服务器ip,服务器端口, data);
 ```
-1.2.2 由操作系统决定源ip和端口
+### 1.2.2 由操作系统决定源ip和端口
 ```c
 // 申请一个socket
 int fd = socket(...);
@@ -1210,7 +1210,7 @@ if (MULTICAST(iph->daddr) && !(dev->flags&IFF_LOOPBACK))
 }
 ```
 以上代码来自ip层发送数据包时的逻辑。如果我们设置了sk->ip_mc_loop字段为1，并且数据包的目的ip在出口设备的多播列表中，则需要给自己回传一份。那么我们如何关闭这个特性呢？调用udp.setMulticastLoopback(false)就可以了。<br />
-更多参考
+更多参考<br/>
 1 [通过源码理解IGMP v1的实现（基于linux1.2.13）](https://mp.weixin.qq.com/s?__biz=MzUyNDE2OTAwNw==&mid=2247485002&idx=1&sn=9ee8601567844376326c40edff61edb0&chksm=fa303c0acd47b51cadb4d5a50e967b20d5824792605cdee3181fad721c767c8c15f011ee8ad1&token=1727487227&lang=zh_CN#rd)<br />
 2 [UDP协议源码解析之接收](https://blog.csdn.net/THEANARKH/article/details/87489084)<br/>
 3 [UDP协议源码解析之发送](https://blog.csdn.net/theanarkh/article/details/87488106)
