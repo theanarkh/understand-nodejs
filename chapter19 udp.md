@@ -846,25 +846,109 @@ if(!sk->broadcast && ip_chk_addr(sin.sin_addr.s_addr)==IS_BROADCAST)
 	  return -EACCES;	
 ```
 上面代码来自调用udp的发送函数（例如sendto）时，进行的校验，如果发送的目的ip是多播地址，但是没有设置多播标记，则报错。
-### 2.3.3 其他功能
-udp模块还提供了其他一些功能
-1 获取本端地址address
-如果用户没有显示调用bind绑定自己设置的ip和端口，那么操作系统就会随机选择。通过address函数就可以获取操作系统选择的源ip和端口。
-2 获取对端的地址
-通过remoteAddress函数可以获取对端地址。该地址由用户调用connect或sendto函数时设置。
-3 获取/设置缓冲区大小get/setRecvBufferSize，get/setSendBufferSize
-4 setMulticastLoopback
-发送多播数据包的时候，如果多播ip在出口设备的多播列表中，则给回环设备也发一份。
-5 setMulticastInterface
-设置多播数据的出口设备
-6 加入或退出多播组addMembership/dropMembership 
-7 addSourceSpecificMembership/dropSourceSpecificMembership
-这两个函数是设置本端只接收特性源（主机）的多播数据包。
-8 setTTL
-单播ttl（单播的时候，ip协议头中的ttl字段）。
-9 setMulticastTTL
-多播ttl（多播的时候，ip协议的ttl字段）。
-10 ref/unref
+### 2.3.3 其他功能<br />
+udp模块还提供了其他一些功能<br />
+1 获取本端地址address<br />
+如果用户没有显示调用bind绑定自己设置的ip和端口，那么操作系统就会随机选择。通过address函数就可以获取操作系统选择的源ip和端口。<br />
+2 获取对端的地址<br />
+通过remoteAddress函数可以获取对端地址。该地址由用户调用connect或sendto函数时设置。<br />
+3 获取/设置缓冲区大小get/setRecvBufferSize，get/setSendBufferSize<br />
+4 setMulticastLoopback<br />
+发送多播数据包的时候，如果多播ip在出口设备的多播列表中，则给回环设备也发一份。<br />
+5 setMulticastInterface<br />
+设置多播数据的出口设备<br />
+6 加入或退出多播组addMembership/dropMembership <br />
+7 addSourceSpecificMembership/dropSourceSpecificMembership<br />
+这两个函数是设置本端只接收特性源（主机）的多播数据包。<br />
+8 setTTL<br />
+单播ttl（单播的时候，ip协议头中的ttl字段）。<br />
+9 setMulticastTTL<br />
+多播ttl（多播的时候，ip协议的ttl字段）。<br />
+10 ref/unref<br />
 这两个函数设置如果nodejs主进程中只有udp对应的handle时，是否允许nodejs退出。nodejs事件循环的退出的条件之一是是否还有ref状态的handle。
 这些都是对操作系统api的封装，就不一一分析。
+
+# 在nodejs中使用udp
+局域网中有两个局域网ip，分别是192.168.8.164和192.168.8.226
+## 单播
+服务器端
+```
+const dgram = require('dgram');
+const udp = dgram.createSocket('udp4');
+udp.bind(1234);
+udp.on('message', (msg, remoteInfo) => {
+    console.log(`receive msg: ${msg} from ${remoteInfo.address}:${remoteInfo.port}`);
+});
+```
+客户端
+```
+const dgram = require('dgram');
+const udp = dgram.createSocket('udp4');
+udp.bind(1234);
+udp.send('test', 1234, '192.168.8.226'); 
+```
+我们会看到服务端会显示receive msg test from 192.168.8.164:1234。
+## 多播
+服务器
+```
+const dgram = require('dgram');
+const udp = dgram.createSocket('udp4');
+
+udp.bind(1234, () => {
+    // 局域网多播地址（224.0.0.0~224.0.0.255，该范围的多播数据包，路由器不会转发）
+    udp.addMembership('224.0.0.114');
+});
+
+udp.on('message', (msg, rinfo) => {
+    console.log(`receive msg: ${msg} from ${rinfo.address}:${rinfo.port}`);
+});
+```
+服务器绑定1234端口后，加入多播组224.0.0.114，然后等待多播数据的到来。
+客户端
+```
+const dgram = require('dgram');
+const udp = dgram.createSocket('udp4');
+udp.bind(1234, () => {
+    udp.addMembership('224.0.0.114');
+});
+udp.send('test', 1234, '224.0.0.114', (err) => {}); 
+```
+客户端绑定1234端口后，也加入了多播组224.0.0.114，然后发送数据，但是发现服务端没有收到数据，客户端打印了receive msg test from 169.254.167.41:1234。这怎么多了一个ip出来？原来我主机有两个局域网地址。当我们加入多播组的时候，不仅可以设置加入哪个多播组，还能设置出口的设备和ip。当我们调用udp.addMembership('224.0.0.114')的时候，我们只是设置了我们加入的多播组，没有设置出口。这时候操作系统会为我们选择一个。根据输出，我们发现操作系统选择的是169.254.167.41（子网掩码是255.255.0.0）。因为这个ip和192开头的那个不是同一子网，但是我们加入的是局域网的多播ip，所有服务端无法收到客户端发出的数据包。下面是nodejs文档的解释。
+```
+Tells the kernel to join a multicast group at the given multicastAddress and multicastInterface using the IP_ADD_MEMBERSHIP socket option. If the multicastInterface argument is not specified, the operating system will choose one interface and will add membership to it. To add membership to every available interface, call addMembership multiple times, once per interface.
+```
+我们看一下操作系统的相关逻辑。
+```
+if(MULTICAST(daddr) && *dev==NULL && skb->sk && *skb->sk->ip_mc_name)
+		*dev=dev_get(skb->sk->ip_mc_name);
+```
+上面的代码来自操作系统发送ip数据包时的逻辑，如果目的ip似乎多播地址并且ip_mc_name非空（即我们通过addMembership第二个参数设置的值），则出口设备就是我们设置的值。否则操作系统自己选。所以我们需要显示指定这个出口，把代码改成udp.addMembership('224.0.0.114', '192.168.8.164');重新执行发现客户端和服务器都显示了receive msg test from 192.168.8.164:1234。为什么客户端自己也会收到呢？原来操作系统发送多播数据的时候，也会给自己发送一份。我们看看相关逻辑
+```
+// 目的地是多播地址，并且不是回环设备 
+if (MULTICAST(iph->daddr) && !(dev->flags&IFF_LOOPBACK))
+{
+	// 是否需要给自己一份，默认为true
+	if(sk==NULL || sk->ip_mc_loop)
+	{	
+		// 给所有多播组的所有主机的数据包，则直接给自己一份
+		if(iph->daddr==IGMP_ALL_HOSTS)
+			ip_loopback(dev,skb);
+		else
+		{	
+			// 判断目的ip是否在当前设备的多播ip列表中，是的回传一份
+			struct ip_mc_list *imc=dev->ip_mc_list;
+			while(imc!=NULL)
+			{
+				if(imc->multiaddr==iph->daddr)
+				{
+					ip_loopback(dev,skb);
+					break;
+				}
+				imc=imc->next;
+			}
+		}
+	}
+}
+```
+以上代码来自ip层发送数据包时的逻辑。如果我们设置了sk->ip_mc_loop字段为1，并且数据包的目的ip在出口设备的多播列表中，则需要给自己回传一份。那么我们如何关闭这个特性呢？调用udp.setMulticastLoopback(false)就可以了。
 更多参考[通过源码理解IGMP v1的实现（基于linux1.2.13）](https://mp.weixin.qq.com/s?__biz=MzUyNDE2OTAwNw==&mid=2247485002&idx=1&sn=9ee8601567844376326c40edff61edb0&chksm=fa303c0acd47b51cadb4d5a50e967b20d5824792605cdee3181fad721c767c8c15f011ee8ad1&token=1727487227&lang=zh_CN#rd)
