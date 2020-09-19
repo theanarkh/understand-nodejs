@@ -1209,5 +1209,8 @@ if (MULTICAST(iph->daddr) && !(dev->flags&IFF_LOOPBACK))
 	}
 }
 ```
-以上代码来自ip层发送数据包时的逻辑。如果我们设置了sk->ip_mc_loop字段为1，并且数据包的目的ip在出口设备的多播列表中，则需要给自己回传一份。那么我们如何关闭这个特性呢？调用udp.setMulticastLoopback(false)就可以了。
-更多参考[通过源码理解IGMP v1的实现（基于linux1.2.13）](https://mp.weixin.qq.com/s?__biz=MzUyNDE2OTAwNw==&mid=2247485002&idx=1&sn=9ee8601567844376326c40edff61edb0&chksm=fa303c0acd47b51cadb4d5a50e967b20d5824792605cdee3181fad721c767c8c15f011ee8ad1&token=1727487227&lang=zh_CN#rd)
+以上代码来自ip层发送数据包时的逻辑。如果我们设置了sk->ip_mc_loop字段为1，并且数据包的目的ip在出口设备的多播列表中，则需要给自己回传一份。那么我们如何关闭这个特性呢？调用udp.setMulticastLoopback(false)就可以了。<br />
+更多参考
+1 [通过源码理解IGMP v1的实现（基于linux1.2.13）](https://mp.weixin.qq.com/s?__biz=MzUyNDE2OTAwNw==&mid=2247485002&idx=1&sn=9ee8601567844376326c40edff61edb0&chksm=fa303c0acd47b51cadb4d5a50e967b20d5824792605cdee3181fad721c767c8c15f011ee8ad1&token=1727487227&lang=zh_CN#rd)<br />
+2 [UDP协议源码解析之接收](https://blog.csdn.net/THEANARKH/article/details/87489084)<br/>
+3 [UDP协议源码解析之发送](https://blog.csdn.net/theanarkh/article/details/87488106)
