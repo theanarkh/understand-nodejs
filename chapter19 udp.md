@@ -51,7 +51,7 @@ write(fd, data);
 ## 1.4 接收数据
 当收到一个udp数据包的时候，操作系统首先会把这个数据包缓存到socket的缓冲区，如果收到的数据包比当前缓冲区大小大，则丢弃数据包（关于大小的限制可以参考1.3章节），否则把数据包挂载到接收队列，等用户来读取的时候，就逐个摘下接收队列的节点。
 
-# 2 在nodejs中使用udp
+# 2 udp模块在nodejs中的实现
 ## 2.1 udp服务器
 我们从一个使用例子开始看看udp模块的实现。
 ```c
@@ -366,7 +366,7 @@ static void uv__udp_recvmsg(uv_udp_t* handle) {
   }
 }
 ```
-libuv会回调c++层，然后c++层回调到js层，最后触发message事件，这就是对应开始那段代码的message事件。
+最终通过操作系统调用recvmsg读取数据，操作系统收到一个udp数据包的时候，会挂载到socket的接收队列，如果满了则会丢弃，当用户调用recvmsg函数的时候，操作系统就把接收队列中节点逐个返回给用户。读取完后，libuv会回调c++层，然后c++层回调到js层，最后触发message事件，这就是对应开始那段代码的message事件。
 
 ## 2.2 客户端
 udp客户端的流程是<br />
@@ -528,7 +528,7 @@ function _connect(port, address, callback) {
 ```
 这里的address是服务器地址，_connect函数主要逻辑是<br />
 1 监听connect事件<br />
-2 对服务器地址进行dns解析（如果需要的话）。解析成功后执行afterDns，最后执行doConnect，并传入解析出来的ip。我们看看doConnect
+2 对服务器地址进行dns解析（只能是本地的配的域名）。解析成功后执行afterDns，最后执行doConnect，并传入解析出来的ip。我们看看doConnect
 ```go
 function doConnect(ex, self, ip, address, port, callback) {
   const state = self[kStateSymbol];
@@ -547,13 +547,272 @@ function doConnect(ex, self, ip, address, port, callback) {
 ```
 connect函数通过c++层，然后调用libuv，到操作系统的connect。作用是把服务器地址保存到socket中。connect的流程就走完了。接下来我们就可以调用send和recv发送和接收数据。
 
-## 2.3 多播
+## 2.3 发送数据
+发送数据接口是sendto，他是对send的封装。
+```
+Socket.prototype.send = function(buffer,
+                                 offset,
+                                 length,
+                                 port,
+                                 address,
+                                 callback) {
+
+  let list;
+  const state = this[kStateSymbol];
+  const connected = state.connectState === CONNECT_STATE_CONNECTED;
+  // 没有调用connect绑定过服务端地址，则需要传服务端地址信息
+  if (!connected) {
+    if (address || (port && typeof port !== 'function')) {
+      buffer = sliceBuffer(buffer, offset, length);
+    } else {
+      callback = port;
+      port = offset;
+      address = length;
+    }
+  } else {
+    if (typeof length === 'number') {
+      buffer = sliceBuffer(buffer, offset, length);
+      if (typeof port === 'function') {
+        callback = port;
+        port = null;
+      }
+    } else {
+      callback = offset;
+    }
+    // 已经绑定了服务端地址，则不能再传了
+    if (port || address)
+      throw new ERR_SOCKET_DGRAM_IS_CONNECTED();
+  }
+  // 如果没有绑定服务器端口，则这里需要传，并且校验
+  if (!connected)
+    port = validatePort(port);
+  // 忽略一些参数处理逻辑
+  // 没有绑定客户端地址信息，则需要先绑定，值由操作系统决定
+  if (state.bindState === BIND_STATE_UNBOUND)
+    this.bind({ port: 0, exclusive: true }, null);
+  // bind还没有完成，则先入队，等待bind完成再执行
+  if (state.bindState !== BIND_STATE_BOUND) {
+    enqueue(this, this.send.bind(this, list, port, address, callback));
+    return;
+  }
+  // 已经绑定了，设置服务端地址后发送数据
+  const afterDns = (ex, ip) => {
+    defaultTriggerAsyncIdScope(
+      this[async_id_symbol],
+      doSend,
+      ex, this, ip, list, address, port, callback
+    );
+  };
+  // 传了地址则可能需要dns解析
+  if (!connected) {
+    state.handle.lookup(address, afterDns);
+  } else {
+    afterDns(null, null);
+  }
+}
+```
+我们继续看doSend函数。
+```
+function doSend(ex, self, ip, list, address, port, callback) {
+  const state = self[kStateSymbol];
+  // dns解析出错
+  if (ex) {
+    if (typeof callback === 'function') {
+      process.nextTick(callback, ex);
+      return;
+    }
+    process.nextTick(() => self.emit('error', ex));
+    return;
+  }
+  // 定义一个请求对象
+  const req = new SendWrap();
+  req.list = list;  // Keep reference alive.
+  req.address = address;
+  req.port = port;
+  // 设置nodejs和用户的回调，oncomplete由c++层调用，callback由oncomplete调用
+  if (callback) {
+    req.callback = callback;
+    req.oncomplete = afterSend;
+  }
+
+  let err;
+  // 根据是否需要设置服务端地址，调c++层函数
+  if (port)
+    err = state.handle.send(req, list, list.length, port, ip, !!callback);
+  else
+    err = state.handle.send(req, list, list.length, !!callback);
+  // err大于等于1说明同步发送成功了，直接执行回调，否则等待异步回调
+  if (err >= 1) {
+    if (callback)
+      process.nextTick(callback, null, err - 1);
+    return;
+  }
+  // 发送失败
+  if (err && callback) {
+    // Don't emit as error, dgram_legacy.js compatibility
+    const ex = exceptionWithHostPort(err, 'send', address, port);
+    process.nextTick(callback, ex);
+  }
+}
+```
+我们穿过c++层，直接看libuv的代码。
+```
+int uv__udp_send(uv_udp_send_t* req,
+                 uv_udp_t* handle,
+                 const uv_buf_t bufs[],
+                 unsigned int nbufs,
+                 const struct sockaddr* addr,
+                 unsigned int addrlen,
+                 uv_udp_send_cb send_cb) {
+  int err;
+  int empty_queue;
+
+  assert(nbufs > 0);
+  // 还没有绑定服务端地址，则绑定
+  if (addr) {
+    err = uv__udp_maybe_deferred_bind(handle, addr->sa_family, 0);
+    if (err)
+      return err;
+  }
+  // 当前写队列是否为空
+  empty_queue = (handle->send_queue_count == 0);
+  // 初始化一个写请求
+  uv__req_init(handle->loop, req, UV_UDP_SEND);
+  if (addr == NULL)
+    req->addr.ss_family = AF_UNSPEC;
+  else
+    memcpy(&req->addr, addr, addrlen);
+  // 保存上下文
+  req->send_cb = send_cb;
+  req->handle = handle;
+  req->nbufs = nbufs;
+  // 初始化数据，预分配的内存不够，则分配新的堆内存
+  req->bufs = req->bufsml;
+  if (nbufs > ARRAY_SIZE(req->bufsml))
+    req->bufs = uv__malloc(nbufs * sizeof(bufs[0]));
+  // 复制过去堆中
+  memcpy(req->bufs, bufs, nbufs * sizeof(bufs[0]));
+  // 更新写队列数据
+  handle->send_queue_size += uv__count_bufs(req->bufs, req->nbufs);
+  handle->send_queue_count++;
+  // 插入写队列，等待可写事件的发生
+  QUEUE_INSERT_TAIL(&handle->write_queue, &req->queue);
+  uv__handle_start(handle);
+  // 当前写队列为空，则直接开始写，否则设置等待可写队列
+  if (empty_queue && !(handle->flags & UV_HANDLE_UDP_PROCESSING)) {
+    // 发送数据
+    uv__udp_sendmsg(handle);
+    // 写队列是否非空，则设置等待可写事件，可写的时候接着写
+    if (!QUEUE_EMPTY(&handle->write_queue))
+      uv__io_start(handle->loop, &handle->io_watcher, POLLOUT);
+  } else {
+    uv__io_start(handle->loop, &handle->io_watcher, POLLOUT);
+  }
+  return 0;
+}
+
+```
+该函数把写请求插入写队列中等待可写事件的到来。然后注册等待可写事件。当可写事件触发的时候，执行的函数是uv__udp_io。
+```
+static void uv__udp_io(uv_loop_t* loop, uv__io_t* w, unsigned int revents) {
+  uv_udp_t* handle;
+  if (revents & POLLOUT) {
+    uv__udp_sendmsg(handle);
+    uv__udp_run_completed(handle);
+  }
+}
+```
+我们先看uv__udp_sendmsg
+```
+static void uv__udp_sendmsg(uv_udp_t* handle) {
+  uv_udp_send_t* req;
+  QUEUE* q;
+  struct msghdr h;
+  ssize_t size;
+  // 逐个节点发送
+  while (!QUEUE_EMPTY(&handle->write_queue)) {
+    q = QUEUE_HEAD(&handle->write_queue);
+    req = QUEUE_DATA(q, uv_udp_send_t, queue);
+    memset(&h, 0, sizeof h);
+    // 忽略参数处理
+    h.msg_iov = (struct iovec*) req->bufs;
+    h.msg_iovlen = req->nbufs;
+
+    do {
+      size = sendmsg(handle->io_watcher.fd, &h, 0);
+    } while (size == -1 && errno == EINTR);
+
+    if (size == -1) {
+      // 繁忙则先不发了，等到可写事件
+      if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOBUFS)
+        break;
+    }
+    // 记录发送结果
+    req->status = (size == -1 ? UV__ERR(errno) : size);
+    // 发送“完”移出写队列
+    QUEUE_REMOVE(&req->queue);
+    // 加入写完成队列
+    QUEUE_INSERT_TAIL(&handle->write_completed_queue, &req->queue);
+    // 有节点数据写完了，把io观察者插入pending队列，pending阶段执行回调uv__udp_io
+    uv__io_feed(handle->loop, &handle->io_watcher);
+  }
+}
+```
+该函数遍历写队列，然后逐个发送节点中的数据，并记录发送结果，
+1 如果写繁忙则结束写逻辑，等待下一次写事件触发。<br />
+2 如果写成功则把节点插入写完成队列中，并且把io观察者插入pending队列，等待pending阶段执行回调uv__udp_io。
+我们再次回到uv__udp_io中
+```
+if (revents & POLLOUT) {
+    uv__udp_sendmsg(handle);
+    uv__udp_run_completed(handle);
+}
+```
+当写事件触发时，执行完数据发送的逻辑后还会处理写完成队列。我们看uv__udp_run_completed。
+```
+static void uv__udp_run_completed(uv_udp_t* handle) {
+  uv_udp_send_t* req;
+  QUEUE* q;
+  handle->flags |= UV_HANDLE_UDP_PROCESSING;
+  // 逐个节点处理
+  while (!QUEUE_EMPTY(&handle->write_completed_queue)) {
+    q = QUEUE_HEAD(&handle->write_completed_queue);
+    QUEUE_REMOVE(q);
+    req = QUEUE_DATA(q, uv_udp_send_t, queue);
+    uv__req_unregister(handle->loop, req);
+    // 更新待写数据大小
+    handle->send_queue_size -= uv__count_bufs(req->bufs, req->nbufs);
+    handle->send_queue_count--;
+    // 如果重新申请了堆内存，则需要释放
+    if (req->bufs != req->bufsml)
+      uv__free(req->bufs);
+    req->bufs = NULL;
+    if (req->send_cb == NULL)
+      continue;
+    // 执行回调
+    if (req->status >= 0)
+      req->send_cb(req, 0);
+    else
+      req->send_cb(req, req->status);
+  }
+  // 写队列为空，则注销等待可写事件
+  if (QUEUE_EMPTY(&handle->write_queue)) {
+    uv__io_stop(handle->loop, &handle->io_watcher, POLLOUT);
+    if (!uv__io_active(&handle->io_watcher, POLLIN))
+      uv__handle_stop(handle);
+  }
+  handle->flags &= ~UV_HANDLE_UDP_PROCESSING;
+}
+```
+这就是发送的逻辑，发送完后libuv会调用c++回调，最后回调js层回调。具体到操作系统也是类似的实现，操作系统首先判断数据的大小是否小于写缓冲区，是的话申请一块内存，然后构造udp协议数据包，再逐层往下调，最后发送出来，但是如果数据超过了底层的报文大小限制，则会被分片。
+
+## 2.4 多播
 udp支持多播，tcp则不支持，因为tcp是基于连接和可靠的，多播则会带来过多的连接和流量。多播分为局域网多播和广域网多播，我们知道在局域网内发生一个数据，是会以广播的形式发送到各个主机的，主机根据目的地址判断是否需要处理该数据包。如果udp是单播的模式，则只会有一个主机会处理该数据包。如果udp是多播的模式，则有多个主机处理该数据包。多播的时候，存在一个多播组的概念，只有加入这个组的主机才能处理该组的数据包。假设有以下局域网
 ![](https://img-blog.csdnimg.cn/2020091201131651.png#pic_center)
 当主机1给多播组1发送数据的时候，主机2，4可以收到，主机3则无法收到。我们再来看看广域网的多播。广域网的多播需要路由器的支持，多个路由器之间会使用多播路由协议交换多播组的信息。假设有以下广域网。
 ![](https://img-blog.csdnimg.cn/20200912012350687.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
 当主机1给多播组1发送数据的时候，路由器1会给路由器2发送一份数据（通过多播路由协议交换了信息，路由1知道路由器2的主机4在多播组1中），但是路由器2不会给路由器3发送数据，因为他知道路由器3对应的网络中没有主机在多播组1。以上是多播的一些概念。nodejs中关于多播的实现，基本是对操作系统api的封装，所以就不打算讲解，我们直接看操作系统中对于多播的实现。
-### 2.3.1 加入一个多播组
+### 2.4.1 加入一个多播组
 可以通过以下代码加入一个多播组。
 ```go
 setsockopt(fd,
@@ -816,7 +1075,7 @@ set_multicast_list(struct device *dev, int num_addrs, void *addrs)
 ```
 set_multicast_list就是设置网卡工作模式的函数。至此，我们就成功加入了一个多播组。离开一个多播组也是类似的过程。
 
-### 2.3.2 开启多播
+### 2.4.2 开启多播
 udp的多播能力是需要用户主动开启的，原因是防止用户发送udp数据包的时候，误传了一个多播地址，但其实用户是想发送一个单播的数据包。我们可以通过setBroadcast开启多播能力。我们看libuv的代码。
 ```
 int uv_udp_set_broadcast(uv_udp_t* handle, int on) {
@@ -846,7 +1105,7 @@ if(!sk->broadcast && ip_chk_addr(sin.sin_addr.s_addr)==IS_BROADCAST)
 	  return -EACCES;	
 ```
 上面代码来自调用udp的发送函数（例如sendto）时，进行的校验，如果发送的目的ip是多播地址，但是没有设置多播标记，则报错。
-### 2.3.3 其他功能<br />
+### 2.4.3 其他功能<br />
 udp模块还提供了其他一些功能<br />
 1 获取本端地址address<br />
 如果用户没有显示调用bind绑定自己设置的ip和端口，那么操作系统就会随机选择。通过address函数就可以获取操作系统选择的源ip和端口。<br />
@@ -868,10 +1127,10 @@ udp模块还提供了其他一些功能<br />
 这两个函数设置如果nodejs主进程中只有udp对应的handle时，是否允许nodejs退出。nodejs事件循环的退出的条件之一是是否还有ref状态的handle。
 这些都是对操作系统api的封装，就不一一分析。
 
-# 具体例子
+# 3 具体例子
 局域网中有两个局域网ip，分别是192.168.8.164和192.168.8.226
 ## 单播
-服务器端
+### 服务器端
 ```
 const dgram = require('dgram');
 const udp = dgram.createSocket('udp4');
@@ -880,7 +1139,7 @@ udp.on('message', (msg, remoteInfo) => {
     console.log(`receive msg: ${msg} from ${remoteInfo.address}:${remoteInfo.port}`);
 });
 ```
-客户端
+### 客户端
 ```
 const dgram = require('dgram');
 const udp = dgram.createSocket('udp4');
@@ -889,7 +1148,7 @@ udp.send('test', 1234, '192.168.8.226');
 ```
 我们会看到服务端会显示receive msg test from 192.168.8.164:1234。
 ## 多播
-服务器
+### 服务器
 ```
 const dgram = require('dgram');
 const udp = dgram.createSocket('udp4');
@@ -904,7 +1163,7 @@ udp.on('message', (msg, rinfo) => {
 });
 ```
 服务器绑定1234端口后，加入多播组224.0.0.114，然后等待多播数据的到来。
-客户端
+### 客户端
 ```
 const dgram = require('dgram');
 const udp = dgram.createSocket('udp4');
