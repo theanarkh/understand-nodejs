@@ -1217,3 +1217,75 @@ connect_req是在uv_pipe_connect的时候设置的，我们继续看uv__stream_c
 ```
 
 至此，作为客户端对服务器的连接就完成了。
+
+### 7.3.5 使用unix域实现兄弟进程通信
+客户端
+```go
+const net = require('net');
+const { EventEmitter } = require('events');
+
+class Work extends EventEmitter {}
+
+class UnixDomainClient extends EventEmitter {
+  constructor(options) {
+    super();
+    this.options = options;
+  }
+  send(data) {
+    const work = new Work();
+    const socket = net.connect(this.options.path);
+    socket.end(JSON.stringify(data));
+    socket.on('error', (e) => {
+      work.emit('error', e);
+    });
+    let res = null;
+    socket.on('data', (chunk) => {
+      res = res ? Buffer.concat([res, chunk]) : chunk;
+    });
+    socket.on('end', () => {
+      work.emit('message', res && res.toString());
+    });
+    return work;
+  }
+}
+const work = new UnixDomainClient({path: '/tmp/test.sock'}).send('hello');
+work.on('message', function(res) {
+  console.log(res);
+})
+
+
+```
+服务器
+
+```go
+const fs = require('fs');
+const net = require('net');
+const constants = {
+  UNIX_PATH: '/tmp/test.sock',
+}
+if (fs.existsSync(constants.UNIX_PATH)) {
+  fs.unlinkSync(constants.UNIX_PATH);
+}
+const server = net.createServer({ allowHalfOpen: true }, (client) => {
+  let data = null;
+  client.on('data', (chunk) => {
+    data = data ? Buffer.concat([data, chunk]) : chunk;
+  });
+  client.on('end', () => {
+    console.log(`recive msg: ${data.toString()}`)
+    client.end('world');
+  });
+});
+server.listen(constants.UNIX_PATH, () => {
+  console.log(`bind uinx path ${constants.UNIX_PATH}`);
+});
+server.on('error', (error) => {
+  console.log(`unix domain server error ${error.toString()}`);
+});
+process.on('exit', () => {
+  if (fs.existsSync(constants.UNIX_PATH)) {
+    fs.unlinkSync(constants.UNIX_PATH);
+  }
+});
+```
+
