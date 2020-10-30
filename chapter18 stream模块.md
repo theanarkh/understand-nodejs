@@ -363,7 +363,7 @@ ReadableState里包含了一大堆字段，我们可以先不管他，等待用�
 31.  this.writing = false;  
 32.  // 加塞，缓存生产者的数据，停止往底层写入  
 33.  this.corked = 0;  
-34.  this.sync = true;  
+34.  this.sync = true;  // 用户定义的_write或者_writev是同步还是异步调用可写流的回调函数onwrite
 35.  // 是否正在处理缓存的数据  
 36.  this.bufferProcessing = false;  
 37.  // 往底层写完成（成功或失败）时执行的回调  
