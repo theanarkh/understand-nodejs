@@ -2007,7 +2007,7 @@ sock_setcsockopt首先调用了tcp_set_keepalive函数，然后给对应socket�
 
 该函数首先修改配置，然后判断是否开启了keep-alive的机制，如果开启了，则重新设置定时器，超时的时候就会发送探测包。Nodejs的keep-alive有两个层面的内容，第一个是是否开启，第二个是开启后，使用的配置。nodejs的setKeepAlive就是做了这两件事情。只不过他只支持修改一个配置。另外测试发现，window下，调用setKeepAlive设置的initialDelay，会修改两个配置。分别是多久没有数据包就发送探测包，隔多久发送一次这两个配置。但是linux下只会修改多久没有数据包就发送探测包这个配置。（关于keepalive更多了解可以参考https://zhuanlan.zhihu.com/p/150664757）
 
-# http 管道化是实现
+# 17.5 http 管道化的实现
 http1.0的时候，不支持pipeline，客户端发送一个请求的时候，首先建立tcp连接，然后服务器返回一个响应，最后断开tcp连接，这种是最简单的实现方式，但是每次发送请求都需要走三次握手显然会带来一定的时间损耗，所以http1.1的时候，支持了pipeline。pipeline的意思就是可以在一个tcp连接上发送多个请求，这样服务器就可以同时处理多个请求，但是由于http1.1的限制，多个请求的响应需要按序返回。因为在http1.1中，没有标记请求和响应的对应关系。所以http客户端会假设第一个返回的响应是对应第一个请求的。如果乱序返回，就会导致问题。
 ![](https://img-blog.csdnimg.cn/20201121111111582.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70#pic_center)
 在http2.0中，每个请求会分配一个id，响应中也会返回对应的id，这样就算乱序返回，http客户端也可以知道响应所对应的请求。在http1.1这种情况下，http服务器的实现就会变得复杂，服务器可以以串行的方式处理请求，当前面请求的响应返回到客户端后，再继续处理下一个请求，这种实现方式是相对简单的，但是很明显，这种方式相对来说还是比较低效的，另一种实现方式是并行处理请求，串行返回，这样可以让请求得到尽快的处理，比如两个请求都访问数据库，那并行处理两个请求就会比串行快得多，但是这种实现方式相对比较复杂，nodejs就是属于这种方式，下面我们来看一下nodejs中是如何实现的。首先我们看一下如何创建一个http服务器。
