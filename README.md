@@ -20,7 +20,7 @@ nodejs的源码由js、c++、c组成。<br/>
 4 如果你在阅读上面有任何问题，可以联系我或者留言，我会的我都会尽量帮你解答。
 
 微信：theratliter<br /> 
-公众号：编程杂技
+公众号：编程杂技 <br />
 知乎：[nodejs源码分析](https://www.zhihu.com/column/c_1094251741922619392)
 
 <img src="https://img-blog.csdnimg.cn/20200721120248775.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70" alt="" width="300" height="300" align="bottom" />
