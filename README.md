@@ -19,6 +19,8 @@ nodejs的源码由js、c++、c组成。<br/>
 3 js层代码相信学习nodejs的同学都没什么问题。<br/>
 4 如果你在阅读上面有任何问题，可以联系我或者留言，我会的我都会尽量帮你解答。
 
+**为什么要读nodejs源码？**
+[为什么要读nodejs源码？](https://zhuanlan.zhihu.com/p/350625461)
 微信：theratliter<br /> 
 公众号：编程杂技 <br />
 知乎：[nodejs源码分析](https://www.zhihu.com/column/c_1094251741922619392)
