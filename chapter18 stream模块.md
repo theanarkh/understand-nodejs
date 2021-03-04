@@ -716,3 +716,5 @@ callFinal处理完后会触发prefinish，最后触发finish事件。
 12.  self.end();  
 13.}  
 ```
+
+更多阅读：[nodejs源码解析之可写流](https://zhuanlan.zhihu.com/p/354682694)
