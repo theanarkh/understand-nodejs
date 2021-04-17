@@ -1,10 +1,15 @@
-第一章 Node.js组成和原理
-1.1 Node.js简介
+# 第一章 Node.js组成和原理
+
+## 1.1 Node.js简介
+
 Node.js是基于事件驱动的单线程应用。单线程具体体现在Node.js在单个线程中维护了一系列任务，然后在事件循环中不断消费任务队列中的节点，在任务的产生和消费中不断驱动着Node.js的执行。从另外一个角度来说，Node.js又可以说是多线程的，因为Node.js底层也维护了一个线程池，该线程池主要用于处理一些文件IO、DNS、CPU计算等任务。
 Node.js主要由V8、Libuv，还有一些其它的第三方模块组成（cares异步DNS解析库、HTTP解析器、HTTP2解析器，压缩库、加解密库等）。Node.js源码分为三层，分别是JS、C++、C，Libuv是使用C语言编写，C++层主要是通过V8为JS层提供和底层交互的能力，C++层也实现了部分功能，JS层是面向用户的，为用户提供调用底层的接口。
-1.1.1 JS引擎V8
+### 1.1.1 JS引擎V8
+
 Node.js是基于V8的JS运行时，它利用V8提供的能力，极大地拓展了JS的能力。这种拓展不是为JS增加了新的语言特性，而是拓展了功能模块，比如在前端，我们可以使用Date这个函数。但是我们不能使用TCP这个函数，因为JS中并没有内置这个函数。而在Node.js中，我们可以使用TCP。这就是Node.js做的事情。让用户可以使用JS中本来不存在的功能，比如文件、网络。Node.js中最核心的部分是Libuv和V8。V8不仅负责执行JS，还支持自定义的拓展，实现了JS调用C++和C++调用JS的能力。比如我们可以写一个C++模块，然后在JS调用。Node.js正是利用了这个能力，完成了功能的拓展。JS层调用的所有C、C++模块都是通过V8来完成的。
-1.1.2 Libuv
+
+### 1.1.2 Libuv
+
 Libuv是Node.js底层的异步IO库。但它提供的功能不仅仅是IO，还包括进程、线程、信号、定时器、进程间通信等，而且Libuv抹平了各个操作系统之间的差异。Libuv提供的功能大概如下
 • Full-featured event loop backed by epoll, kqueue, IOCP, event ports.
 • Asynchronous TCP and UDP sockets
@@ -186,28 +191,38 @@ r是代表事件循环是否还存活，这个判断的标准是由uv__loop_aliv
 4.           loop->closing_handles != NULL;  
 5.  }  
 这时候我们有一个actived handles。所以Libuv不会退出。当我们调用uv_idle_stop函数把idle节点移出handle队列的时候，Libuv就会退出。后面我们会具体分析Libuv事件循环的原理。
-1.1.3 其它第三方库
+
+### 1.1.3 其它第三方库
 Node.js中第三方库包括异步DNS解析（cares）、HTTP解析器（旧版使用http_parser，新版使用llhttp）、HTTP2解析器（nghttp2）、解压压缩库(zlib)、加密解密库(openssl)等等，不一一介绍。
-1.2 Node.js工作原理
-1.2.1 Node.js是如何拓展JS功能的？
+
+## 1.2 Node.js工作原理
+
+### 1.2.1 Node.js是如何拓展JS功能的？
+
 V8提供了一套机制，使得我们可以在JS层调用C++、C语言模块提供的功能。Node.js正是通过这套机制，实现了对JS能力的拓展。Node.js在底层做了大量的事情，实现了很多功能，然后在JS层暴露接口给用户使用，降低了用户成本，也提高了开发效率。
-1.2.2 如何在V8新增一个自定义的功能？
+
+### 1.2.2 如何在V8新增一个自定义的功能？
+
 1.  // C++里定义  
 2.  Handle<FunctionTemplate> Test = FunctionTemplate::New(cb);
 3.  global->Set(String::New(“Test"), Test);  
 4.  // JS里使用    
 5.  const test = new Test();  
 我们先有一个感性的认识，在后面的章节中，会具体讲解如何使用V8拓展JS的功能。
-1.2.3 Node.js是如何实现拓展的?
+
+### 1.2.3 Node.js是如何实现拓展的?
+
 Node.js并不是给每个功能都拓展一个对象，然后挂载到全局变量中，而是拓展一个process对象，再通过process.binding拓展js功能。Node.js定义了一个全局的JS对象process，映射到一个C++对象process，底层维护了一个C++模块的链表，JS通过调用JS层的process.binding，访问到C++的process对象，从而访问C++模块(类似访问JS的Object、Date等)。不过Node.js 14版本已经改成internalBinding的方式。通过internalBinding就可以访问C++模块，原理类似。
-1.3 Node.js启动过程
+
+## 1.3 Node.js启动过程
 下面是Node.js启动的主流程图如图1-4所示。
  
 
 图1-4
 
 我们从上往下，看一下每个过程都做了些什么事情。
-1.3.1 注册C++模块 
+### 1.3.1 注册C++模块
+
 RegisterBuiltinModules函数（node_binding.cc）的作用是注册C++模块。
 1.  void RegisterBuiltinModules() {  
 2.  #define V(modname) _register_##modname();  
@@ -274,8 +289,11 @@ NODE_MODULE_CONTEXT_AWARE_INTERNAL(tcp_wrap, node::TCPWrap::Initialize)   宏展
 12.   }  
 13. }  
 C++内置模块的flag是NM_F_INTERNAL，所以会执行第一个if的逻辑。modlist_internal类似一个头指针。if里的逻辑就是头插法建立一个单链表。C++内置模块在Node.js里是非常重要的，很多功能都会调用。后续我们会看到。
-1.3.2 CreateMainEnvironment
+
+### 1.3.2 CreateMainEnvironment
+
 1 创建Environment对象
+
 Node.js中Environment类（env.h）是一个很重要的类，Node.js中，很多数据由Environment对象进行管理。
 1.  context = NewContext(isolate_);  
 2.  std::unique_ptr<Environment> env = std::make_unique<Environment>(  
@@ -318,7 +336,9 @@ Isolate，Context是V8中的概念，Isolate用于隔离实例间的环境，Con
 30.   CreateProperties();  
 31. }  
 我们只看一下几个部分。
+
 1.1 AssignToContext
+
 1.  inline void Environment::AssignToContext(v8::Local<v8::Context> context,  
 2.                                           const ContextInfo& info) {  
 3.    // 在context中保存env对象                                           
@@ -358,7 +378,9 @@ process所保存的对象就是我们在JS层用使用的process对象。Node.js
 3.                    FIXED_ONE_BYTE_STRING(env->isolate(), 
 4.                                          NODE_VERSION));  
 5.  READONLY_STRING_PROPERTY(process, "arch", per_process::metadata.arch);......
+
 创建完process对象后，Node.js把process保存到env中。
+
 1.  Local<Object> process_object = node::CreateProcessObject(this).FromMaybe(Local<Object>());  
 2.  set_process_object(process_object)  
 2 InitializeLibuv
@@ -397,7 +419,7 @@ InitializeLibuv函数是往Libuv中提交任务。
 
 RunBootstrapping里调用了BootstrapInternalLoaders和BootstrapNode函数，我们一个个分析。
 
-3.1 BootstrapInternalLoaders
+### 1.3.3 BootstrapInternalLoaders
 
 BootstrapInternalLoaders用于执行internal/bootstrap/loaders.js。我们看一下具体逻辑。首先定义一个变量，该变量是一个字符串数组，用于定义函数的形参列表。一会我们会看到它的作用。
 1.  std::vector<Local<String>> loaders_params = {  
@@ -431,6 +453,7 @@ BootstrapInternalLoaders用于执行internal/bootstrap/loaders.js。我们看一
 13.                        getInternalBinding, 
 14.                        primordials);  
 V8把internal/bootstrap/loaders.js用一个函数包裹起来，形参就是loaders_params变量对应的四个字符串。然后执行这个参数，并且传入loaders_args里的那四个对象。internal/bootstrap/loaders.js会导出一个对象。在看internal/bootstrap/loaders.js代码之前，我们先看一下getLinkedBinding, getInternalBinding这两个函数，Node.js在C++层对外暴露了AddLinkedBinding方法注册模块，Node.js针对这种类型的模块，维护了一个单独的链表。getLinkedBinding就是根据模块名从这个链表中找到对应的模块，但是我们一般用不到这个，所以就不深入分析。前面我们看到对于C++内置模块，Node.js同样维护了一个链表，getInternalBinding就是根据模块名从这个链表中找到对应的模块。现在我们可以具体看一下internal/bootstrap/loaders.js的代码了。
+
 1.  let internalBinding;  
 2.  {  
 3.    const bindingObj = ObjectCreate(null);  
@@ -576,10 +599,11 @@ StartMainThreadExecution是进行一些初始化工作，然后执行用户JS代
 
 require('internal/modules/cjs/loader').Module.runMain(process.argv[1]);  
 internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数在pre_execution.js被挂载。runMain做的事情是加载用户的JS，然后执行。具体的过程在后面章节详细分析。
-1.3.4 进入Libuv事件循环
+
+### 1.3.4 进入Libuv事件循环
 执行完所有的初始化后，Node.js执行了用户的JS代码，用户的JS代码会往Libuv注册一些任务，比如创建一个服务器，最后Node.js进入Libuv的事件循环中，开始一轮又一轮的事件循环处理。如果没有需要处理的任务，Libuv会退出，从而Node.js退出。
 
-1.4 Node.js和其它服务器的比较
+## 1.4 Node.js和其它服务器的比较
 服务器是现代软件中非常重要的一个组成，我们看一下服务器发展的过程中，都有哪些设计架构。一个基于TCP协议的服务器，基本的流程如下（伪代码）。
 1.  // 拿到一个socket用于监听  
 2.  var socketfd = socket(协议类型等配置);  
@@ -588,7 +612,9 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 5.  // 标记该socket是监听型socket  
 6.  listen(socketfd)  
 执行完以上步骤，一个服务器正式开始服务。下面我们看一下基于上面的模型，分析各种各样的处理方法。
-1.4.1 串行处理请求
+
+### 1.4.1 串行处理请求
+
 1.  while(1) {  
 2.      var socketForCommunication = accept(socket);  
 3.      var data = read(socketForCommunication);  
@@ -607,7 +633,9 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 
 accept就是从已完成三次握手的连接队列里，摘下一个节点。很多同学都了解三次握手是什么，但是可能很少同学会深入思考或者看它的实现，众所周知，一个服务器启动的时候，会监听一个端口。其实就是新建了一个socket。那么如果有一个连接到来的时候，我们通过accept就能拿到这个新连接对应的socket。那么这个socket和监听的socket是不是同一个呢？其实socket分为监听型和通信型的。表面上，服务器用一个端口实现了多个连接，但是这个端口是用于监听的，底层用于和客户端通信的其实是另一个socket。所以每一个连接过来，负责监听的socket发现是一个建立连接的包（syn包），它就会生成一个新的socket与之通信（accept的时候返回的那个）。监听socket里只保存了它监听的ip和端口，通信socket首先从监听socket中复制ip和端口，然后把客户端的ip和端口也记录下来，当下次收到一个数据包的时候，操作系统就会根据四元组从socket池子里找到该socket，从而完成数据的处理。
 串行这种模式就是从已完成三次握手的队列里摘下一个节点，然后处理。再摘下一个节点，再处理。如果处理的过程中有文件IO，可想而知，效率是有多低。而且并发量比较大的时候，监听socket对应的队列很快就会被占满（已完成连接队列有一个最大长度）。这是最简单的模式，虽然服务器的设计中肯定不会使用这种模式，但是它让我们了解了一个服务器处理请求的整体过程。
-1.4.2 多进程模式
+
+### 1.4.2 多进程模式
+
 串行模式中，所有请求都在一个进程中排队被处理，这是效率低下的原因。这时候我们可以把请求分给多个进程处理来提供效率，因为在串行处理的模式中，如果有文件IO操作，它就会阻塞主进程，从而阻塞后续请求的处理，在多进程的模式，一个请求如果阻塞了进程，那么操作系统会挂起该进程。接着调度其它进程执行，那么其它进程就可以执行新的任务。多进程模式下分为几种。
 1 主进程accept，子进程处理请求
 这种模式下，主进程负责摘取已完成连接的节点，然后把这个节点对应的请求交给子进程处理，逻辑如下。
@@ -676,7 +704,9 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 27.     write(fds[i][0], newSocket);  
 28. }  
 使用进程池的模式时，主进程负责accept，然后把请求交给子进程处理，但是和1中的模式相比，进程池模式相对比较复杂，因为在模式1中，当主进程收到一个请求的时候，实时fork一个子进程，这时候，这个子进程会继承主进程中新请求对应的fd，所以它可以直接处理该fd对应的请求，在进程池的模式中，子进程是预先创建的，当主进程收到一个请求的时候，子进程中是无法拿得到该请求对应的fd的。这时候，需要主进程使用传递文件描述符的技术把这个请求对应的fd传给子进程。一个进程其实就是一个结构体task_struct，在JS里我们可以说是一个对象，它有一个字段记录了打开的文件描述符，当我们访问一个文件描述符的时候，操作系统就会根据fd的值，从task_struct中找到fd对应的底层资源，所以主进程给子进程传递文件描述符的时候，传递的不仅仅是一个数字fd，因为如果仅仅这样做，在子进程中该fd可能没有对应任何资源，或者对应的资源和主进程中的是不一致的。这其中操作系统帮我们做了很多事情。让我们在子进程中可以通过fd访问到正确的资源，即主进程中收到的请求。
-1.4.3 多线程模式
+
+### 1.4.3 多线程模式
+
 多线程模式和多进程模式是类似的，也是分为下面几种
 1 主进程accept，创建子线程处理
 2 子线程accept
@@ -736,7 +766,4 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 13. }  
 以上就是服务器设计的一些基本介绍。现在的服务器的设计中还会涉及到协程。不过目前还没有看过具体的实现，所以暂不展开介绍，有兴趣的通信可以看一下协程库libtask了解一下如何使用协程实现一个服务器。
 Node.js是基于单进程（单线程）的事件驱动模式。这也是为什么Node.js擅长处理高并发IO型任务而不擅长处理CPU型任务的原因。Nginx、Redis也是这种模式。另外Node.js是一个及web服务器和应用服务器于一身的服务器，像Nginx这种属于web服务器，它们只处理HTTP协议，不具备脚本语言来处理具体的业务逻辑。它需要把请求转发到真正的web服务器中去处理，比如PHP。而Node.js不仅可以解析HTTP协议，还可以处理具体的业务逻辑。
-
-
-
 
