@@ -1,6 +1,5 @@
 # 通过源码分析nodejs原理<br/>
 
-<br/>
 [为什么要读nodejs源码？](https://zhuanlan.zhihu.com/p/350625461)<br/>
 <br/>
 
