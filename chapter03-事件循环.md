@@ -272,7 +272,7 @@ uv__run_prepare函数的逻辑很简单，但是有一个重点的地方就是�
 
 stop函数和start函数是相反的作用，这就是Node.js中prepare、check、idle阶段的原理。
 ## 3.4 事件循环之Poll IO
-Poll IO是Libuv非常重要的一个阶段，文件IO、网络IO、信号处理等都在这个阶段处理，这也是最复杂的一个阶段。处理逻辑在core.c的uv__io_poll这个函数，这个函数比较复杂，我们分开分析。在开始分析Poll IO之前，先了解一下它相关的一些数据结构。</br>
+Poll IO是Libuv非常重要的一个阶段，文件IO、网络IO、信号处理等都在这个阶段处理，这也是最复杂的一个阶段。处理逻辑在core.c的uv__io_poll这个函数，这个函数比较复杂，我们分开分析。在开始分析Poll IO之前，先了解一下它相关的一些数据结构。</br></br>
 1 IO观察者uv__io_t。这个结构体是Poll IO阶段核心结构体。它主要是保存了IO相关的文件描述符、回   调、感兴趣的事件等信息。</br>
 2 watcher_queue观察者队列。所有需要Libuv处理的IO观察者都挂载在这个队列里，Libuv在Poll IO阶段会逐个处理。
 
