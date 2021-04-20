@@ -101,8 +101,8 @@ int emfile_fd;
 
  
 ## 2.2 uv_handle_t
-在Libuv中，uv_handle_t类似C++中的基类，有很多子类继承于它，Libuv主要通过控制内存的布局得到继承的效果。handle代表生命周期比较长的对象。例如
->1 一个处于active状态的prepare handle，它的回调会在每次事件循环化的时候被执行。
+在Libuv中，uv_handle_t类似C++中的基类，有很多子类继承于它，Libuv主要通过控制内存的布局得到继承的效果。handle代表生命周期比较长的对象。例如</br>
+1 一个处于active状态的prepare handle，它的回调会在每次事件循环化的时候被执行。</br>
 2 一个TCP handle在每次有连接到来时，执行它的回调。
 
 我们看一下uv_handle_t的定义
