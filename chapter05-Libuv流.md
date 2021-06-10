@@ -278,12 +278,13 @@
 
 uv_read除了可以读取一般的数据外，还支持读取传递的文件描述符。我们看一下描述符传递的原理。我们知道，父进程fork出子进程的时候，子进程是继承父进程的文件描述符列表的。我们看一下进程和文件描述符的关系。
 fork之前如图5-1所示。
+
  ![](https://img-blog.csdnimg.cn/20210420235737186.png)
-<center>图5-1</center>
+
 我们再看一下fork之后的结构如图5-2所示。
 
 ![](https://img-blog.csdnimg.cn/20210420235751592.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图5-2</center>
+
 如果父进程或者子进程在fork之后创建了新的文件描述符，那父子进程间就不能共享了，假设父进程要把一个文件描述符传给子进程，那怎么办呢？根据进程和文件描述符的关系。传递文件描述符要做的事情，不仅仅是在子进程中新建一个fd，还要建立起fd->file->inode的关联，不过我们不需要关注这些，因为操作系统都帮我们处理了，我们只需要通过sendmsg把想传递的文件描述符发送给Unix域的另一端。Unix域另一端就可以通过recvmsg把文件描述符从数据中读取出来。接着使用uv__stream_recv_cmsg函数保存数据里解析出来的文件描述符。
 
 ```cpp
@@ -386,8 +387,9 @@ uv__stream_recv_cmsg会从数据中解析出一个个文件描述符存到stream
 ```
 
 内存结构如图5-3所示。
+
  ![](https://img-blog.csdnimg.cn/20210420235824605.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图5-3</center>
+
 最后我们看一下读结束后的处理，
 
 ```cpp
@@ -483,8 +485,9 @@ uv_write是直接调用uv_write2。第四个参数是NULL。代表是一般的�
 ```
 
 uv_write2的主要逻辑就是封装一个写请求，插入到流的待写队列。然后根据当前流的情况。看是直接写入还是等待会再写入。关系图大致如图5-4所示。
+
  ![](https://img-blog.csdnimg.cn/202104202359054.png)
-<center>图5-4</center>
+
 uv_write2只是对写请求进行一些预处理，真正执行写的函数是uv__write 
 
 ```cpp
