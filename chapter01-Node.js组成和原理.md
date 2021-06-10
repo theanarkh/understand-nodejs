@@ -21,8 +21,9 @@ Libuv是Node.js底层的异步IO库，但它提供的功能不仅仅是IO，还�
 •	High resolution clock
 •	Threading and synchronization primitives
 Libuv的实现是一个经典的生产者-消费者模型。Libuv在整个生命周期中，每一轮循环都会处理每个阶段（phase）维护的任务队列，然后逐个执行任务队列中节点的回调，在回调中，不断生产新的任务，从而不断驱动Libuv。图1-1是Libuv的整体执行流程
+
 ![](https://img-blog.csdnimg.cn/20210419231244173.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图1-1</center>
+
 
 从图1-1中我们大致了解到，Libuv分为几个阶段，然后在一个循环里不断执行每个阶段里的任务。下面我们具体看一下每个阶段
 
