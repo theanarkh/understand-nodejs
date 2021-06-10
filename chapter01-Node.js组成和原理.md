@@ -107,8 +107,9 @@ Libuv维护了一个全局的uv_loop_t结构体，使用uv_loop_init进行初始
 ```
 
 执行uv_idle_init函数后，Libuv的内存视图如图1-2所示
+
  ![](https://img-blog.csdnimg.cn/20210419232842899.png)
- <center>图1-2</center>
+ 
 **2 uv_idle_start**
 
 ```cpp
@@ -130,8 +131,9 @@ Libuv维护了一个全局的uv_loop_t结构体，使用uv_loop_init进行初始
 ```
 
 执行完uv_idle_start的内存视图如图1-3所示。
+
 ![](https://img-blog.csdnimg.cn/202104192329064.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图1-3</center>
+
 
 然后执行uv_run进入Libuv的事件循环。
 
@@ -232,8 +234,9 @@ V8提供了一套机制，使得我们可以在JS层调用C++、C语言模块提
 Node.js并不是给每个功能都拓展一个对象，然后挂载到全局变量中，而是拓展一个process对象，再通过process.binding拓展js功能。Node.js定义了一个全局的JS对象process，映射到一个C++对象process，底层维护了一个C++模块的链表，JS通过调用JS层的process.binding，访问到C++的process对象，从而访问C++模块(类似访问JS的Object、Date等)。不过Node.js 14版本已经改成internalBinding的方式，通过internalBinding就可以访问C++模块，原理类似。
 ## 1.3 Node.js启动过程
 下面是Node.js启动的主流程图如图1-4所示。
+
 ![](https://img-blog.csdnimg.cn/20210419233057877.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图1-4</center>
+
 
 我们从上往下，看一下每个过程都做了些什么事情。
 ### 1.3.1 注册C++模块 
@@ -746,12 +749,13 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 ```
 
 我们看看这种模式的处理过程，假设有n个请求到来。那么socket的结构如图1-5所示。
+
  ![](https://img-blog.csdnimg.cn/20210419233644898.png)
-<center>图1-5</center>
+
 这时候进程从accept中被唤醒。然后拿到一个新的socket用于通信。结构如图1-6所示。
 
  ![](https://img-blog.csdnimg.cn/2021041923371169.png)
-<center>图1-6</center>
+
 
 accept就是从已完成三次握手的连接队列里，摘下一个节点。很多同学都了解三次握手是什么，但是可能很少同学会深入思考或者看它的实现，众所周知，一个服务器启动的时候，会监听一个端口，其实就是新建了一个socket。那么如果有一个连接到来的时候，我们通过accept就能拿到这个新连接对应的socket，那这个socket和监听的socket是不是同一个呢？其实socket分为监听型和通信型的，表面上，服务器用一个端口实现了多个连接，但是这个端口是用于监听的，底层用于和客户端通信的其实是另一个socket。所以每一个连接过来，负责监听的socket发现是一个建立连接的包（syn包），它就会生成一个新的socket与之通信（accept的时候返回的那个）。监听socket里只保存了它监听的IP和端口，通信socket首先从监听socket中复制IP和端口，然后把客户端的IP和端口也记录下来，当下次收到一个数据包的时候，操作系统就会根据四元组从socket池子里找到该socket，从而完成数据的处理。
 
@@ -777,14 +781,16 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 这种模式下，每次来一个请求，就会新建一个进程去处理。这种模式比串行的稍微好了一点，每个请求独立处理，假设a请求阻塞在文件IO，那么不会影响b请求的处理，尽可能地做到了并发。它的瓶颈就是系统的进程数有限，如果有大量的请求，系统无法扛得住，再者，进程的开销很大，对于系统来说是一个沉重的负担。
 **2 进程池模式**
 实时创建和销毁进程开销大，效率低，所以衍生了进程池模式，进程池模式就是服务器启动的时候，预先创建一定数量的进程，但是这些进程是worker进程。它不负责accept请求。它只负责处理请求。主进程负责accept，它把accept返回的socket交给worker进程处理，模式如图1-7所示。
+
  ![在这里插入图片描述](https://img-blog.csdnimg.cn/2021041923375310.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图1-7</center>
+
 但是和1中的模式相比，进程池模式相对比较复杂，因为在模式1中，当主进程收到一个请求的时候，实时fork一个子进程，这时候，这个子进程会继承主进程中新请求对应的fd，所以它可以直接处理该fd对应的请求，在进程池的模式中，子进程是预先创建的，当主进程收到一个请求的时候，子进程中是无法拿得到该请求对应的fd的。这时候，需要主进程使用传递文件描述符的技术把这个请求对应的fd传给子进程。一个进程其实就是一个结构体task_struct，在JS里我们可以说是一个对象，它有一个字段记录了打开的文件描述符，当我们访问一个文件描述符的时候，操作系统就会根据fd的值，从task_struct中找到fd对应的底层资源，所以主进程给子进程传递文件描述符的时候，传递的不仅仅是一个数字fd，因为如果仅仅这样做，在子进程中该fd可能没有对应任何资源，或者对应的资源和主进程中的是不一致的。这其中操作系统帮我们做了很多事情。让我们在子进程中可以通过fd访问到正确的资源，即主进程中收到的请求。
 
 **3 子进程accept**
 这种模式不是等到请求来的时候再创建进程。而是在服务器启动的时候，就会创建多个进程。然后多个进程分别调用accept。这种模式的架构如图1-8所示。
+
  ![](https://img-blog.csdnimg.cn/20210419233928634.png)
-<center>图1-8</center>
+
 
 ```cpp
 1.	const socketfd = socket(协议类型等配置);  
@@ -812,8 +818,9 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 3 线程池
 
 前面两种和多进程模式中是一样的，但是第三种比较特别，我们主要介绍第三种。在子进程模式时，每个子进程都有自己的task_struct，这就意味着在fork之后，每个进程负责维护自己的数据，而线程则不一样，线程是共享主线程（主进程）的数据的，当主进程从accept中拿到一个fd的时候，传给线程的话，线程是可以直接操作的。所以在线程池模式时，架构如图1-9所示。
+
 ![](https://img-blog.csdnimg.cn/20210419234043376.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图1-9</center>
+
 
 主进程负责accept请求，然后通过互斥的方式插入一个任务到共享队列中，线程池中的子线程同样是通过互斥的方式，从共享队列中摘取节点进行处理。
 ### 1.4.4 事件驱动
