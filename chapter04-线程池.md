@@ -1,8 +1,9 @@
 # 第四章 线程池
 Libuv是单线程事件驱动的异步IO库，对于阻塞式或耗时的操作，如果在Libuv的主循环里执行的话，就会阻塞后面的任务执行，所以Libuv里维护了一个线程池，它负责处理Libuv中耗时或者导致阻塞的操作，比如文件IO、DNS、自定义的耗时任务。线程池在Libuv架构中的位置如图4-1所示。
+
  ![](https://img-blog.csdnimg.cn/20210420234827155.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 
-<center>图4-1</center>
+
 Libuv主线程通过线程池提供的接口把任务提交给线程池，然后立刻返回到事件循环中继续执行，线程池维护了一个任务队列，多个子线程会互斥地从中摘下任务节点执行，当子线程执行任务完毕后会通知主线程，主线程在事件循环的Poll IO阶段就会执行对应的回调。下面我们看一下线程池在Libuv中的实现。
 
 ## 4.1主线程和子线程间通信
@@ -92,8 +93,9 @@ uv__async_start只会执行一次，时机在第一次执行uv_async_init的时�
 2 封装感兴趣的事件和回调到IO观察者然后追加到watcher_queue队列，在Poll IO阶段，Libuv会注册到epoll里面，如果有任务完成，也会在Poll IO阶段执行回调。
 3 保存写端描述符。任务完成时通过写端fd通知主线程。
 我们看到uv__async_start函数里有很多获取通信文件描述符的逻辑，总的来说，是为了完成两端通信的功能。初始化async结构体后，Libuv结构如图4-2所示。
+
  ![](https://img-blog.csdnimg.cn/20210420234949238.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-<center>图4-2</center>
+
 
 ### 4.1.2 通知主线程
 初始化async结构体后，如果async结构体对应的任务完成后，就会通知主线程，子线程通过设置这个handle的pending为1标记任务完成，然后再往管道写端写入标记，通知主线程有任务完成了。
@@ -334,10 +336,10 @@ uv__async_io会遍历async_handles队列，pending等于1的话说明任务完�
 ```
 
 这就是Libuv中线程池的生产者逻辑。任务队列的架构如图4-3所示。
+
  ![](https://img-blog.csdnimg.cn/20210420235058824.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 
 
-<center>图4-3</center>
 
 除了上面提到的，Libuv还提供了另外一种生产任务的方式，即uv_queue_work函数，它只提交CPU密集型的任务（在Node.js的crypto模块中使用）。下面我们看uv_queue_work的实现。
 
@@ -493,9 +495,10 @@ uv_queue_work函数其实也没有太多的逻辑，它保存用户的工作函�
 ```
 
 我们看到消费者的逻辑似乎比较复杂，对于慢IO类型的任务，Libuv限制了处理慢IO任务的线程数，避免耗时比较少的任务得不到处理。其余的逻辑和一般的线程池类似，就是互斥访问任务队列，然后取出节点执行，执行完后通知主线程。结构如图4-4所示。
+
  ![](https://img-blog.csdnimg.cn/20210420235148855.png)
 
-<center>图4-4</center>
+
 
 ### 4.2.4 通知主线程
 线程执行完任务后，并不是直接执行用户回调，而是通知主线程，由主线程统一处理，这是Node.js单线程事件循环的要求，也避免了多线程带来的复杂问题，我们看一下这块的逻辑。一切要从Libuv的初始化开始
@@ -538,9 +541,10 @@ uv_default_loop();-> uv_loop_init();-> uv_async_init(loop, &loop->wq_async, uv__
 ```
 
 该函数的逻辑比较简单，逐个处理已完成的任务节点，执行回调，在Node.js中，这里的回调是C++层，然后再到JS层。结构图如图4-5所示。
+
 ![](https://img-blog.csdnimg.cn/20210420235212281.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
  
-<center>图 4-5</center>
+
 ### 4.2.5 取消任务
 线程池的设计中，取消任务是一个比较重要的能力，因为在线程里执行的都是一些耗时或者引起阻塞的操作，如果能及时取消一个任务，将会减轻很多没必要的处理。不过Libuv实现中，只有当任务还在等待队列中才能被取消，如果一个任务正在被线程处理，则无法取消了。我们先看一下Libuv中是如何实现取消任务的。Libuv提供了uv__work_cancel函数支持用户取消提交的任务。我们看一下它的逻辑。 
 
