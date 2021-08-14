@@ -499,8 +499,10 @@ InitializeLibuv函数中的逻辑是往Libuv中提交任务。
 
 这些函数都是Libuv提供的，分别是往Libuv不同阶段插入任务节点，uv_unref是修改状态。
 
->1 timer_handle是实现Node.js中定时器的数据结构，对应Libuv的time阶段
+1 timer_handle是实现Node.js中定时器的数据结构，对应Libuv的time阶段
+
 2 immediate_check_handle是实现Node.js中setImmediate的数据结构，对应Libuv的check阶段。
+
 3 task_queues_async_用于子线程和主线程通信。
 
 ### 1.3.4 初始化Loader和执行上下文
