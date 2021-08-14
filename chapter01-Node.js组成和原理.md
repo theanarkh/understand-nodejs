@@ -37,15 +37,14 @@ Libuv的实现是一个经典的生产者-消费者模型。Libuv在整个生命
  4.  pending阶段：执行pending回调。一般来说，所有的IO回调（网络，文件，DNS）都会在Poll IO阶段执行，但是有的情况下，Poll IO阶段的回调会延迟到下一次循环执行，那么这种回调就是在pending阶段执行的，比如IO回调里出现了错误或写数据成功等等都会在下一个事件循环的pending阶段执行回调。
  5.  idle阶段：每次事件循环都会被执行（idle不是说事件循环空闲的时候才执行）。
  6.  prepare阶段：和idle阶段类似。
- 7.  Poll IO阶段：调用各平台提供的IO多路复用接口（比如Linux下就是epoll模式），最多等待timeout时间，返回的时候，执行对应的回调。timeout的计算规则：
-		>1 如果时间循环是以UV_RUN_NOWAIT模式运行的，则timeout是0。
-		2 如果时间循环即将退出（调用了uv_stop），则timeout是0。
-		3 如果没有active状态的handle或者request，timeout是0。
-		4 如果有idle阶段的队列里有节点，则timeout是0。
-		5 如果有handle等待被关闭的（即调了uv_close），timeout是0。
-        6 如果上面的都不满足，则取timer阶段中最快超时的节点作为timeout，
-        7 如果上面的都不满足则timeout等于-1，即一直阻塞，直到满足条件。
-        
+ 7.  Poll IO阶段：调用各平台提供的IO多路复用接口（比如Linux下就是epoll模式），最多等待timeout时间，返回的时候，执行对应的回调。timeout的计算规则：  
+		1 如果时间循环是以UV_RUN_NOWAIT模式运行的，则timeout是0。  
+		2 如果时间循环即将退出（调用了uv_stop），则timeout是0。  
+		3 如果没有active状态的handle或者request，timeout是0。  
+		4 如果有idle阶段的队列里有节点，则timeout是0。  
+		5 如果有handle等待被关闭的（即调了uv_close），timeout是0。  
+		6 如果上面的都不满足，则取timer阶段中最快超时的节点作为timeout。 
+		7 如果上面的都不满足则timeout等于-1，即一直阻塞，直到满足条件。  
  8. check阶段：和idle、prepare一样。
  9. closing阶段：执行调用uv_close函数时传入的回调。
  10. 如果Libuv是以UV_RUN_ONCE模式运行的，那事件循环即将退出。但是有一种情况是，Poll IO阶段的timeout的值是timer阶段的节点的值，并且Poll IO阶段是因为超时返回的，即没有任何事件发生，也没有执行任何IO回调，这时候需要在执行一次timer阶段。因为有节点超时了。
