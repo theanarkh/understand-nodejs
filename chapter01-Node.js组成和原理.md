@@ -1,12 +1,16 @@
 # 第一章 Node.js组成和原理
+
 ## 1.1 Node.js简介
 Node.js是基于事件驱动的单进程单线程应用，单线程具体体现在Node.js在单个线程中维护了一系列任务，然后在事件循环中不断消费任务队列中的节点，又不断产生新的任务，在任务的产生和消费中不断驱动着Node.js的执行。从另外一个角度来说，Node.js又可以说是多线程的，因为Node.js底层也维护了一个线程池，该线程池主要用于处理一些文件IO、DNS、CPU计算等任务。
 
 Node.js主要由V8、Libuv，还有一些其它的第三方模块组成（cares异步DNS解析库、HTTP解析器、HTTP2解析器，压缩库、加解密库等）。Node.js源码分为三层，分别是JS、C++、C，Libuv是使用C语言编写，C++层主要是通过V8为JS层提供和底层交互的能力，C++层也实现了部分功能，JS层是面向用户的，为用户提供调用底层的接口。
 
 ### 1.1.1 JS引擎V8
+
 Node.js是基于V8的JS运行时，它利用V8提供的能力，极大地拓展了JS的能力。这种拓展不是为JS增加了新的语言特性，而是拓展了功能模块，比如在前端，我们可以使用Date这个函数，但是我们不能使用TCP这个函数，因为JS中并没有内置这个函数。而在Node.js中，我们可以使用TCP，这就是Node.js做的事情，让用户可以使用JS中本来不存在的功能，比如文件、网络。Node.js中最核心的部分是Libuv和V8，V8不仅负责执行JS，还支持自定义的拓展，实现了JS调用C++和C++调用JS的能力。比如我们可以写一个C++模块，然后在JS调用，Node.js正是利用了这个能力，完成了功能的拓展。JS层调用的所有C、C++模块都是通过V8来完成的。
+
 ### 1.1.2 Libuv
+
 Libuv是Node.js底层的异步IO库，但它提供的功能不仅仅是IO，还包括进程、线程、信号、定时器、进程间通信等，而且Libuv抹平了各个操作系统之间的差异。Libuv提供的功能大概如下
 •	Full-featured event loop backed by epoll, kqueue, IOCP, event ports.
 •	Asynchronous TCP and UDP sockets
@@ -20,12 +24,12 @@ Libuv是Node.js底层的异步IO库，但它提供的功能不仅仅是IO，还�
 •	Signal handling
 •	High resolution clock
 •	Threading and synchronization primitives
-Libuv的实现是一个经典的生产者-消费者模型。Libuv在整个生命周期中，每一轮循环都会处理每个阶段（phase）维护的任务队列，然后逐个执行任务队列中节点的回调，在回调中，不断生产新的任务，从而不断驱动Libuv。图1-1是Libuv的整体执行流程
+
+Libuv的实现是一个经典的生产者-消费者模型。Libuv在整个生命周期中，每一轮循环都会处理每个阶段（phase）维护的任务队列，然后逐个执行任务队列中节点的回调，在回调中，不断生产新的任务，从而不断驱动Libuv。下是Libuv的整体执行流程
 
 ![](https://img-blog.csdnimg.cn/20210419231244173.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 
-
-从图1-1中我们大致了解到，Libuv分为几个阶段，然后在一个循环里不断执行每个阶段里的任务。下面我们具体看一下每个阶段
+从上图中我们大致了解到，Libuv分为几个阶段，然后在一个循环里不断执行每个阶段里的任务。下面我们具体看一下每个阶段
 
  1.  更新当前时间，在每次事件循环开始的时候，Libuv会更新当前时间到变量中，这一轮循环的剩下操作可以使用这个变量获取当前时间，避免过多的系统调用影响性能，额外的影响就是时间不是那么精确。但是在一轮事件循环中，Libuv在必要的时候，会主动更新这个时间，比如在epoll中阻塞了timeout时间后返回时，会再次更新当前时间变量。
  2.  如果事件循环是处于alive状态，则开始处理事件循环的每个阶段，否则退出这个事件循环。alive状态是什么意思呢？如果有active和ref状态的handle，active状态的request或者closing状态的handle则认为事件循环是alive（具体的后续会讲到）。
@@ -92,6 +96,7 @@ Libuv的实现是一个经典的生产者-消费者模型。Libuv在整个生命
 ```
 
 Libuv维护了一个全局的uv_loop_t结构体，使用uv_loop_init进行初始化，不打算展开讲解uv_loop_init函数，w因为它大概就是对uv_loop_t结构体各个字段进行初始化。接着我们看一下uv_idle_*系列的函数。
+
 **1 uv_idle_init**
 
 ```cpp
@@ -106,7 +111,7 @@ Libuv维护了一个全局的uv_loop_t结构体，使用uv_loop_init进行初始
 9.	}   
 ```
 
-执行uv_idle_init函数后，Libuv的内存视图如图1-2所示
+执行uv_idle_init函数后，Libuv的内存视图如下图所示
 
  ![](https://img-blog.csdnimg.cn/20210419232842899.png)
  
@@ -130,10 +135,9 @@ Libuv维护了一个全局的uv_loop_t结构体，使用uv_loop_init进行初始
 15.	 }   
 ```
 
-执行完uv_idle_start的内存视图如图1-3所示。
+执行完uv_idle_start的内存视图如下图所示。
 
 ![](https://img-blog.csdnimg.cn/202104192329064.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-
 
 然后执行uv_run进入Libuv的事件循环。
 
@@ -214,11 +218,16 @@ r是代表事件循环是否还存活，这个判断的标准是由uv__loop_aliv
 ```
 
 这时候我们有一个actived handles，所以Libuv不会退出。当我们调用uv_idle_stop函数把idle节点移出handle队列的时候，Libuv就会退出。后面我们会具体分析Libuv事件循环的原理。
+
 ### 1.1.3 其它第三方库
 Node.js中第三方库包括异步DNS解析（cares）、HTTP解析器（旧版使用http_parser，新版使用llhttp）、HTTP2解析器（nghttp2）、解压压缩库(zlib)、加密解密库(openssl)等等，不一一介绍。
+
 ## 1.2 Node.js工作原理
+
 ### 1.2.1 Node.js是如何拓展JS功能的？
+
 V8提供了一套机制，使得我们可以在JS层调用C++、C语言模块提供的功能。Node.js正是通过这套机制，实现了对JS能力的拓展。Node.js在底层做了大量的事情，实现了很多功能，然后在JS层暴露接口给用户使用，降低了用户成本，也提高了开发效率。
+
 ### 1.2.2 如何在V8新增一个自定义的功能？
 
 ```cpp
@@ -230,16 +239,19 @@ V8提供了一套机制，使得我们可以在JS层调用C++、C语言模块提
 ```
 
 我们先有一个感性的认识，在后面的章节中，会具体讲解如何使用V8拓展JS的功能。
+
 ### 1.2.3 Node.js是如何实现拓展的?
 Node.js并不是给每个功能都拓展一个对象，然后挂载到全局变量中，而是拓展一个process对象，再通过process.binding拓展js功能。Node.js定义了一个全局的JS对象process，映射到一个C++对象process，底层维护了一个C++模块的链表，JS通过调用JS层的process.binding，访问到C++的process对象，从而访问C++模块(类似访问JS的Object、Date等)。不过Node.js 14版本已经改成internalBinding的方式，通过internalBinding就可以访问C++模块，原理类似。
+
 ## 1.3 Node.js启动过程
 下面是Node.js启动的主流程图如图1-4所示。
 
 ![](https://img-blog.csdnimg.cn/20210419233057877.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 
-
 我们从上往下，看一下每个过程都做了些什么事情。
+
 ### 1.3.1 注册C++模块 
+
 RegisterBuiltinModules函数（node_binding.cc）的作用是注册C++模块。
 
 ```cpp
@@ -334,8 +346,11 @@ NODE_MODULE_CONTEXT_AWARE_INTERNAL(tcp_wrap, node::TCPWrap::Initialize)   宏展
 ```
 
 C++内置模块的flag是NM_F_INTERNAL，所以会执行第一个if的逻辑，modlist_internal类似一个头指针。if里的逻辑就是头插法建立一个单链表。C++内置模块在Node.js里是非常重要的，很多功能都会调用，后续我们会看到。
+
 ### 1.3.2 创建Environment对象
+
 **1 CreateMainEnvironment**
+
 Node.js中Environment类（env.h）是一个很重要的类，Node.js中，很多数据由Environment对象进行管理。
 
 ```cpp
@@ -386,6 +401,7 @@ Isolate，Context是V8中的概念，Isolate用于隔离实例间的环境，Con
 ```
 
 我们只看一下AssignToContext和CreateProperties，set_env_vars会把进程章节讲解。
+
 **1.1 AssignToContext**
 
 ```cpp
@@ -414,6 +430,7 @@ AssignToContext用于保存context和env的关系。这个逻辑非常重要，�
 ```
 
 **1.2 CreateProperties**
+
 接着我们看一下CreateProperties中创建process对象的逻辑。
 
 ```cpp
@@ -481,11 +498,13 @@ InitializeLibuv函数中的逻辑是往Libuv中提交任务。
 ```
 
 这些函数都是Libuv提供的，分别是往Libuv不同阶段插入任务节点，uv_unref是修改状态。
+
 >1 timer_handle是实现Node.js中定时器的数据结构，对应Libuv的time阶段
 2 immediate_check_handle是实现Node.js中setImmediate的数据结构，对应Libuv的check阶段。
 3 task_queues_async_用于子线程和主线程通信。
 
 ### 1.3.4 初始化Loader和执行上下文
+
 RunBootstrapping里调用了BootstrapInternalLoaders和BootstrapNode函数，我们一个个分析。
 
 **1 初始化loader**
@@ -577,6 +596,7 @@ static map = new Map(moduleIds.map((id) => [id, new NativeModule(id)]));
 ```
 
 NativeModule主要的逻辑如下
+
 >1 原生JS模块的代码是转成字符存在node_javascript.cc文件的，NativeModule负责原生JS模块的加载，即编译和执行。
 2 提供一个require函数，加载原生JS模块，对于文件路径以internal开头的模块，是不能被用户require使用的。
 
@@ -597,8 +617,10 @@ C++层保存其中两个函数，分别用于加载内置C++模块和原生JS模
 2.	set_native_module_require(require.As<Function>());   
 ```
 
-至此，internal/bootstrap/loaders.js分析完了
+至此，internal/bootstrap/loaders.js分析完了。
+
 **2 初始化执行上下文**
+
 BootstrapNode负责初始化执行上下文，代码如下
 
 ```cpp
@@ -653,6 +675,7 @@ BootstrapNode负责初始化执行上下文，代码如下
 ```
 
 ### 1.3.5 执行用户JS文件
+
 StartMainThreadExecution进行一些初始化工作，然后执行用户JS代码。
 
 **1 给process对象挂载属性**
@@ -708,7 +731,9 @@ require('internal/modules/cjs/loader').Module.runMain(process.argv[1]);
 ```
 
 internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数在pre_execution.js被挂载，runMain做的事情是加载用户的JS，然后执行。具体的过程在后面章节详细分析。
+
 ### 1.3.6 进入Libuv事件循环
+
 执行完所有的初始化后，Node.js执行了用户的JS代码，用户的JS代码会往Libuv注册一些任务，比如创建一个服务器，最后Node.js进入Libuv的事件循环中，开始一轮又一轮的事件循环处理。如果没有需要处理的任务，Libuv会退出，从而Node.js退出。
 
 ```cpp
@@ -725,6 +750,7 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 ```
 
 ## 1.4 Node.js和其它服务器的比较
+
 服务器是现代软件中非常重要的一个组成，我们看一下服务器发展的过程中，都有哪些设计架构。一个基于TCP协议的服务器，基本的流程如下（伪代码）。
 
 ```cpp
@@ -737,6 +763,7 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 ```
 
 执行完以上步骤，一个服务器正式开始服务。下面我们看一下基于上面的模型，分析各种各样的处理方法。
+
 ### 1.4.1 串行处理请求
 
 ```cpp
@@ -748,20 +775,21 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 6.	}  
 ```
 
-我们看看这种模式的处理过程，假设有n个请求到来。那么socket的结构如图1-5所示。
+我们看看这种模式的处理过程，假设有n个请求到来。那么socket的结构如下图所示。
 
  ![](https://img-blog.csdnimg.cn/20210419233644898.png)
 
-这时候进程从accept中被唤醒。然后拿到一个新的socket用于通信。结构如图1-6所示。
+这时候进程从accept中被唤醒。然后拿到一个新的socket用于通信。结构如下图所示。
 
  ![](https://img-blog.csdnimg.cn/2021041923371169.png)
-
 
 accept就是从已完成三次握手的连接队列里，摘下一个节点。很多同学都了解三次握手是什么，但是可能很少同学会深入思考或者看它的实现，众所周知，一个服务器启动的时候，会监听一个端口，其实就是新建了一个socket。那么如果有一个连接到来的时候，我们通过accept就能拿到这个新连接对应的socket，那这个socket和监听的socket是不是同一个呢？其实socket分为监听型和通信型的，表面上，服务器用一个端口实现了多个连接，但是这个端口是用于监听的，底层用于和客户端通信的其实是另一个socket。所以每一个连接过来，负责监听的socket发现是一个建立连接的包（syn包），它就会生成一个新的socket与之通信（accept的时候返回的那个）。监听socket里只保存了它监听的IP和端口，通信socket首先从监听socket中复制IP和端口，然后把客户端的IP和端口也记录下来，当下次收到一个数据包的时候，操作系统就会根据四元组从socket池子里找到该socket，从而完成数据的处理。
 
 串行这种模式就是从已完成三次握手的队列里摘下一个节点，然后处理。再摘下一个节点，再处理。如果处理的过程中有阻塞式IO，可想而知，效率是有多低。而且并发量比较大的时候，监听socket对应的队列很快就会被占满（已完成连接队列有一个最大长度）。这是最简单的模式，虽然服务器的设计中肯定不会使用这种模式，但是它让我们了解了一个服务器处理请求的整体过程。
+
 ### 1.4.2 多进程模式
 串行模式中，所有请求都在一个进程中排队被处理，这是效率低下的原因。这时候我们可以把请求分给多个进程处理来提供效率，因为在串行处理的模式中，如果有阻塞式IO操作，它就会阻塞主进程，从而阻塞后续请求的处理。在多进程的模式下，一个请求如果阻塞了进程，那么操作系统会挂起该进程，接着调度其它进程执行，那么其它进程就可以执行新的任务。多进程模式下分为几种。
+
 **1 主进程accept，子进程处理请求**
 这种模式下，主进程负责摘取已完成连接的节点，然后把这个节点对应的请求交给子进程处理，逻辑如下。
 
@@ -779,14 +807,16 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 ```
 
 这种模式下，每次来一个请求，就会新建一个进程去处理。这种模式比串行的稍微好了一点，每个请求独立处理，假设a请求阻塞在文件IO，那么不会影响b请求的处理，尽可能地做到了并发。它的瓶颈就是系统的进程数有限，如果有大量的请求，系统无法扛得住，再者，进程的开销很大，对于系统来说是一个沉重的负担。
-**2 进程池模式**
-实时创建和销毁进程开销大，效率低，所以衍生了进程池模式，进程池模式就是服务器启动的时候，预先创建一定数量的进程，但是这些进程是worker进程。它不负责accept请求。它只负责处理请求。主进程负责accept，它把accept返回的socket交给worker进程处理，模式如图1-7所示。
 
- ![在这里插入图片描述](https://img-blog.csdnimg.cn/2021041923375310.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
+**2 进程池模式**
+实时创建和销毁进程开销大，效率低，所以衍生了进程池模式，进程池模式就是服务器启动的时候，预先创建一定数量的进程，但是这些进程是worker进程。它不负责accept请求。它只负责处理请求。主进程负责accept，它把accept返回的socket交给worker进程处理，模式如下图所示。
+
+ ![](https://img-blog.csdnimg.cn/2021041923375310.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 
 但是和1中的模式相比，进程池模式相对比较复杂，因为在模式1中，当主进程收到一个请求的时候，实时fork一个子进程，这时候，这个子进程会继承主进程中新请求对应的fd，所以它可以直接处理该fd对应的请求，在进程池的模式中，子进程是预先创建的，当主进程收到一个请求的时候，子进程中是无法拿得到该请求对应的fd的。这时候，需要主进程使用传递文件描述符的技术把这个请求对应的fd传给子进程。一个进程其实就是一个结构体task_struct，在JS里我们可以说是一个对象，它有一个字段记录了打开的文件描述符，当我们访问一个文件描述符的时候，操作系统就会根据fd的值，从task_struct中找到fd对应的底层资源，所以主进程给子进程传递文件描述符的时候，传递的不仅仅是一个数字fd，因为如果仅仅这样做，在子进程中该fd可能没有对应任何资源，或者对应的资源和主进程中的是不一致的。这其中操作系统帮我们做了很多事情。让我们在子进程中可以通过fd访问到正确的资源，即主进程中收到的请求。
 
 **3 子进程accept**
+
 这种模式不是等到请求来的时候再创建进程。而是在服务器启动的时候，就会创建多个进程。然后多个进程分别调用accept。这种模式的架构如图1-8所示。
 
  ![](https://img-blog.csdnimg.cn/20210419233928634.png)
@@ -811,6 +841,7 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 ```
 
 这种模式下多个子进程都阻塞在accept。如果这时候有一个请求到来，那么所有的子进程都会被唤醒，但是首先被调度的子进程会首先摘下这个请求节点，后续的进程被唤醒后可能会遇到已经没有请求可以处理，又进入睡眠，进程被无效唤醒，这是著名的惊群现象。改进方式就是在accpet之前加锁，拿到锁的进程才能进行accept，这样就保证了只有一个进程会阻塞在accept，Nginx解决了这个问题，但是新版操作系统已经在内核层面解决了这个问题。每次只会唤醒一个进程。通常这种模式和事件驱动配合使用。
+
 ### 1.4.3 多线程模式
 多线程模式和多进程模式是类似的，也是分为下面几种
 
@@ -820,13 +851,15 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 
 3 线程池
 
-前面两种和多进程模式中是一样的，但是第三种比较特别，我们主要介绍第三种。在子进程模式时，每个子进程都有自己的task_struct，这就意味着在fork之后，每个进程负责维护自己的数据，而线程则不一样，线程是共享主线程（主进程）的数据的，当主进程从accept中拿到一个fd的时候，传给线程的话，线程是可以直接操作的。所以在线程池模式时，架构如图1-9所示。
+前面两种和多进程模式中是一样的，但是第三种比较特别，我们主要介绍第三种。在子进程模式时，每个子进程都有自己的task_struct，这就意味着在fork之后，每个进程负责维护自己的数据，而线程则不一样，线程是共享主线程（主进程）的数据的，当主进程从accept中拿到一个fd的时候，传给线程的话，线程是可以直接操作的。所以在线程池模式时，架构如下图所示。
 
 ![](https://img-blog.csdnimg.cn/20210419234043376.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 
 
 主进程负责accept请求，然后通过互斥的方式插入一个任务到共享队列中，线程池中的子线程同样是通过互斥的方式，从共享队列中摘取节点进行处理。
+
 ### 1.4.4 事件驱动
+
 现在很多服务器（Nginx，Node.js，Redis）都开始使用事件驱动模式去设计。从之前的设计模式中我们知道，为了应对大量的请求，服务器需要大量的进程/线程。这个是个非常大的开销。而事件驱动模式，一般是配合单进程（单线程），再多的请求，也是在一个进程里处理的。但是因为是单进程，所以不适合CPU密集型，因为一个任务一直在占据CPU的话，后续的任务就无法执行了。它更适合IO密集的（一般都会提供一个线程池，负责处理CPU或者阻塞型的任务）。而使用多进程/线程模式的时候，一个进程/线程是无法一直占据CPU的，执行一定时间后，操作系统会执行任务调度。让其它线程也有机会执行，这样就不会前面的任务阻塞后面的任务，出现饥饿情况。大部分操作系统都提供了事件驱动的API。但是事件驱动在不同系统中实现不一样。所以一般都会有一层抽象层抹平这个差异。这里以Linux的epoll为例子。
 
 ```cpp
