@@ -599,7 +599,7 @@ static map = new Map(moduleIds.map((id) => [id, new NativeModule(id)]));
 
 NativeModule主要的逻辑如下
 
->1 原生JS模块的代码是转成字符存在node_javascript.cc文件的，NativeModule负责原生JS模块的加载，即编译和执行。
+1 原生JS模块的代码是转成字符存在node_javascript.cc文件的，NativeModule负责原生JS模块的加载，即编译和执行。
 2 提供一个require函数，加载原生JS模块，对于文件路径以internal开头的模块，是不能被用户require使用的。
 
 这是原生JS模块加载的大概逻辑，具体的我们在Node.js模块加载章节具体分析。执行完internal/bootstrap/loaders.js，最后返回三个变量给C++层。
