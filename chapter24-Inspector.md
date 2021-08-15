@@ -395,7 +395,7 @@ InspectorSocket::Pointer InspectorSocket::Accept(uv_stream_t* server,
   return InspectorSocket::Pointer(inspector);
 }
 ```
-InspectorSocket::Accept的代码不多，但是逻辑还是挺多的。
+InspectorSocket::Accept的代码不多，但是逻辑还是挺多的。  
 1 InspectorSocket::Accept再次调用TcpHolder::Accept获得一个TcpHolder对象。
 ```c
 TcpHolder::Pointer TcpHolder::Accept(
@@ -481,7 +481,7 @@ void InspectorSocketServer::SessionStarted(int session_id,
   delegate_->StartSession(session_id, id);
 }
 ```
-首先通过session_id找到建立TCP连接时分配的SocketSession对象。
+首先通过session_id找到建立TCP连接时分配的SocketSession对象。  
 1 执行session->Accept(ws_key);回复客户端同意协议升级。
 ```c
 void Accept(const std::string& ws_key) {
@@ -510,7 +510,7 @@ void AcceptUpgrade(const std::string& accept_key) override {
     inspector_->SwitchProtocol(new WsHandler(inspector_, std::move(tcp_)));
 }
 ```
-AcceptUpgradeh首先回复客户端101表示同意升级道WebSocket协议，然后切换数据处理器为WsHandler，即后续的数据按照WebSocket协议处理。
+AcceptUpgradeh首先回复客户端101表示同意升级道WebSocket协议，然后切换数据处理器为WsHandler，即后续的数据按照WebSocket协议处理。  
 2 执行delegate_->StartSession(session_id, id)建立和V8 Inspector的会话。delegate_是InspectorIoDelegate对象。
 ```c
 void InspectorIoDelegate::StartSession(int session_id,
