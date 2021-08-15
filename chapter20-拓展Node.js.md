@@ -75,8 +75,8 @@ cyb.cc
 44.	NODE_MODULE_CONTEXT_AWARE_INTERNAL(cyb_wrap, node::Cyb::Initialize)  
 ```
 
-我们新定义一个模块，是不能自动添加到Node.js内核的，我们还需要额外的操作。
-1 首先我们需要修改node.gyp文件。把我们新增的文件加到配置里，否则编译的时候，不会编译这个新增的模块。我们可以在node.gyp文件中找到src/tcp_wrap.cc,然后在它后面加入我们的文件就行。
+我们新定义一个模块，是不能自动添加到Node.js内核的，我们还需要额外的操作。  
+1 首先我们需要修改node.gyp文件。把我们新增的文件加到配置里，否则编译的时候，不会编译这个新增的模块。我们可以在node.gyp文件中找到src/tcp_wrap.cc,然后在它后面加入我们的文件就行。  
 
 ```
 1.	src/cyb_wrap.cc  
@@ -127,14 +127,14 @@ cyb.cc
 ```
 
 这时候，Node.js不仅可以编译我们的代码，还会把我们代码中定义的模块注册到内置C++模块里了，接下来就是如何使用C++模块了。
-2 在lib文件夹新建一个cyb.js，作为Node.js原生模块
+2 在lib文件夹新建一个cyb.js，作为Node.js原生模块  
 
 ```
 1.	const cyb = internalBinding('cyb_wrap');   
 2.	module.exports = cyb;  
 ```
 
-新增原生模块，我们也需要修改node.gyp文件，否则代码也不会被编译进node内核。我们找到node.gyp文件的lib/net.js，在后面追加lib/cyb.js。该配置下的文件是给js2c.py使用的，如果不修改，我们在require的时候，就会找不到该模块。最后我们在lib/internal/bootstrap/loader文件里找到internalBindingWhitelist变量，在数组最后增加cyb_wrap，这个配置是给process.binding函数使用的，如果不修改这个配置，通过process.binding就找不到我们的模块。process.binding是可以在用户JS里使用的。至此，我们完成了所有的修改工作，重新编译Node.js。然后编写测试程序。
+新增原生模块，我们也需要修改node.gyp文件，否则代码也不会被编译进node内核。我们找到node.gyp文件的lib/net.js，在后面追加lib/cyb.js。该配置下的文件是给js2c.py使用的，如果不修改，我们在require的时候，就会找不到该模块。最后我们在lib/internal/bootstrap/loader文件里找到internalBindingWhitelist变量，在数组最后增加cyb_wrap，这个配置是给process.binding函数使用的，如果不修改这个配置，通过process.binding就找不到我们的模块。process.binding是可以在用户JS里使用的。至此，我们完成了所有的修改工作，重新编译Node.js。然后编写测试程序。  
 3 新建一个测试文件testcyb.js
 
 ```
