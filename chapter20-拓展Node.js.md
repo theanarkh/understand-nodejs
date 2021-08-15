@@ -115,7 +115,9 @@ cyb.cc
 ```
 1.	#define NODE_BUILTIN_EXTEND_MODULES(V)  \  
 2.	  V(cyb_wrap)   
+```
 然后把这个宏追加到那一堆宏后面。
+```
 1.	#define NODE_BUILTIN_MODULES(V)  \  
 2.	  NODE_BUILTIN_STANDARD_MODULES(V)  \  
 3.	  NODE_BUILTIN_OPENSSL_MODULES(V)  \  
@@ -126,7 +128,7 @@ cyb.cc
 8.	  NODE_BUILTIN_EXTEND_MODULES(V)  
 ```
 
-这时候，Node.js不仅可以编译我们的代码，还会把我们代码中定义的模块注册到内置C++模块里了，接下来就是如何使用C++模块了。
+这时候，Node.js不仅可以编译我们的代码，还会把我们代码中定义的模块注册到内置C++模块里了，接下来就是如何使用C++模块了。  
 2 在lib文件夹新建一个cyb.js，作为Node.js原生模块  
 
 ```
@@ -154,8 +156,8 @@ cyb.cc
 4 TCP_USER_TIMEOUT，发送了数据，多久没有收到ack后，认为连接断开。
 ```
 
-Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个功能是操作系统提供的，所以首先需要修改Libuv的代码。
-1 修改src/unix/tcp.c
+Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个功能是操作系统提供的，所以首先需要修改Libuv的代码。  
+1 修改src/unix/tcp.c  
 在tcp.c加入以下代码
 
 ```
@@ -242,7 +244,7 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 81.	}  
 ```
 
-2 修改include/uv.h 
+2 修改include/uv.h   
 把在tcp.c中加入的接口暴露出来。
 
 ```
@@ -254,8 +256,8 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 6.	UV_EXTERN int uv_tcp_timeout(uv_tcp_t* handle, unsigned int timeout);  
 ```
 
-至此，我们就修改完Libuv的代码，也对外暴露了设置的接口，接着我们修改上层的C++和JS代码，使得我们可以在JS层使用该功能。
-3 修改src/tcp_wrap.cc
+至此，我们就修改完Libuv的代码，也对外暴露了设置的接口，接着我们修改上层的C++和JS代码，使得我们可以在JS层使用该功能。  
+3 修改src/tcp_wrap.cc  
 修改TCPWrap::Initialize函数的代码。
 
 ```
