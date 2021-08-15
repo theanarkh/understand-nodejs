@@ -801,8 +801,6 @@ int TcpHolder::WriteRaw(const std::vector<char>& buffer, uv_write_cb write_cb) {
 ```
 新建一个写请求，socket可写的时候发送数据给客户端。
 
-**后记：Node.js Inspector的原理虽然不复杂的，但是实现实在太绕了。**
-
 # 4 动态开启Inspector
 默认打开Inspector能力是不安全的，这意味着能连上websocket服务器的客户端都能通过协议控制Node.js进程，通常我们是在Node.js进程出现问题的时候，动态开启Inspector。
 ```c
