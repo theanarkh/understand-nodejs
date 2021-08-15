@@ -587,7 +587,7 @@ Child.js
 图15-5  
 实现共享模式的重点在于理解EADDRINUSE错误是怎么来的。当主进程执行bind的时候，结构如图15-6所示。  
 ![](https://img-blog.csdnimg.cn/4d8f7f72fc92487693822e8bd239531d.png)  
-图15-6
+图15-6  
 如果其它进程也执行bind并且端口也一样，则操作系统会告诉我们端口已经被监听了（EADDRINUSE）。但是如果我们在子进程里不执行bind的话，就可以绕过这个限制。那么重点在于，如何在子进程中不执行bind，但是又可以绑定到同样的端口呢？有两种方式。
 1 fork
 我们知道fork的时候，子进程会继承主进程的文件描述符，如图15-7所示。  
@@ -600,7 +600,7 @@ Node.js的子进程是通过fork+exec模式创建的，并且Node.js文件描述
 图15-8  
 这时候我们可以通过文件描述符传递的方式。把方式1中拿不到的fd传给子进程。因为在Node.js中，虽然我们拿不到fd，但是我们可以拿得到fd对应的handle，我们通过IPC传输handle的时候，Node.js会为我们处理fd的问题。最后通过操作系统对传递文件描述符的处理。结构如图15-9所示。  
 ![](https://img-blog.csdnimg.cn/400d28b0d1874bf6b204862d873e38f9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
-图15-9
+图15-9  
 通过这种方式，我们就绕过了bind同一个端口的问题。通过以上的例子，我们知道绕过bind的问题重点在于让主进程和子进程共享socket而不是单独执行bind。对于传递文件描述符，Node.js中支持很多种方式。上面的方式是子进程各自执行listen。还有另一种模式如下
 parent.js
 
