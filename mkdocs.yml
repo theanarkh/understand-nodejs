@@ -75,6 +75,43 @@ plugins:
   # - tags:
   #     tags_file: tags.md
 
+extra:
+  analytics:
+    provider: google
+    property: !ENV GOOGLE_ANALYTICS_KEY
+  book:
+    title: Apache Spark
+    spark_k8s: https://jaceklaskowski.github.io/spark-kubernetes-book
+    spark_sql: https://jaceklaskowski.github.io/mastering-spark-sql-book
+    structured_streaming: https://jaceklaskowski.github.io/spark-structured-streaming-book
+  codahale:
+    home: https://metrics.dropwizard.io/4.2.0
+    api: https://www.javadoc.io/static/io.dropwizard.metrics/metrics-core/4.2.0
+  hadoop:
+    version: 3.3.1
+    docs: https://hadoop.apache.org/docs/r3.3.1
+    api: https://hadoop.apache.org/docs/r3.3.1/api
+  jackson:
+    api: https://fasterxml.github.io/jackson-databind/javadoc/2.12
+  java:
+    api: https://docs.oracle.com/en/java/javase/11/docs/api
+  scala:
+    api: https://www.scala-lang.org/api/2.12.14
+    docs: https://docs.scala-lang.org/
+    spec: https://www.scala-lang.org/files/archive/spec/2.12
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/xkx9431
+    - icon: fontawesome/brands/zhihu
+      link: https://www.zhihu.com/people/triumphxu
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/%E5%87%AF%E6%97%8B-%E8%A8%B1-983884103/
+    # - icon: fontawesome/brands/blog
+    #   link: https://xkx9431.github.io/xkx_blog/
+  spark:
+    version: 3.2.0 (RC2)
+    github: https://github.com/apache/spark/tree/v3.2.0-rc2
+
 
 nav:
     - 前言: chapter00-前言.md
