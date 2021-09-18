@@ -57,4 +57,4 @@ github [https://github.com/theanarkh](https://github.com/theanarkh)
 
 ## 最后更新
 
-<small>Last update: {{ git.date.strftime('%Y-%m-%d') }}</small>
+<small>最后更新: {{ git.date.strftime('%Y-%m-%d') }}</small>
