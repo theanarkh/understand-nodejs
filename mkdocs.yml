@@ -1,16 +1,17 @@
-site_name: Nodejs Internal
+site_name: Nodejs Internals
 site_url: https://github.com/theanarkh/understand-nodejs
-site_author: theratliter
+site_author: theanarkh
 site_description: 通过源码分析nodejs原理
 
 repo_name: understand-nodejs
 repo_url: https://github.com/theanarkh/understand-nodejs
 edit_uri: edit/main/docs/
 
-copyright: Copyright &copy; 2021 theratliter
+copyright: Copyright &copy; 2021 theanarkh
 
 theme:
   name: material
+  language: zh
   icon:
     logo: material/book-open-page-variant
     repo: fontawesome/brands/github
@@ -21,6 +22,7 @@ theme:
   - navigation.instant
   - navigation.tabs
   - navigation.tabs.sticky
+  - navigation.sections
   - navigation.top
   - navigation.tracking
   - search.highlight
@@ -90,11 +92,13 @@ extra:
 
 
 nav:
-    - Home: index.md
-    - 00前言: chapter00-前言.md
+  - Home: index.md
+  - 前言: chapter00-前言.md
+  - Node.js基础和架构:
     - 01-Node.js组成和原理: chapter01-Node.js组成和原理.md
     - 02-Libuv数据结构和通用逻辑: chapter02-Libuv数据结构和通用逻辑.md
     - 03-事件循环: chapter03-事件循环.md
+  - Node.js核心模块的实现:
     - 04-线程池: chapter04-线程池.md
     - 05-Libuv流: chapter05-Libuv流.md
     - 06-C++层: chapter06-C++层.md
@@ -107,10 +111,11 @@ nav:
     - 13-进程:  13-进程.md
     - 14-线程:  chapter14-线程.md
     - 15-Cluster:  chapter15-Cluster.md
-    - chapter16-UDP:  chapter16-UDP.md
+    - 16-UDP:  chapter16-UDP.md
     - 17-TCP:  chapter17-TCP.md
     - 18-HTTP:  chapter18-HTTP.md
     - 19-模块加载:  chapter19-模块加载.md
+  - Node.js 拓展:
     - 20-拓展Node.js:  chapter20-拓展Node.js.md
     - 21-JS Stream:  chapter21-JS Stream.md
     - 22-events模块:  chapter22-events模块.md
