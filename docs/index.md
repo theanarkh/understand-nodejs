@@ -8,7 +8,7 @@
 * [《Node.js源码解析1.0.0带标签版》](https://11111-1252105172.cos.ap-shanghai.myqcloud.com/understand-nodejs%EF%BC%88%E5%B8%A6%E6%A0%87%E7%AD%BE%E7%89%88%EF%BC%89.pdf)<br/>
 
 
-让我们开始学习[Node.js](overview.md)吧🔥
+让我们开始学习[Node.js](chapter00-前言.md)吧🔥
 
 ---
 
