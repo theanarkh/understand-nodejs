@@ -75,13 +75,6 @@ plugins:
   # - tags:
   #     tags_file: tags.md
 
-extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/theanarkh
-    - icon: fontawesome/brands/zhihu
-      link: https://www.zhihu.com/people/theanarkh
-#     csdn [https://blog.csdn.net/THEANARKH](https://blog.csdn.net/THEANARKH)
 
 nav:
     - 前言: chapter00-前言.md
