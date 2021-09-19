@@ -1,0 +1,126 @@
+site_name: Nodejs Internals
+site_url: https://github.com/theanarkh/understand-nodejs
+site_author: theanarkh
+site_description: 通过源码分析nodejs原理
+
+repo_name: understand-nodejs
+repo_url: https://github.com/theanarkh/understand-nodejs
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2021 theanarkh
+
+theme:
+  name: material
+  language: zh
+  icon:
+    logo: material/book-open-page-variant
+    repo: fontawesome/brands/github
+  features:
+  # https://squidfunk.github.io/mkdocs-material/reference/code-blocks/#adding-annotations
+  - content.code.annotate
+  - navigation.indexes
+  - navigation.instant
+  - navigation.tabs
+  - navigation.tabs.sticky
+  - navigation.sections
+  - navigation.top
+  - navigation.tracking
+  - search.highlight
+  - search.share
+  - search.suggest
+  palette:
+  - scheme: default
+    primary: indigo
+    accent: indigo
+    toggle:
+      icon: material/toggle-switch-off-outline
+      name: Switch to dark mode
+  - scheme: slate
+    primary: blue
+    accent: blue
+    toggle:
+      icon: material/toggle-switch
+      name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tabbed
+  - pymdownx.tilde
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+  - awesome-pages
+  - macros
+  # https://squidfunk.github.io/mkdocs-material/setup/setting-up-tags/
+  # - tags:
+  #     tags_file: tags.md
+
+extra:
+
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/theanarkh
+    - icon: fontawesome/brands/zhihu
+      link: https://www.zhihu.com/people/theanarkh
+    # - icon: fontawesome/brands/blog
+    #   link: https://xkx9431.github.io/xkx_blog/
+  spark:
+    version: 3.2.0 (RC2)
+    github: https://github.com/apache/spark/tree/v3.2.0-rc2
+
+
+nav:
+  - Home: index.md
+  - 前言: chapter00-前言.md
+  - Node.js基础和架构:
+    - 01-Node.js组成和原理: chapter01-Node.js组成和原理.md
+    - 02-Libuv数据结构和通用逻辑: chapter02-Libuv数据结构和通用逻辑.md
+    - 03-事件循环: chapter03-事件循环.md
+  - Node.js核心模块的实现:
+    - 04-线程池: chapter04-线程池.md
+    - 05-Libuv流: chapter05-Libuv流.md
+    - 06-C++层: chapter06-C++层.md
+    - 07-信号处理:  chapter07-信号处理.md
+    - 08-DNS:  chapter08-DNS.md
+    - 09-Unix域:  chapter09-Unix域.md
+    - 10-定时器:  chapter10-定时器.md
+    - 11-setImmediate和nextTick:  chapter11-setImmediate和nextTick.md
+    - 12-文件:  chapter12-文件.md
+    - 13-进程:  13-进程.md
+    - 14-线程:  chapter14-线程.md
+    - 15-Cluster:  chapter15-Cluster.md
+    - 16-UDP:  chapter16-UDP.md
+    - 17-TCP:  chapter17-TCP.md
+    - 18-HTTP:  chapter18-HTTP.md
+    - 19-模块加载:  chapter19-模块加载.md
+  - Node.js 拓展:
+    - 20-拓展Node.js:  chapter20-拓展Node.js.md
+    - 21-JS Stream:  chapter21-JS Stream.md
+    - 22-events模块:  chapter22-events模块.md
+    - 23-Async hooks:  chapter23-Async hooks.md
+    - 24-Inspector:  chapter24-Inspector.md
+    - 25-Node.js子线程调试和诊断指南:  chapter25-Node.js子线程调试和诊断指南
+    - 26-vscode调试Node.js:  chapter26-vscode调试Node.js.md
+  

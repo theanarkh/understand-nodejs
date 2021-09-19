@@ -1,0 +1,8 @@
+
+mkdocs-material
+mkdocs-minify-plugin>=0.3.0
+mkdocs-git-revision-date-localized-plugin>=0.8
+mkdocs-git-revision-date-plugin>=0.3.1
+mkdocs-awesome-pages-plugin>=2.5.0
+mkdocs-redirects>=1.0.1
+mkdocs-macros-plugin>=0.5.0
