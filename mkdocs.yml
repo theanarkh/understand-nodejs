@@ -1,7 +1,7 @@
-site_name: Nodejs Internals
+site_name: Node.js 源码剖析
 site_url: https://github.com/theanarkh/understand-nodejs
 site_author: theanarkh
-site_description: 通过源码分析nodejs原理
+site_description: 通过源码分析 Node.js 原理
 
 repo_name: understand-nodejs
 repo_url: https://github.com/theanarkh/understand-nodejs
@@ -108,7 +108,7 @@ nav:
     - 10-定时器:  chapter10-定时器.md
     - 11-setImmediate和nextTick:  chapter11-setImmediate和nextTick.md
     - 12-文件:  chapter12-文件.md
-    - 13-进程:  13-进程.md
+    - 13-进程:  chapter13-进程.md
     - 14-线程:  chapter14-线程.md
     - 15-Cluster:  chapter15-Cluster.md
     - 16-UDP:  chapter16-UDP.md
