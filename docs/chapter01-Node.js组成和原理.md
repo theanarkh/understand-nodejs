@@ -536,7 +536,7 @@ BootstrapInternalLoaders用于执行internal/bootstrap/loaders.js。我们看一
 
 接着Node.js编译执行internal/bootstrap/loaders.js，这个过程链路非常长，最后到V8层，就不贴出具体的代码，具体的逻辑转成JS如下。
 
-```cpp
+```js
     function demo(process, 
                    getLinkedBinding, 
                    getInternalBinding, 
@@ -555,7 +555,7 @@ BootstrapInternalLoaders用于执行internal/bootstrap/loaders.js。我们看一
 
 V8把internal/bootstrap/loaders.js用一个函数包裹起来，形参就是loaders_params变量对应的四个字符串。然后执行这个函数，并且传入loaders_args里的那四个对象。internal/bootstrap/loaders.js会导出一个对象。在看internal/bootstrap/loaders.js代码之前，我们先看一下getLinkedBinding, getInternalBinding这两个函数，Node.js在C++层对外暴露了AddLinkedBinding方法注册模块，Node.js针对这种类型的模块，维护了一个单独的链表。getLinkedBinding就是根据模块名从这个链表中找到对应的模块，但是我们一般用不到这个，所以就不深入分析。前面我们看到对于C++内置模块，Node.js同样维护了一个链表，getInternalBinding就是根据模块名从这个链表中找到对应的模块。现在我们可以具体看一下internal/bootstrap/loaders.js的代码了。
 
-```cpp
+```js
     let internalBinding;  
     {  
       const bindingObj = ObjectCreate(null);  
@@ -572,7 +572,7 @@ V8把internal/bootstrap/loaders.js用一个函数包裹起来，形参就是load
 
 Node.js在JS对getInternalBinding进行了一个封装，主要是加了缓存处理。
 
-```cpp
+```js
     const internalBindingWhitelist = new SafeSet([,  
       'tcp_wrap',  
       // 一系列C++内置模块名  
@@ -592,7 +592,7 @@ Node.js在JS对getInternalBinding进行了一个封装，主要是加了缓存�
 
 在process对象（就是我们平时使用的process对象）中挂载binding函数，这个函数主要用于内置的JS模块，后面我们会经常看到。binding的逻辑就是根据模块名查找对应的C++模块。上面的处理是为了Node.js能在JS层通过binding函数加载C++模块，我们知道Node.js中还有原生的JS模块（lib文件夹下的JS文件）。接下来我们看一下，对于加载原生JS模块的处理。Node.js定义了一个NativeModule类负责原生JS模块的加载。还定义了一个变量保存了原生JS模块的名称列表。
 
-```cpp
+```js
 static map = new Map(moduleIds.map((id) => [id, new NativeModule(id)]));  
 ```
 
@@ -603,7 +603,7 @@ NativeModule主要的逻辑如下
 
 这是原生JS模块加载的大概逻辑，具体的我们在Node.js模块加载章节具体分析。执行完internal/bootstrap/loaders.js，最后返回三个变量给C++层。
 
-```cpp
+```js
     return {  
       internalBinding,  
       NativeModule,  
@@ -698,7 +698,7 @@ StartMainThreadExecution进行一些初始化工作，然后执行用户JS代码
 
 **2 处理进程间通信**
 
-```cpp
+```js
     function setupChildProcessIpcChannel() {  
       if (process.env.NODE_CHANNEL_FD) {  
         const fd = parseInt(process.env.NODE_CHANNEL_FD, 10);  
@@ -715,7 +715,7 @@ StartMainThreadExecution进行一些初始化工作，然后执行用户JS代码
 
 **3 处理cluster模块的进程间通信**
 
-```cpp
+```js
     function initializeclusterIPC() {  
       if (process.argv[1] && process.env.NODE_UNIQUE_ID) {  
         const cluster = require('cluster');  
@@ -727,7 +727,7 @@ StartMainThreadExecution进行一些初始化工作，然后执行用户JS代码
 
 **4 执行用户JS代码**
 
-```cpp
+```js
 require('internal/modules/cjs/loader').Module.runMain(process.argv[1]);  
 ```
 
@@ -754,7 +754,7 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 
 服务器是现代软件中非常重要的一个组成，我们看一下服务器发展的过程中，都有哪些设计架构。一个基于TCP协议的服务器，基本的流程如下（伪代码）。
 
-```cpp
+```js
     // 拿到一个socket用于监听  
     const socketfd = socket(协议类型等配置);  
     // 监听本机的地址（ip+端口）  
@@ -767,7 +767,7 @@ internal/modules/cjs/loader.js是负责加载用户JS的模块，runMain函数�
 
 ### 1.4.1 串行处理请求
 
-```cpp
+```js
     while(1) {  
         const socketForCommunication = accept(socket);  
         const data = read(socketForCommunication);  
@@ -794,7 +794,7 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
 **1 主进程accept，子进程处理请求**
 这种模式下，主进程负责摘取已完成连接的节点，然后把这个节点对应的请求交给子进程处理，逻辑如下。
 
-```cpp
+```js
     while(1) {  
         const socketForCommunication = accept(socket);  
         if (fork() > 0) {  
@@ -823,7 +823,7 @@ accept就是从已完成三次握手的连接队列里，摘下一个节点。�
  ![](https://img-blog.csdnimg.cn/20210419233928634.png)
 
 
-```cpp
+```js
     const socketfd = socket(协议类型等配置);  
     bind(socketfd， 监听地址)  
     
