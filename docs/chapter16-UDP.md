@@ -3,7 +3,7 @@
 我们首先看一下在C语言中如何使用UDP功能，这是Node.js的底层基础。
 ### 16.1.1 服务器流程（伪代码）
 
-```
+```cpp
     // 申请一个socket    
     int fd = socket(...);    
     // 绑定一个众所周知的地址，像TCP一样    
@@ -16,7 +16,7 @@
 客户端的流程有多种方式，原因在于源IP、端口和目的IP、端口可以有多种设置方式。不像服务器一样，服务器端口是需要对外公布的，否则客户端就无法找到目的地进行通信。这就意味着服务器的端口是需要用户显式指定的，而客户端则不然，客户端的IP和端口，用户可以自己指定，也可以由操作系统决定，下面我们看看各种使用方式。
 #### 16.1.2.1 显式指定源IP和端口
 
-```
+```cpp
     // 申请一个socket  
     int fd = socket(...);  
     // 绑定一个客户端的地址  
@@ -28,7 +28,7 @@
 因为UDP不是面向连接的，所以使用UDP时，不需要调用connect建立连接，只要我们知道服务器的地址，直接给服务器发送数据即可。而面向连接的TCP，首先需要通过connect发起三次握手建立连接，建立连接的本质是在客户端和服务器记录对端的信息，这是后面通信的通行证。
 #### 16.1.2.2 由操作系统决定源ip和端口
 
-```
+```cpp
     // 申请一个socket  
     int fd = socket(...);  
     // 给服务器发送数据  
@@ -37,7 +37,7 @@
 
 我们看到这里没有绑定客户端的源ip和端口，而是直接就给服务器发送数据。如果用户不指定ip和端口，则操作系统会提供默认的源ip和端口。对于ip，如果是多宿主主机，每次调用sendto的时候，操作系统会动态选择源ip。对于端口，操作系统会在第一次调用sendto的时候随机选择一个端口，并且不能修改。另外还有一种使用方式。
 
-```
+```cpp
     // 申请一个socket  
     int fd = socket(...);  
     connect(fd, 服务器ip，服务器端口);  
@@ -64,7 +64,7 @@
 ### 16.2.1 服务器
 我们从一个使用例子开始看看UDP模块的使用。
 
-```
+```js
     const dgram = require('dgram');  
     // 创建一个UDP服务器  
     const server = dgram.createSocket('udp4');  
@@ -78,7 +78,7 @@
 
 我们看到创建一个UDP服务器很简单，首先申请一个socket对象，在Node.js中和操作系统中一样，socket是对网络通信的一个抽象，我们可以把它理解成对传输层的抽象，它可以代表TCP也可以代表UDP。我们看一下createSocket做了什么。
 
-```
+```js
     function createSocket(type, listener) {  
       return new Socket(type, listener);  
     }  
@@ -120,7 +120,7 @@
 
 我们看到一个socket对象是对handle的一个封装。我们看看handle是什么。
 
-```
+```js
     function newHandle(type, lookup) {  
       // 用于dns解析的函数，比如我们调send的时候，传的是一个域名  
       if (lookup === undefined) {  
@@ -141,7 +141,7 @@
 
 handle又是对UDP模块的封装，UDP是C++模块，在之前章节中我们讲过相关的知识，这里就不详细讲述了，当我们在JS层new UDP的时候，会新建一个C++对象。
 
-```
+```cpp
     UDPWrap::UDPWrap(Environment* env, Local<Object> object)  
         : HandleWrap(env,  
                      object,  
@@ -153,7 +153,7 @@ handle又是对UDP模块的封装，UDP是C++模块，在之前章节中我们�
 
 执行了uv_udp_init初始化udp对应的handle（uv_udp_t）。我们看一下Libuv的定义。
 
-```
+```cpp
     int uv_udp_init_ex(uv_loop_t* loop, uv_udp_t* handle, unsigned int flags) {  
       int domain;  
       int err;  
@@ -182,7 +182,7 @@ handle又是对UDP模块的封装，UDP是C++模块，在之前章节中我们�
 
 就是我们在JS层执行dgram.createSocket('udp4')的时候，在Node.js中主要的执行过程。回到最开始的例子，我们看一下执行bind的时候的逻辑。
 
-```
+```js
     Socket.prototype.bind = function(port_, address_ /* , callback */) {  
       let port = port_;  
       // socket的上下文  
@@ -222,7 +222,7 @@ handle又是对UDP模块的封装，UDP是C++模块，在之前章节中我们�
 
 bind函数主要的逻辑是handle.bind和startListening。我们一个个看。我们看一下C++层的bind。
 
-```
+```cpp
     void UDPWrap::DoBind(const FunctionCallbackInfo<Value>& args, int family) {  
       UDPWrap* wrap;  
       ASSIGN_OR_RETURN_UNWRAP(&wrap,  
@@ -251,7 +251,7 @@ bind函数主要的逻辑是handle.bind和startListening。我们一个个看。
 
 也没有太多逻辑，处理参数然后执行uv_udp_bind设置一些标记、属性和端口复用（端口复用后续会单独分析），然后执行操作系统bind的函数把本端的ip和端口保存到socket中。我们继续看startListening。
 
-```
+```js
     function startListening(socket) {  
       const state = socket[kStateSymbol];  
       // 有数据时的回调，触发message事件  
@@ -273,7 +273,7 @@ bind函数主要的逻辑是handle.bind和startListening。我们一个个看。
 
 重点是recvStart函数，我们看C++的实现。
 
-```
+```cpp
     void UDPWrap::RecvStart(const FunctionCallbackInfo<Value>& args) {  
       UDPWrap* wrap;  
       ASSIGN_OR_RETURN_UNWRAP(&wrap,  
@@ -289,7 +289,7 @@ bind函数主要的逻辑是handle.bind和startListening。我们一个个看。
 
 OnAlloc, OnRecv分别是分配内存接收数据的函数和数据到来时执行的回调。继续看Libuv
 
-```
+```cpp
     int uv__udp_recv_start(uv_udp_t* handle,  
                            uv_alloc_cb alloc_cb,  
                            uv_udp_recv_cb recv_cb) {  
@@ -314,7 +314,7 @@ uv__udp_recv_start主要是注册IO观察者到loop，等待事件到来的时�
 ### 16.2.2 客户端
 接着我们看一下客户端的使用方式和流程
 
-```
+```js
     const dgram = require('dgram');  
     const message = Buffer.from('Some bytes');  
     const client = dgram.createSocket('udp4');  
@@ -327,7 +327,7 @@ uv__udp_recv_start主要是注册IO观察者到loop，等待事件到来的时�
 
 我们看到Node.js首先调用connect绑定服务器的地址，然后调用send发送信息，最后调用close。我们一个个分析。首先看connect。
 
-```
+```js
     Socket.prototype.connect = function(port, address, callback) {  
       port = validatePort(port);  
       // 参数处理  
@@ -359,7 +359,7 @@ uv__udp_recv_start主要是注册IO观察者到loop，等待事件到来的时�
 
 这里分为两种情况，一种是在connect之前已经调用了bind，第二种是没有调用bind，如果没有调用bind，则在connect之前先要调用bind（因为bind中不仅仅绑定了ip端口，还有端口复用的处理）。这里只分析没有调用bind的情况，因为这是最长的路径。bind刚才我们分析过了，我们从以下代码继续分析
 
-```
+```js
     if (state.bindState !== BIND_STATE_BOUND) {  
         enqueue(this, _connect.bind(this, port, address, callback)); 
         return;  
@@ -368,7 +368,7 @@ uv__udp_recv_start主要是注册IO观察者到loop，等待事件到来的时�
 
 enqueue把任务加入任务队列，并且监听了listening事件（该事件在bind成功后触发）。
 
-```
+```js
     function enqueue(self, toEnqueue) {  
       const state = self[kStateSymbol];  
       if (state.queue === undefined) {  
@@ -382,7 +382,7 @@ enqueue把任务加入任务队列，并且监听了listening事件（该事件�
 
 这时候connect函数就执行完了，等待bind成功后（nextTick）会执行 startListening函数。
 
-```
+```js
     function startListening(socket) {  
       const state = socket[kStateSymbol];  
       state.handle.onmessage = onMessage;  
@@ -404,7 +404,7 @@ enqueue把任务加入任务队列，并且监听了listening事件（该事件�
 
 我们看到startListening触发了listening事件，从而执行我们刚才入队的回调onListenSuccess。
 
-```
+```js
     function onListenSuccess() {  
       this.removeListener('error', onListenError);  
       clearQueue.call(this);  
@@ -422,7 +422,7 @@ enqueue把任务加入任务队列，并且监听了listening事件（该事件�
 
 回调就是把队列中的回调执行一遍，connect函数设置的回调是_connect。
 
-```
+```js
     function _connect(port, address, callback) {  
       const state = this[kStateSymbol];  
       if (callback)  
@@ -444,7 +444,7 @@ enqueue把任务加入任务队列，并且监听了listening事件（该事件�
 1 监听connect事件
 2 对服务器地址进行dns解析（只能是本地的配的域名）。解析成功后执行afterDns，最后执行doConnect，并传入解析出来的ip。我们看看doConnect
 
-```
+```js
     function doConnect(ex, self, ip, address, port, callback) {  
       const state = self[kStateSymbol];  
       // dns解析成功，执行底层的connect  
@@ -465,7 +465,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 ### 16.2.3 发送数据
 发送数据接口是sendto，它是对send的封装。
 
-```
+```js
     Socket.prototype.send = function(buffer,  
                                      offset,  
                                      length,  
@@ -534,7 +534,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 
 我们继续看doSend函数。
 
-```
+```js
     function doSend(ex, self, ip, list, address, port, callback) {  
       const state = self[kStateSymbol];  
       // dns解析出错  
@@ -585,7 +585,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 
 我们穿过C++层，直接看Libuv的代码。
 
-```
+```cpp
     int uv__udp_send(uv_udp_send_t* req,  
                      uv_udp_t* handle,  
                      const uv_buf_t bufs[],  
@@ -647,7 +647,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 
 该函数首先记录写请求的上下文，然后把写请求插入写队列中，当待写队列为空，则直接执行uv__udp_sendmsg进行写操作，否则等待可写事件的到来，当可写事件触发的时候，执行的函数是uv__udp_io。
 
-```
+```cpp
     static void uv__udp_io(uv_loop_t* loop, uv__io_t* w, unsigned int revents) {  
       uv_udp_t* handle;  
       if (revents & POLLOUT) {  
@@ -659,7 +659,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 
 我们先看uv__udp_sendmsg
 
-```
+```cpp
     static void uv__udp_sendmsg(uv_udp_t* handle) {  
       uv_udp_send_t* req;  
       QUEUE* q;  
@@ -703,7 +703,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 2 如果写成功则把节点插入写完成队列中，并且把IO观察者插入pending队列。  
 等待pending阶段执行回调时，执行的函数是uv__udp_io。 我们再次回到uv__udp_io中
 
-```
+```cpp
     if (revents & POLLOUT) {  
         uv__udp_sendmsg(handle);  
         uv__udp_run_completed(handle);  
@@ -712,7 +712,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 
 我们看到这时候会继续执行数据发送的逻辑，然后处理写完成队列。我们看uv__udp_run_completed。
 
-```
+```cpp
     static void uv__udp_run_completed(uv_udp_t* handle) {  
       uv_udp_send_t* req;  
       QUEUE* q;  
@@ -752,7 +752,7 @@ connect函数通过C++层，然后调用Libuv，到操作系统的connect。作�
 ### 16.2.4 接收数据
 UDP服务器启动的时候，就注册了等待可读事件的发送，如果收到了数据，则在Poll IO阶段就会被处理。前面我们讲过，回调函数是uv__udp_io。我们看一下事件触发的时候，该函数怎么处理的。
 
-```
+```cpp
     static void uv__udp_io(uv_loop_t* loop, uv__io_t* w, unsigned int revents) {  
       uv_udp_t* handle;  
       
@@ -765,7 +765,7 @@ UDP服务器启动的时候，就注册了等待可读事件的发送，如果�
 
 我们看uv__udp_recvmsg的逻辑。
 
-```
+```cpp
     static void uv__udp_recvmsg(uv_udp_t* handle) {  
       struct sockaddr_storage peer;  
       struct msghdr h;  
@@ -816,7 +816,7 @@ UDP服务器启动的时候，就注册了等待可读事件的发送，如果�
 #### 16.2.5.1 加入一个多播组
 可以通过以下接口加入一个多播组。
 
-```
+```cpp
     setsockopt(fd,  
                IPPROTO_IP,  
                IP_ADD_MEMBERSHIP,  
@@ -826,7 +826,7 @@ UDP服务器启动的时候，就注册了等待可读事件的发送，如果�
 
 mreq的结构体定义如下
 
-```
+```cpp
     struct ip_mreq   
     {  
         // 加入的多播组ip  
@@ -838,7 +838,7 @@ mreq的结构体定义如下
 
 我们看一下setsockopt的实现（只列出相关部分代码）
 
-```
+```cpp
     case IP_ADD_MEMBERSHIP:   
             {  
                 struct ip_mreq mreq;  
@@ -884,7 +884,7 @@ mreq的结构体定义如下
 图16-3  
 我们接着看一下ip_mc_join_group
 
-```
+```cpp
     int ip_mc_join_group(struct sock *sk , 
                            struct device *dev, 
                            unsigned long addr)  
@@ -923,7 +923,7 @@ ip_mc_join_group函数的主要逻辑是把socket想加入的多播组信息记�
 ![](https://img-blog.csdnimg.cn/9022d2ade56b4fab8db1548a9db7ead9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 图16-4
 
-```
+```cpp
     static void ip_mc_inc_group(struct device *dev,     
                                   unsigned long addr)  
     {  
@@ -956,7 +956,7 @@ ip_mc_join_group函数的主要逻辑是把socket想加入的多播组信息记�
 
 ip_mc_inc_group函数的主要逻辑是判断socket想要加入的多播组是不是已经存在于当前device中，如果不是则新增一个节点。继续调用igmp_group_added
 
-```
+```cpp
     static void igmp_group_added(struct ip_mc_list *im)  
     {  
         // 初始化定时器  
@@ -975,7 +975,7 @@ ip_mc_inc_group函数的主要逻辑是判断socket想要加入的多播组是�
 
 我们看看igmp_send_report和ip_mc_filter_add的具体逻辑。
 
-```
+```cpp
     static void igmp_send_report(struct device *dev, 
                                     unsigned long address, 
                                     int type)  
@@ -1013,7 +1013,7 @@ ip_mc_inc_group函数的主要逻辑是判断socket想要加入的多播组是�
 
 igmp_send_report其实就是构造一个IGMP协议数据包，然后发送出去，告诉路由器某个主机加入了多播组，IGMP的协议格式如下
 
-```
+```cpp
     struct igmphdr  
     {  
         // 类型  
@@ -1028,7 +1028,7 @@ igmp_send_report其实就是构造一个IGMP协议数据包，然后发送出去
 
 接着我们看ip_mc_filter_add
 
-```
+```cpp
     void ip_mc_filter_add(struct device *dev, unsigned long addr)  
     {  
         char buf[6];  
@@ -1050,7 +1050,7 @@ igmp_send_report其实就是构造一个IGMP协议数据包，然后发送出去
 ![](https://img-blog.csdnimg.cn/22995cb766664137b1a6d78daae7a288.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 图16-5
 
-```
+```cpp
     void dev_mc_add(struct device *dev, void *addr, int alen, int newonly)  
     {  
         struct dev_mc_list *dmi;  
@@ -1081,7 +1081,7 @@ igmp_send_report其实就是构造一个IGMP协议数据包，然后发送出去
 
 网卡的工作模式有几种，分别是正常模式（只接收发给自己的数据包）、混杂模式（接收所有数据包）、多播模式（接收一般数据包和多播数据包）。网卡默认是只处理发给自己的数据包，所以当我们加入一个多播组的时候，我们需要告诉网卡，当收到该多播组的数据包时，需要处理，而不是忽略。dev_mc_upload函数就是通知网卡。
 
-```
+```cpp
     void dev_mc_upload(struct device *dev)  
     {  
         struct dev_mc_list *dmi;  
@@ -1123,7 +1123,7 @@ igmp_send_report其实就是构造一个IGMP协议数据包，然后发送出去
 
 最后我们看一下set_multicast_list
 
-```
+```cpp
     static void set_multicast_list(struct device *dev, int num_addrs, void *addrs)  
     {  
         int ioaddr = dev->base_addr;  
@@ -1145,7 +1145,7 @@ set_multicast_list就是设置网卡工作模式的函数。至此，我们就�
 #### 16.2.5.2 维护多播组信息
 加入多播组后，我们可以主动退出多播组，但是如果主机挂了，就无法主动退出了，所以多播路由也会定期向所有多播组的所有主机发送探测报文，所以主机需要监听来自多播路由的探测报文。
 
-```
+```cpp
     void ip_mc_allhost(struct device *dev)  
     {  
         struct ip_mc_list *i;  
@@ -1166,7 +1166,7 @@ set_multicast_list就是设置网卡工作模式的函数。至此，我们就�
 
 设备启动的时候，操作系统会设置网卡监听目的IP是224.0.0.1的报文，使得可以处理目的IP是224.0.0.1的多播消息。该类型的报文是多播路由用于查询局域网当前多播组情况的，比如查询哪些多播组已经没有成员了，如果没有成员则删除路由信息。我们看看如何处理某设备的IGMP报文。
 
-```
+```cpp
     int igmp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,  
         unsigned long daddr, unsigned short len, unsigned long saddr, int redo,  
         struct inet_protocol *protocol)  
@@ -1186,7 +1186,7 @@ set_multicast_list就是设置网卡工作模式的函数。至此，我们就�
 
 IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否有成员），其它成员回复多播路由的报告报文。组成员查询报文由多播路由发出，所有的多播组中的所有主机都可以收到。组成员查询报文的IP协议头的目的地址是224.0.0.1（IGMP_ALL_HOSTS），代表所有的组播主机都可以处理该报文。我们看一下这两种报文的具体实现。
 
-```
+```cpp
     static void igmp_heard_query(struct device *dev)  
     {  
         struct ip_mc_list *im;  
@@ -1199,7 +1199,7 @@ IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否�
 
 该函数用于处理组播路由的查询报文，dev->ip_mc_list是该设备对应的所有多播组信息，这里针对该设备中的每一个多播组，开启对应的定时器，超时后会发送回复报文给多播路由。我们看一下开启定时器的逻辑。
 
-```
+```cpp
     // 开启一个定时器  
     static void igmp_start_timer(struct ip_mc_list *im)  
     {  
@@ -1215,7 +1215,7 @@ IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否�
 
 随机选择一个超时时间，然后插入系统维护的定时器队列。为什么使用定时器，而不是立即回复呢？因为多播路由只需要知道某个多播组是否至少还有一个成员，如果有的话就保存该多播组信息，否则就删除路由项。如果某多播组在局域网中有多个成员，那么多个成员都会处理该报文，如果都立即响应，则会引起过多没有必要的流量，因为组播路由只需要收到一个响应就行。我们看看超时时的逻辑。
 
-```
+```cpp
     static void igmp_init_timer(struct ip_mc_list *im)  
     {  
         im->tm_running=0;  
@@ -1234,7 +1234,7 @@ IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否�
 
 我们看到，超时后会执行igmp_send_report发送一个类型是IGMP_HOST_MEMBERSHIP_REPORT的IGMP、目的IP是多播组IP的报文，说明该多播组还有成员。该报文不仅会发送给多播路由，还会发给同多播组的所有主机。其它主机也是类似的逻辑，即开启一个定时器。所以最快到期的主机会先发送回复报文给多播路由和同多播组的成员，我们看一下其它同多播组的主机收到该类报文时的处理逻辑。
 
-```
+```cpp
     // 成员报告报文并且多播组是当前设置关联的多播组  
     if(igh->type==IGMP_HOST_MEMBERSHIP_REPORT && daddr==igh->group)  
             igmp_heard_report(dev,igh->group);  
@@ -1242,7 +1242,7 @@ IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否�
 
 当一个多播组的其它成员针对多播路由的查询报文作了响应，因为该响应报文的目的IP是多播组IP，所以该多播组的其它成员也能收到该报文。当某个主机收到该类型的报文的时候，就知道同多播组的其它成员已经回复了多播路由了，我们就不需要回复了。
 
-```
+```cpp
     /* 
         收到其它组成员，对于多播路由查询报文的回复，则自己就不用回复了， 
         因为多播路由知道该组还有成员，不会删除路由信息，减少网络流量 
@@ -1259,7 +1259,7 @@ IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否�
 我们看到，这里会删除定时器。即不会作为响应了。
 2.3 其它 socket关闭， 退出它之前加入过的多播
 
-```
+```cpp
     void ip_mc_drop_socket(struct sock *sk)  
     {  
         int i;  
@@ -1282,7 +1282,7 @@ IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否�
 
 设备停止工作了，删除对应的多播信息
 
-```
+```cpp
     void ip_mc_drop_device(struct device *dev)  
     {  
         struct ip_mc_list *i;  
@@ -1301,7 +1301,7 @@ IGMP V1只处理两种报文，分别是组成员查询报文（查询组是否�
 #### 16.2.5.3 开启多播
 UDP的多播能力是需要用户主动开启的，原因是防止用户发送UDP数据包的时候，误传了一个多播地址，但其实用户是想发送一个单播的数据包。我们可以通过setBroadcast开启多播能力。我们看Libuv的代码。
 
-```
+```cpp
     int uv_udp_set_broadcast(uv_udp_t* handle, int on) {  
       if (setsockopt(handle->io_watcher.fd,  
                      SOL_SOCKET,  
@@ -1317,7 +1317,7 @@ UDP的多播能力是需要用户主动开启的，原因是防止用户发送UD
 
 再看看操作系统的实现。
 
-```
+```cpp
     int sock_setsockopt(struct sock *sk, int level, int optname,  
             char *optval, int optlen){  
         ...  
@@ -1328,7 +1328,7 @@ UDP的多播能力是需要用户主动开启的，原因是防止用户发送UD
 
 我们看到实现很简单，就是设置一个标记位。当我们发送消息的时候，如果目的地址是多播地址，但是又没有设置这个标记，则会报错。
 
-```
+```cpp
     if(!sk->broadcast && ip_chk_addr(sin.sin_addr.s_addr)==IS_BROADCAST)  
           return -EACCES;  
 ```
@@ -1337,7 +1337,7 @@ UDP的多播能力是需要用户主动开启的，原因是防止用户发送UD
 #### 16.2.5.4 多播的问题
 服务器
 
-```
+```js
     const dgram = require('dgram');  
     const udp = dgram.createSocket('udp4');  
       
@@ -1354,7 +1354,7 @@ UDP的多播能力是需要用户主动开启的，原因是防止用户发送UD
 服务器绑定1234端口后，加入多播组224.0.0.114，然后等待多播数据的到来。
 客户端
 
-```
+```js
     const dgram = require('dgram');  
     const udp = dgram.createSocket('udp4');  
     udp.bind(1234, () => {  
@@ -1368,14 +1368,14 @@ UDP的多播能力是需要用户主动开启的，原因是防止用户发送UD
 >
 我们看一下操作系统的相关逻辑。
 
-```
+```cpp
     if(MULTICAST(daddr) && *dev==NULL && skb->sk && *skb->sk->ip_mc_name)  
             *dev=dev_get(skb->sk->ip_mc_name);  
 ```
 
 上面的代码来自操作系统发送IP数据包时的逻辑，如果目的IP似乎多播地址并且ip_mc_name非空（即我们通过addMembership第二个参数设置的值），则出口设备就是我们设置的值。否则操作系统自己选。所以我们需要显示指定这个出口，把代码改成udp.addMembership('224.0.0.114', '192.168.8.164');重新执行发现客户端和服务器都显示了receive msg test from 192.168.8.164:1234。为什么客户端自己也会收到呢？原来操作系统发送多播数据的时候，也会给自己发送一份。我们看看相关逻辑
 
-```
+```cpp
     // 目的地是多播地址，并且不是回环设备   
     if (MULTICAST(iph->daddr) && !(dev->flags&IFF_LOOPBACK))  
     {  
@@ -1428,14 +1428,14 @@ UDP模块还提供了其它一些功能
 ### 16.2.6 端口复用
 我们在网络编程中经常会遇到端口重复绑定的错误，根据到底是我们不能绑定到同一个端口和IP两次。但是在UDP中，这是允许的，这就是端口复用的功能，在TCP中，我们通过端口复用来解决服务器重启时重新绑定到同一个端口的问题，因为我们知道端口有一个2msl的等待时间，重启服务器重新绑定到这个端口时，默认会报错，但是如果我们设置了端口复用（Node.js自动帮我们设置了），则可以绕过这个限制。UDP中也支持端口复用的功能，但是功能、用途和TCP的不太一样。因为多个进程可以绑定同一个IP和端口。但是一般只用于多播的情况下。下面我们来分析一下udp端口复用的逻辑。在Node.js中，使用UDP的时候，可以通过reuseAddr选项使得进程可以复用端口，并且每一个想复用端口的socket都需要设置reuseAddr。我们看一下Node.js中关于reuseAddr的逻辑。
 
-```
+```js
     Socket.prototype.bind = function(port_, address_ /* , callback */) {  
       let flags = 0;  
         if (state.reuseAddr)  
           flags |= UV_UDP_REUSEADDR;  
         state.handle.bind(ip, port || 0, flags);  
     };  
-我们看到Node.js在bind的时候会处理reuseAddr字段。我们直接看Libuv的逻辑。
+    // 我们看到Node.js在bind的时候会处理reuseAddr字段。我们直接看Libuv的逻辑。
     int uv__udp_bind(uv_udp_t* handle,  
                      const struct sockaddr* addr,  
                      unsigned int addrlen,  
@@ -1459,7 +1459,7 @@ UDP模块还提供了其它一些功能
 
 我们看到Libuv通过最终通过setsockopt设置了端口复用，并且是在bind之前。我们不妨再深入一点，看一下Linux内核的实现。
 
-```
+```cpp
     asmlinkage long sys_setsockopt(int fd, int level, int optname, char __user *optval, int optlen)  
     {  
         int err;  
@@ -1482,7 +1482,7 @@ UDP模块还提供了其它一些功能
 
 sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也只是个入口函数，具体函数是sock_setsockopt。
 
-```
+```cpp
     int sock_setsockopt(struct socket *sock, int level, int optname,  
                 char __user *optval, int optlen)  
     {  
@@ -1511,7 +1511,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 操作系统的处理很简单，只是做了一个标记。接下来我们看一下bind的时候是怎么处理的，因为端口是否重复和能否复用是在bind的时候判断的。这也是为什么在TCP中，即使两个进程不能绑定到同一个IP和端口，但是如果我们在主进程里执行了bind之后，再fork函数时，是可以实现绑定同一个IP端口的。言归正传我们看一下UDP中执行bind时的逻辑。
 
-```
+```cpp
     int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)  
     {  
         if (sk->sk_prot->get_port(sk, snum)) {  
@@ -1525,7 +1525,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 每个协议都可以实现自己的get_port钩子函数。用来判断当前的端口是否允许被绑定。如果不允许则返回EADDRINUSE，我们看看UDP协议的实现。
 
-```
+```cpp
     static int udp_v4_get_port(struct sock *sk, unsigned short snum)  
     {  
         struct hlist_node *node;  
@@ -1568,7 +1568,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 我们看到操作系统使用一个数组作为哈希表，每次操作一个socket的时候，首先会根据socket的源端口和哈希算法计算得到一个数组索引，然后把socket插入索引锁对应的链表中，即哈希冲突的解决方法是链地址法。回到代码的逻辑，当用户想绑定一个端口的时候，操作系统会根据端口拿到对应的socket链表，然后逐个判断是否有相等的端口，如果有则判断是否可以复用。例如两个socket都设置了复用标记则可以复用。最后把socket插入到链表中。
 
-```
+```cpp
     static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)  
     {         
             // 头结点  
@@ -1585,7 +1585,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 #### 16.2.6.1 多播
 我们先看一个例子，我们在同主机上新建两个JS文件（客户端），代码如下
 
-```
+```js
     const dgram = require('dgram');    
     const udp = dgram.createSocket({type: 'udp4', reuseAddr: true});    
     udp.bind(1234, ‘192.168.8.164‘, () => {    
@@ -1598,7 +1598,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 上面代码使得两个进程都监听了同样的IP和端口。接下来我们写一个UDP服务器。
 
-```
+```js
     const dgram = require('dgram');    
     const udp = dgram.createSocket({type: 'udp4'});    
     const socket = udp.bind(5678);    
@@ -1609,7 +1609,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 上面的代码给一个多播组发送了一个数据，执行上面的代码，我们可以看到两个客户端进程都收到了数据。我们看一下收到数据时，操作系统是如何把数据分发给每个监听了同样IP和端口的进程的。下面是操作系统收到一个UDP数据包时的逻辑。
 
-```
+```cpp
     int udp_rcv(struct sk_buff *skb)  
     {  
         struct sock *sk;  
@@ -1643,7 +1643,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 我们看到单播和非单播时处理逻辑是不一样的，我们先看一下非单播的情况
 
-```
+```cpp
     static int udp_v4_mcast_deliver(struct sk_buff *skb, struct udphdr *uh,  
                      u32 saddr, u32 daddr)  
     {  
@@ -1687,7 +1687,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 #### 16.2.6.2 单播
 接着我们再来看一下单播的情况。首先我们看一个例子。我们同样新建两个JS文件用作客户端。
 
-```
+```js
     const dgram = require('dgram');    
     const udp = dgram.createSocket({type: 'udp4', reuseAddr: true});    
     const socket = udp.bind(5678);    
@@ -1698,7 +1698,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 然后再新建一个JS文件用作服务器。
 
-```
+```js
     const dgram = require('dgram');    
     const udp = dgram.createSocket({type: 'udp4'});    
     const socket = udp.bind(1234);    
@@ -1707,7 +1707,7 @@ sys_setsockopt是setsockopt对应的系统调用，我们看到sys_setsockopt也
 
 执行以上代码，首先执行客户端，再执行服务器，我们会发现只有一个进程会收到数据。下面我们分析具体的原因，单播时收到会调用udp_v4_lookup函数找到接收该UDP数据包的socket，然后把数据包挂载到socket的接收队列中。我们看看udp_v4_lookup。
 
-```
+```cpp
     static __inline__ struct sock *udp_v4_lookup(u32 saddr, u16 sport,  
                              u32 daddr, u16 dport, int dif)  
     {  

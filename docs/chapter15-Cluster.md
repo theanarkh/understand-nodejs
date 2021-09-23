@@ -4,7 +4,7 @@ Node.js是单进程单线程的应用，这种架构带来的缺点是不能很�
 ## 15.1 cluster使用例子
 我们首先看一下cluster的一个使用例子。
 
-```
+```js
     const cluster = require('cluster');  
     const http = require('http');  
     const numCPUs = require('os').cpus().length;  
@@ -25,14 +25,14 @@ Node.js是单进程单线程的应用，这种架构带来的缺点是不能很�
 ## 15.2 主进程初始化
 我们先看主进程时的逻辑。我们看一下require(‘cluster’)的时候，Node.js是怎么处理的。
 
-```
+```js
     const childOrMaster = 'NODE_UNIQUE_ID' in process.env ? 'child' : 'master';  
     module.exports = require(`internal/cluster/${childOrMaster}`)  
 ```
 
 我们看到Node.js会根据当前环境变量的值加载不同的模块，后面我们会看到NODE_UNIQUE_ID是主进程给子进程设置的，在主进程中，NODE_UNIQUE_ID是不存在的，所以主进程时，会加载master模块。
 
-```
+```js
     cluster.isWorker = false;  
     cluster.isMaster = true; 
     // 调度策略  
@@ -73,7 +73,7 @@ Node.js是单进程单线程的应用，这种架构带来的缺点是不能很�
 
 cluster.fork是对child_process模块fork的封装，每次cluster.fork的时候，就会新建一个子进程，所以cluster下面会有多个子进程，Node.js提供的工作模式有轮询和共享两种，下面会具体介绍。Worker是对子进程的封装，通过process持有子进程的实例，并通过监听internalMessage和message事件完成主进程和子进程的通信，internalMessage这是Node.js定义的内部通信事件，处理函数是internal(worker, onmessage)。我们先看一下internal。
 
-```
+```js
     const callbacks = new Map();  
     let seq = 0;  
       
@@ -100,7 +100,7 @@ cluster.fork是对child_process模块fork的封装，每次cluster.fork的时候
 
 internal函数对异步消息通信做了一层封装，因为进程间通信是异步的，当我们发送多个消息后，如果收到一个回复，我们无法辨别出该回复是针对哪一个请求的，Node.js通过seq的方式对每一个请求和响应做了一个编号，从而区分响应对应的请求。接着我们看一下message的实现。
 
-```
+```js
     function onmessage(message, handle) {  
       const worker = this;  
       
@@ -121,7 +121,7 @@ onmessage根据收到消息的不同类型进行相应的处理。后面我们�
 ## 15.3 子进程初始化
 我们来看一下子进程的逻辑。当执行子进程时，会加载child模块。
 
-```
+```js
     const cluster = new EventEmitter();  
     const handles = new Map();  
     const indexes = new Map();  
@@ -160,7 +160,7 @@ _setupWorker函数在子进程初始化时被执行，和主进程类似，子�
 ## 15.4 http.createServer的处理
 主进程和子进程执行完初始化代码后，子进程开始执行业务代码http.createServer，在HTTP模块章节我们已经分析过http.createServer的过程，这里就不具体分析，我们知道http.createServer最后会调用net模块的listen，然后调用listenIncluster。我们从该函数开始分析。
 
-```
+```js
     function listenIncluster(server, address, port, addressType,  
                              backlog, fd, exclusive, flags) {  
         
@@ -197,7 +197,7 @@ _setupWorker函数在子进程初始化时被执行，和主进程类似，子�
 
 listenIncluster函数会调用子进程cluster模块的_getServer。
 
-```
+```js
     cluster._getServer = function(obj, options, cb) {  
       let address = options.address;  
        
@@ -224,7 +224,7 @@ listenIncluster函数会调用子进程cluster模块的_getServer。
 
 _getServer会给主进程发送一个queryServer的请求。我们看一下send函数。
 
-```
+```js
     function send(message, cb) {  
       return sendHelper(process, message, null, cb);  
     }  
@@ -245,7 +245,7 @@ _getServer会给主进程发送一个queryServer的请求。我们看一下send�
 
 send调用了sendHelper，sendHelper是对异步请求做了一个封装，我们看一下主进程是如何处理queryServer请求的。
 
-```
+```js
     function queryServer(worker, message) {  
       const key = `${message.address}:${message.port}:${message.addressType}:` +  `${message.fd}:${message.index}`;  
       let handle = handles.get(key);  
@@ -288,7 +288,7 @@ queryServer首先根据调度策略选择构造函数，然后执行对应的add
 ![](https://img-blog.csdnimg.cn/69f21946bfd04207b8c19324e9da84ac.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 图19-1
 
-```
+```js
     function SharedHandle(key, address, port, addressType, fd, flags) {  
       this.key = key;  
       this.workers = [];  
@@ -327,7 +327,7 @@ SharedHandle是共享模式，即主进程创建好handle，交给子进程处�
 
 SharedHandle的add把SharedHandle中创建的handle返回给子进程，接着我们看看子进程拿到handle后的处理
 
-```
+```js
     function shared(message, handle, indexesKey, cb) {  
       const key = message.key;  
         
@@ -352,7 +352,7 @@ Shared函数把接收到的handle再回传到调用方。即net模块。net模�
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/2743207004a149e1be5eb539ce19ae7f.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 图19-2
 
-```
+```js
     function RoundRobinHandle(key, address, port, addressType, fd, flags) {  
       this.key = key;  
       this.all = new Map();  
@@ -383,7 +383,7 @@ Shared函数把接收到的handle再回传到调用方。即net模块。net模�
 
 RoundRobinHandle的工作模式是主进程负责监听，收到连接后分发给子进程。我们看一下RoundRobinHandle的add
 
-```
+```js
     RoundRobinHandle.prototype.add = function(worker, send) {  
        this.all.set(worker.id, worker);  
       
@@ -412,7 +412,7 @@ RoundRobinHandle的工作模式是主进程负责监听，收到连接后分发�
 
 RoundRobinHandle会在listen成功后执行回调。我们回顾一下执行add函数时的回调。
 
-```
+```js
     handle.add(worker, (errno, reply, handle) => {  
       const { data } = handles.get(key);  
       
@@ -428,7 +428,7 @@ RoundRobinHandle会在listen成功后执行回调。我们回顾一下执行add�
 
 回调函数会把handle等信息返回给子进程。但是在RoundRobinHandle和SharedHandle中返回的handle是不一样的。分别是null和net.createServer实例。接着我们回到子进程的上下文。看子进程是如何处理响应的。刚才我们讲过，不同的调度策略，返回的handle是不一样的，我们看轮询模式下的处理。
 
-```
+```js
     function rr(message, indexesKey, cb) { 
       let key = message.key;  
       function listen(backlog) {  
@@ -453,7 +453,7 @@ RoundRobinHandle会在listen成功后执行回调。我们回顾一下执行add�
 
 round-robin模式下，构造一个假的handle返回给调用方，因为调用方会调用这些函数。最后回到net模块。net模块首先保存handle，然后调用listen函数。当有请求到来时，round-bobin模块会执行distribute分发请求给子进程。
 
-```
+```js
     RoundRobinHandle.prototype.distribute = function(err, handle) {  
       // 首先保存handle到队列  
       this.handles.push(handle);  
@@ -490,7 +490,7 @@ round-robin模式下，构造一个假的handle返回给调用方，因为调用
 
 接着我们看一下子进程是怎么处理该请求的。
 
-```
+```js
     function onmessage(message, handle) {  
         if (message.act === 'newconn')  
           onconnection(message, handle);  
@@ -519,7 +519,7 @@ Node.js的cluster在请求分发时是按照轮询的，无法根据进程当前
 图15-3  
 Parent.js
 
-```
+```js
     const childProcess = require('child_process');  
     const net = require('net');  
     const workers = [];  
@@ -539,7 +539,7 @@ Parent.js
 
 child.js
 
-```
+```js
     process.on('message', (message, client) => {  
         console.log('receive connection from master');  
     });  
@@ -552,7 +552,7 @@ child.js
 图15-4  
 Parent.js
 
-```
+```js
     const childProcess = require('child_process');  
     const net = require('net');  
     const workers = [];  
@@ -573,7 +573,7 @@ Parent.js
 
 Child.js
 
-```
+```js
     const net = require('net');  
     process.on('message', (message, handle) => {  
         net.createServer(() => {  
@@ -604,7 +604,7 @@ Node.js的子进程是通过fork+exec模式创建的，并且Node.js文件描述
 通过这种方式，我们就绕过了bind同一个端口的问题。通过以上的例子，我们知道绕过bind的问题重点在于让主进程和子进程共享socket而不是单独执行bind。对于传递文件描述符，Node.js中支持很多种方式。上面的方式是子进程各自执行listen。还有另一种模式如下
 parent.js
 
-```
+```js
     const childProcess = require('child_process');  
     const net = require('net');  
     const workers = [];  
@@ -623,7 +623,7 @@ parent.js
 
 child.js
 
-```
+```js
     const net = require('net');  
     process.on('message', (message, server) => {  
         server.on('connection', () => {  
@@ -636,7 +636,7 @@ child.js
 最后写一个客户端测试。
 客户端
 
-```
+```js
     const net = require('net');  
     for (let i = 0; i < 50; i++) {  
         net.connect({port: 11111});  
