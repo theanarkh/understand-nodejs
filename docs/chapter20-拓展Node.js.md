@@ -6,7 +6,7 @@
 1.首先在src文件夹下新增两个文件。
 cyb.h
 
-```
+```cpp
     #ifndef SRC_CYB_H_  
     #define SRC_CYB_H_  
     #include "v8.h"  
@@ -28,7 +28,7 @@ cyb.h
 
 cyb.cc
 
-```
+```cpp
     #include "cyb.h"  
     #include "env-inl.h"  
     #include "util-inl.h"  
@@ -78,14 +78,14 @@ cyb.cc
 我们新定义一个模块，是不能自动添加到Node.js内核的，我们还需要额外的操作。  
 1 首先我们需要修改node.gyp文件。把我们新增的文件加到配置里，否则编译的时候，不会编译这个新增的模块。我们可以在node.gyp文件中找到src/tcp_wrap.cc,然后在它后面加入我们的文件就行。  
 
-```
+```text
     src/cyb_wrap.cc  
     src/cyb_wrap.h  
 ```
 
 这时候Node.js会编译我们的代码了。但是Node.js的内置模块有一定的机制，我们的代码加入了Node.js内核，不代表就可以使用了。Node.js在初始化的时候会调用RegisterBuiltinModules函数注册所有的内置C++模块。
 
-```
+```cpp
     void RegisterBuiltinModules() {  
     #define V(modname) _register_##modname();  
       NODE_BUILTIN_MODULES(V)  
@@ -95,7 +95,7 @@ cyb.cc
 
 我们看到该函数只有一个宏。我们看看这个宏。
 
-```
+```cpp
     void RegisterBuiltinModules() {  
     #define V(modname) _register_##modname();  
       NODE_BUILTIN_MODULES(V)  
@@ -112,12 +112,12 @@ cyb.cc
 
 宏里面又是一堆宏。我们要做的就是修改这个宏。因为我们是自定义的内置模块，所以我们可以增加一个宏。
 
-```
+```cpp
     #define NODE_BUILTIN_EXTEND_MODULES(V)  \  
       V(cyb_wrap)   
 ```
 然后把这个宏追加到那一堆宏后面。
-```
+```cpp
     #define NODE_BUILTIN_MODULES(V)  \  
       NODE_BUILTIN_STANDARD_MODULES(V)  \  
       NODE_BUILTIN_OPENSSL_MODULES(V)  \  
@@ -131,7 +131,7 @@ cyb.cc
 这时候，Node.js不仅可以编译我们的代码，还会把我们代码中定义的模块注册到内置C++模块里了，接下来就是如何使用C++模块了。  
 2 在lib文件夹新建一个cyb.js，作为Node.js原生模块  
 
-```
+```js
     const cyb = internalBinding('cyb_wrap');   
     module.exports = cyb;  
 ```
@@ -139,7 +139,7 @@ cyb.cc
 新增原生模块，我们也需要修改node.gyp文件，否则代码也不会被编译进node内核。我们找到node.gyp文件的lib/net.js，在后面追加lib/cyb.js。该配置下的文件是给js2c.py使用的，如果不修改，我们在require的时候，就会找不到该模块。最后我们在lib/internal/bootstrap/loader文件里找到internalBindingWhitelist变量，在数组最后增加cyb_wrap，这个配置是给process.binding函数使用的，如果不修改这个配置，通过process.binding就找不到我们的模块。process.binding是可以在用户JS里使用的。至此，我们完成了所有的修改工作，重新编译Node.js。然后编写测试程序。  
 3 新建一个测试文件testcyb.js
 
-```
+```js
     // const cyb = process.binding('cyb_wrap');  
     const cyb = require('cyb');   
     console.log(cyb.console())  
@@ -160,7 +160,7 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 1 修改src/unix/tcp.c  
 在tcp.c加入以下代码
 
-```
+```js
     int uv_tcp_keepalive_ex(uv_tcp_t* handle,  
                             int on,  
                             unsigned int delay,  
@@ -247,7 +247,7 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 2 修改include/uv.h   
 把在tcp.c中加入的接口暴露出来。
 
-```
+```cpp
     UV_EXTERN int uv_tcp_keepalive_ex(uv_tcp_t* handle,  
                                       int enable,  
                                       unsigned int delay,  
@@ -260,14 +260,14 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 3 修改src/tcp_wrap.cc  
 修改TCPWrap::Initialize函数的代码。
 
-```
+```cpp
     env->SetProtoMethod(t, "setKeepAliveEx", SetKeepAliveEx);  
     env->SetProtoMethod(t, "setKeepAliveTimeout", SetKeepAliveTimeout);  
 ```
 
 首先对JS层暴露两个新的API。我们看看这两个API的定义。
 
-```
+```cpp
     void TCPWrap::SetKeepAliveEx(const FunctionCallbackInfo<Value>& args) {  
       TCPWrap* wrap;  
       ASSIGN_OR_RETURN_UNWRAP(&wrap,  
@@ -296,10 +296,14 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 
 同时还需要在src/tcp_wrap.h中声明这两个函数。
 
-```
+```cpp
     static void SetKeepAliveEx(const v8::FunctionCallbackInfo<v8::Value>& args);  
     static void SetKeepAliveTimeout(const v8::FunctionCallbackInfo<v8::Value>& args);  
-4 修改lib/net.js
+```
+
+
+```js
+// 修改lib/net.js
     Socket.prototype.setKeepAliveEx = function(setting,  
                                                secs,  
                                                interval,  
@@ -336,7 +340,7 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 
 重新编译Node.js，我们就可以使用这两个新的API更灵活地控制TCP的keepalive了。
 
-```
+```js
     const net = require('net');  
     net.createServer((socket) => {  
       socket.setKeepAliveEx(true, 1,2,3);  
@@ -348,7 +352,7 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 本小节介绍使用N_API编写C++插件知识。Node.js C++插件本质是一个动态链接库，写完编译后，生成一个.node文件。我们在Node.js里直接require使用，Node.js会为我们处理一切。
 首先建立一个test.cc文件
 
-```
+```cpp
     // hello.cc using N-API  
     #include <node_api.h>  
       
@@ -382,7 +386,7 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 
 我们不需要具体了解代码的意思，但是从代码中我们大致知道它做了什么事情。剩下的就是阅读N-API的API文档就可以。接着我们新建一个binding.gyp文件。gyp文件是node-gyp的配置文件。node-gyp可以帮助我们针对不同平台生产不同的编译配置文件。比如Linux下的makefile。
 
-```
+```json
     {  
       "targets": [  
         {  
@@ -395,20 +399,20 @@ Node.js只支持第一条，所以我们的目的是支持2,3,4。因为这个�
 
 语法和makefile有点像，就是定义我们编译后的目前文件名，依赖哪些源文件。然后我们安装node-gyp。
 
-```
+```sh
 npm install node-gyp -g  
 ```
 
 Node.js源码中也有一个node-gyp，它是帮助npm安装拓展模块时，就地编译用的。我们安装的node-gyp是帮助我们生成配置文件并编译用的，具体可以参考Node.js文档。一切准备就绪。我们开始编译。直接执行
 
-```
+```sh
 node-gyp configure
 node-gyp build  
 ```
 
 在路径./build/Release/下生成了test.node文件。这就是我们的拓展模块。我们编写测试程序app.js。
 
-```
+```js
     var addon = require("./build/Release/test");  
     console.log(addon.hello());  
 ```
@@ -416,8 +420,8 @@ node-gyp build
 执行
  
 
-```
-Node.js app.js  
+```text
+node app.js  
 ```
 
 我们看到输出world。我们已经学会了如何编写一个Node.js的拓展模块。剩下的就是阅读N-API文档，根据自己的需求编写不同的模块。

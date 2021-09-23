@@ -1,7 +1,7 @@
 流是对生产数据和消费数据过程的抽象，流本身不生产和消费数据，它只是定义了数据处理的流程。可读流是对数据源流向其它地方的过程抽象，属于生产者，可读流是对数据流向某一目的地的过程的抽象。Node.js中的流分为可读、可写、可读写、转换流。下面我先看一下流的基类。
 ## 21.1 流基类和流通用逻辑
 
-```
+```js
     const EE = require('events');  
     const util = require('util');  
     // 流的基类  
@@ -15,7 +15,7 @@
 流的基类只提供了一个函数就是pipe。用于实现管道化。管道化是对数据从一个地方流向另一个地方的抽象。这个方法代码比较多，分开说。
 ### 21.1.1处理数据事件
 
-```
+```js
     // 数据源对象  
     var source = this;  
       
@@ -47,7 +47,7 @@
 这是管道化时流控实现的地方，主要是利用了write返回值和drain事件。  
 ### 21.1.2流关闭/结束处理  
 
-```
+```js
     /* 
       1 dest._isStdio是true表示目的流是标准输出或标准错误（见
         process/stdio.js）， 
@@ -85,7 +85,7 @@
 上面是可读源流结束或关闭后，如何处理可写流的逻辑。默认情况下，我们只需要监听可读流的error事件，然后执行可写流的关闭操作。
 ### 21.1.3 错误处理  
 
-```
+```js
     // 可读流或者可写流出错的时候都需要停止数据的处理  
     source.on('error', onerror);  
     dest.on('error', onerror);  
@@ -106,7 +106,7 @@
 在error事件的处理函数中，通过cleanup函数清除了Node.js本身注册的error事件，所以这时候如果用户没有注册error事件，则error事件的处理函数个数为0,，所以我们需要注册error事件。下面我们再分析cleanup函数的逻辑。
 ### 21.1.4 清除注册的事件 
 
-```
+```js
     // 保证源流关闭、数据读完、目的流关闭时清除注册的事件  
     source.on('end', cleanup);  
     source.on('close', cleanup);  
@@ -135,9 +135,9 @@
 ```
 
 ### 21.1.5 流的阈值
-通过getHighWaterMark（lib\internal\streams\state.js）函数可以计算出流的阈值，阈值用于控制用户读写数据的速度。我们看看这个函数的实现。
+通过`getHighWaterMark（lib\internal\streams\state.js）`函数可以计算出流的阈值，阈值用于控制用户读写数据的速度。我们看看这个函数的实现。
 
-```
+```js
     function getHighWaterMark(state, options, duplexKey, isDuplex) {   // 用户定义的阈值  
       let hwm = options.highWaterMark;  
       // 用户定义了，则校验是否合法  
@@ -173,7 +173,7 @@ getHighWaterMark函数逻辑如下
 ### 21.1.6 销毁流
 通过调用destroy函数可以销毁一个流，包括可读流和可写流。并且可以实现_ destroy函数自定义销毁的行为。我们看看可写流的destroy函数定义。
 
-```
+```js
     function destroy(err, cb) {  
       // 读流、写流、双向流  
       const readableDestroyed = this._readableState &&  
@@ -226,7 +226,7 @@ getHighWaterMark函数逻辑如下
 destroy函数销毁流的通用逻辑。其中_destroy函数不同的流不一样，下面分别是可读流和可写流的实现。
 1 可读流
 
-```
+```js
     Readable.prototype._destroy = function(err, cb) {  
       this.push(null);  
       cb(err);  
@@ -235,7 +235,7 @@ destroy函数销毁流的通用逻辑。其中_destroy函数不同的流不一�
 
 2 可写流
 
-```
+```js
     Writable.prototype._destroy = function(err, cb) {  
       this.end();  
       cb(err);  
@@ -245,7 +245,7 @@ destroy函数销毁流的通用逻辑。其中_destroy函数不同的流不一�
 ## 21.2 可读流
 Node.js中可读流有两种工作模式：流式和暂停式，流式就是有数据的时候就会触发回调，并且把数据传给回调，暂停式就是需要用户自己手动执行读取的操作。我们通过源码去了解一下可读流实现的一些逻辑。因为实现的代码比较多，逻辑也比较绕，本文只分析一些主要的逻辑。我们先看一下ReadableState，这个对象是表示可读流的一些状态和属性的。
 
-```
+```js
     function ReadableState(options, stream) {  
       options = options || {};  
       // 是否是双向流  
@@ -310,7 +310,7 @@ Node.js中可读流有两种工作模式：流式和暂停式，流式就是有�
 
 ReadableState里包含了一大堆字段，我们可以先不管它，等待用到的时候，再回头看。接着我们开始看可读流的实现。  
 
-```
+```js
     function Readable(options) {  
       if (!(this instanceof Readable))  
         return new Readable(options);  
@@ -334,7 +334,7 @@ ReadableState里包含了一大堆字段，我们可以先不管它，等待用�
 ### 21.2.1 可读流从底层资源获取数据
 对用户来说，可读流是用户获取数据的地方，但是对可读流来说，它提供数据给用户的前提是它自己有数据，所以可读流首先需要生产数据。生产数据的逻辑由_read函数实现。_read函数的逻辑大概是  
 
-```
+```js
     const data = getSomeData();  
     readableStream.push(data);  
 ```
@@ -342,7 +342,7 @@ ReadableState里包含了一大堆字段，我们可以先不管它，等待用�
 通过push函数，往可读流里写入数据，然后就可以为用户提供数据，我们看看push的实现，只列出主要逻辑。  
     Read
 
-```
+```js
 able.prototype.push = function(chunk, encoding) {  
       // 省略了编码处理的代码  
       return readableAddChunk(this, 
@@ -393,7 +393,7 @@ able.prototype.push = function(chunk, encoding) {
 ## 21.2.2 用户从可读流获取数据  
 用户可以通过read函数或者监听data事件来从可读流中获取数据  
 
-```
+```js
     Readable.prototype.read = function(n) {  
       n = parseInt(n, 10);  
       var state = this._readableState;  
@@ -434,7 +434,7 @@ able.prototype.push = function(chunk, encoding) {
 ### 21.3.1 WritableState
 WritableState是管理可写流配置的类。里面包含了非常的字段，具体含义我们会在后续分析的时候讲解。
 
-```
+```js
     function WritableState(options, stream) {  
       options = options || {};  
       
@@ -540,7 +540,7 @@ WritableState是管理可写流配置的类。里面包含了非常的字段，�
 ### 21.3.2 Writable
 Writable是可写流的具体实现，我们可以直接使用Writable作为可写流来使用，也可以继承Writable实现自己的可写流。
 
-```
+```js
     function Writable(options) {  
       this._writableState = new WritableState(options, this);  
       // 可写  
@@ -569,7 +569,7 @@ Writable是可写流的具体实现，我们可以直接使用Writable作为可�
 ### 21.3.3 数据写入
 可写流提供write函数给用户实现数据的写入，写入有两种方式。一个是逐个写，一个是批量写，批量写是可选的，取决于用户的实现，如果用户直接使用Writable则需要传入writev，如果是继承方式使用Writable则实现_writev函数。我们先看一下write函数的实现
 
-```
+```js
     Writable.prototype.write = function(chunk, encoding, cb) {  
       var state = this._writableState;  
       // 告诉用户是否还可以继续调用write  
@@ -609,7 +609,7 @@ Writable是可写流的具体实现，我们可以直接使用Writable作为可�
 
 write函数首先做了一些参数处理和数据转换，然后判断流是否已经结束了，如果流结束再执行写入，则会报错。如果流没有结束则执行写入或者缓存处理。最后通知用户是否还可以继续调用write写入数据（我们看到如果写入的数据比阈值大，可写流还是会执行写入操作，但是会返回false告诉用户些不要写入了，如果调用方继续写入的话，也是没会继续写入的，但是可能会导致写入端压力过大）。我们首先看一下writeAfterEnd的逻辑。然后再看writeOrBuffer。
 
-```
+```js
     function writeAfterEnd(stream, cb) {  
       var er = new errors.Error('ERR_STREAM_WRITE_AFTER_END');  
       stream.emit('error', er);  
@@ -619,7 +619,7 @@ write函数首先做了一些参数处理和数据转换，然后判断流是否
 
 writeAfterEnd函数的逻辑比较简单，首先触发可写流的error事件，然后下一个tick的时候执行用户在调用write时传入的回调。接着我们看一下writeOrBuffer。writeOrBuffer函数会对数据进行缓存或者直接写入目的地（目的地可以是文件、socket、内存，取决于用户的实现），取决于当前可写流的状态。
 
-```
+```js
     function writeOrBuffer(stream, state, isBuf, chunk, encoding, cb) {  
       // 数据处理  
       if (!isBuf) {  
@@ -694,7 +694,7 @@ writeOrBuffer函数主要的逻辑如下
 图21-5  
 我们看到，函数的数据是以链表的形式管理的，其中bufferedRequest是链表头结点，lastBufferedRequest指向尾节点。假设当前可写流不处于写入或者cork状态。我们看一下写入的逻辑。
 
-```
+```js
     function doWrite(stream, state, writev, len, chunk, encoding, cb) {  
       // 本次写入的数据长度  
       state.writelen = len;  
@@ -721,7 +721,7 @@ writeOrBuffer函数主要的逻辑如下
 
 doWrite函数记录了本次写入的上下文，比如长度，回调，然后设置正在写标记。最后执行写入。如果当前待写入的数据是缓存的数据并且用户实现了_writev函数，则调用_writev。否则调用_write。下面我们实现一个可写流的例子，把这里的逻辑串起来。
 
-```
+```js
     const { Writable } = require('stream');  
     class DemoWritable extends Writable {  
         constructor() {  
@@ -739,11 +739,11 @@ doWrite函数记录了本次写入的上下文，比如长度，回调，然后�
 
 DemoWritable定义了数据流向的目的地，在用户调用write的时候，可写流会执行用户定义的_write，_write保存了数据，然后执行回调并传入参数，通知可写流数据写完成了，并通过参数标记写成功还是失败。这时候回到可写流侧。我们看到可写流设置的回调是onwrite，onwrite是在初始化可写流的时候设置的。
 
-```
+```js
     this.onwrite = onwrite.bind(undefined, stream);  
 ```
 我们接着看onwrite的实现。
-```
+```js
     function onwrite(stream, er) {  
       var state = stream._writableState;  
       var sync = state.sync;  
@@ -784,7 +784,7 @@ onwrite的逻辑如下
 2 写出错则触发error事件和执行用户回调，写成功则判断是否满足继续执行写操作，是的话则继续写，否则执行用户回调。  
 我们看一下clearBuffer函数的逻辑，该逻辑主要是把缓存的数据写到目的地。
 
-```
+```js
     function clearBuffer(stream, state) {  
       // 正在处理buffer  
       state.bufferProcessing = true;  
@@ -874,7 +874,7 @@ clearBuffer的逻辑看起来非常多，但是逻辑并不算很复杂。主要
 图21-7  
 corkedRequestsFree保证最少有一个节点，用于一次批量写，当使用完的时候，会最多保存两个空闲节点。我们看一下批量写成功后，回调函数onCorkedFinish的逻辑。
 
-```
+```js
     function onCorkedFinish(corkReq, state, err) {  
       // corkReq.entry指向当前处理的buffer链表头结点  
       var entry = corkReq.entry;  
@@ -908,7 +908,7 @@ onCorkedFinish首先从本次批量写的数据上下文取出回调，然后逐
 
 在uncork的执行流程中，如果onwrite是被同步回调，则在onwrite中不会再次调用clearBuffer，因为这时候的bufferProcessing为true。这时候会先把用户的回调入队，然后再次执行doWrite发起下一次写操作。如果onwrite是被异步执行，在执行clearBuffer中，第一次执行doWrite完毕后，clearBuffer就会退出，并且这时候bufferProcessing为false。等到onwrite被回调的时候，再次执行clearBuffer，同样执行完doWrite的时候退出，等待异步回调，这时候用户回调被执行。
 我们继续分析onwrite的代码，onwrite最后会调用afterWrite函数。
-```
+```js
     function afterWrite(stream, state, finished, cb) {  
       // 还没结束，看是否需要触发drain事件  
       if (!finished)  
@@ -934,7 +934,7 @@ afterWrite主要是判断是否需要触发drain事件，然后执行用户回�
 ### 21.3.4 cork和uncork
 cork和uncork类似tcp中的negal算法，主要用于累积数据后一次性写入目的地。而不是有一块就实时写入。比如在tcp中，每次发送一个字节，而协议头远远大于一字节，有效数据占比非常低。使用cork的时候最好同时提供writev实现，否则最后cork就没有意义，因为最终还是需要一块块的数据进行写入。我们看看cork的代码。
 
-```
+```js
     Writable.prototype.cork = function() {  
       var state = this._writableState;  
       state.corked++;  
@@ -944,7 +944,7 @@ cork和uncork类似tcp中的negal算法，主要用于累积数据后一次性�
 cork的代码非常简单，这里使用一个整数而不是标记位，所以cork和uncork需要配对使用。我们看看uncork。
     
 
-```
+```js
 Writable.prototype.uncork = function() {  
       var state = this._writableState;  
       
@@ -971,7 +971,7 @@ Writable.prototype.uncork = function() {
 图21-11  
 通过end函数可以结束可写流，我们看看该函数的逻辑。
 
-```
+```js
     Writable.prototype.end = function(chunk, encoding, cb) {  
       var state = this._writableState;  
       
@@ -1001,7 +1001,7 @@ Writable.prototype.uncork = function() {
 
 我们接着看endWritable函数
 
-```
+```js
     function endWritable(stream, state, cb) {  
       // 正在执行end函数  
       state.ending = true;  
@@ -1022,7 +1022,7 @@ Writable.prototype.uncork = function() {
 
 endWritable函数标记流不可写并且处于结束状态。但是只是代表不能再调用write写数据了，之前缓存的数据需要被写完后才能真正地结束流。我们看finishMaybe函数的逻辑。该函数用于判断流是否可以结束。
 
-```
+```js
     function needFinish(state) {  
       /* 
         执行了end函数则设置ending=true， 
@@ -1058,7 +1058,7 @@ endWritable函数标记流不可写并且处于结束状态。但是只是代表
 当可写流中所有数据和回调都执行了才能结束流，在结束流之前会先处理prefinish事件。
 1.
 
-```
+```js
 	function callFinal(stream, state) {  
       // 执行用户的final函数  
       stream._final((err) => {  
@@ -1094,7 +1094,7 @@ endWritable函数标记流不可写并且处于结束状态。但是只是代表
 # 21.4 双向流
 双向流是继承可读、可写的流。
 
-```
+```js
     util.inherits(Duplex, Readable);  
       
     {  
@@ -1109,7 +1109,7 @@ endWritable函数标记流不可写并且处于结束状态。但是只是代表
 ```
 
 
-```
+```js
     function Duplex(options) {  
       if (!(this instanceof Duplex))  
         return new Duplex(options);  
@@ -1135,7 +1135,7 @@ endWritable函数标记流不可写并且处于结束状态。但是只是代表
 ### 21.4.1 销毁 
 如果读写两端都销毁，则双向流销毁。
 
-```
+```js
     Object.defineProperty(Duplex.prototype, 'destroyed', {  
       enumerable: false,  
       get() {  
@@ -1150,7 +1150,7 @@ endWritable函数标记流不可写并且处于结束状态。但是只是代表
 
 我们看如何销毁一个双向流。
 
-```
+```js
     Duplex.prototype._destroy = function(err, cb) {  
       // 关闭读端  
       this.push(null);  
@@ -1163,7 +1163,7 @@ endWritable函数标记流不可写并且处于结束状态。但是只是代表
 
 双向流还有一个特性是是否允许半开关，即可读或可写。onend是读端关闭时执行的函数。我们看看实现。
 
-```
+```js
     // 关闭写流  
     function onend() {  
       // 允许半开关或写流已经结束则返回  
