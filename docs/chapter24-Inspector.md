@@ -4,14 +4,14 @@ Node.js的文档中对inspector的描述很少，但是如果深入探索，其�
 # 1 Inspector的使用
 ## 1.1 本地调试
 我们先从一个例子开始。下面是一个http服务器。
-```c
+```js
 const http = require('http');
 http.createServer((req, res) => {
     res.end('ok');
 }).listen(80);
 ```
 然后我们以node --inspect httpServer.js的方式启动。我们可以看到以下输出。
-```c
+```text
 Debugger listening on ws://127.0.0.1:9229/fbbd9d8f-e088-48cc-b1e0-e16bfe58db44
 For help, see: https://nodejs.org/en/docs/inspector
 ```
@@ -23,7 +23,7 @@ For help, see: https://nodejs.org/en/docs/inspector
 ![](https://img-blog.csdnimg.cn/4fcb62b0906346ddbc507f97478ad54e.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 ## 1.2 远程调试
 但很多时候我们可能需要远程调试。比如我在一台云服务器上部署以上服务器代码。然后执行
-```c
+```text
 node --inspect=0.0.0.0:8888 httpServer.js 
 ```
 不过这时候我们打开开发者工具就会发现按钮置灰或者找不到我们远程服务器的信息。这时候我们需要用另一种方式。通过在浏览器url输入框输入devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws={host}:{port}/{path}的方式（替换{}里面的内容为你执行Node.js时输出的信息），浏览器就会去连接你输入的地址，比如1.1.1.1:9229/abc。这种比较适合于对于通用的场景。
@@ -70,12 +70,12 @@ Sets JavaScript breakpoint at given location specified either by URL or URL rege
 大致了解了浏览器和服务器的交互过程和协议后，我们再来深入了解一下关于inspector的一些实现。当然这里不是分析V8中Inspector的实现，而是分析如何使用V8的Inspector以及Node.js中关于Inspector的实现部分。
 ## 3.1 开源实现
 因为Node.js的实现比较复杂，这里先以一个简单版的调试工具源码来分析inspector的原理。我们先看一下初始化代码。
-```c
+```cpp
 inspector = std::unique_ptr<Inspector>(new Inspector(v8Platform, context, port));
 inspector->startAgent();
 ```
 首先新建一个Inspector。然后启动它。接下来看看Inspector里的逻辑。
-```c
+```cpp
 Inspector::Inspector(
         const std::unique_ptr<v8::Platform> &platform,
         const v8::Local<v8::Context> &context,
@@ -105,7 +105,7 @@ Inspector::Inspector(
 代码看起来很复杂，不过我们不需要深究。主要是两个部分，一个是新建一个websocket服务器，一个是新建一个inspector客户端（用于和V8 Inspector通信），整体架构如下。  
 ![](https://img-blog.csdnimg.cn/32d794aae6754010a953223530043d8e.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 接下来分别看一下websocket服务器和inspector客户端的实现。首先看一下websocket服务器的构造函数。
-```c
+```cpp
 WebSocketServer::WebSocketServer(int port, std::function<void(std::string)> onMessage)
 {
     port_ = port;
@@ -113,7 +113,7 @@ WebSocketServer::WebSocketServer(int port, std::function<void(std::string)> onMe
 }
 ```
 WebSocketServer构造函数的实现很简单，只是初始化一些字段。接着看inspector客户端的实现。
-```c
+```cpp
 V8InspectorClientImpl:: V8InspectorClientImpl(const std::unique_ptr<v8::Platform> &platform, const v8::Local<v8::Context> &context, const std::function<void(std::string)> &onResponse, const std::function<int(void)> &onWaitFrontendMessageOnPause) {
 
     platform_ = platform.get();
@@ -140,7 +140,7 @@ V8InspectorClientImpl:: V8InspectorClientImpl(const std::unique_ptr<v8::Platform
 这时候的架构如下  
 ![](https://img-blog.csdnimg.cn/f33f37f845c744d8bf0b4a86d245c3be.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 至此，websocket服务器和inspector客户端就分析完毕了，回到最开始的代码，初始化完毕后会执行startAgent。
-```c
+```cpp
 void Inspector::startAgent() {
     websocket_server_->run();
 }
@@ -172,7 +172,7 @@ void WebSocketServer::waitFrontendMessage()
 }
 ```
 startAgent的逻辑就是启动websocket服务器。启动完毕后就等待客户的连接。连接成功后执行onMessage_。我们看一下onMessage的实现。
-```c
+```cpp
 void Inspector::onMessage(const std::string& message) {
     std::cout << "CDT message: " << message << std::endl;
     // StringView是V8要求的格式
@@ -182,14 +182,14 @@ void Inspector::onMessage(const std::string& message) {
 }
 ```
 onMessage通过Inspector客户端把消息交给V8 Inspector处理。V8 Inspector处理完后，通过channel通知Inspector客户端，对应的函数是sendResponse。V8InspectorChannelImp是继承V8提供的Channel，sendResponse是一个纯虚函数，由V8InspectorChannelImp实现。
-```c
+```cpp
 void V8InspectorChannelImp::sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) {
     const std::string response = convertToString(isolate_, message->string());
     onResponse_(response);
 }
 ```
 onResponse_是在Chnnel初始化时设置的，对应函数是inspector客户端的sendMessage。
-```c
+```cpp
 void Inspector::sendMessage(const std::string& message) {
     websocket_server_->sendMessage(message);
 }
@@ -198,27 +198,27 @@ sendMessage通过websocket服务器把V8 Inspector返回的消息返回给客户
 
 ## 3.2 Node.js的实现(v14)
 Node.js的实现非常复杂并且很绕，也无法通俗易懂地介绍和分析，只能按照我自己的思路大致讲解一下流程，有兴趣的同学可以自行阅读源码。当我们以以下方式执行我们的应用时
-```c
+```text
 node --inspect app.js
 ```
 ### 3.2.1 初始化
 Node.js在启动的过程中，就会初始化Inspector相关的逻辑。
-```c
+```cpp
 inspector_agent_ = std::make_unique<inspector::Agent>(this);
 ```
 Agent是负责和V8 Inspector通信的对象。创建完后接着执行env->InitializeInspector({})启动Agent。
-```c
+```cpp
 inspector_agent_->Start(...);
 ```
 Start继续执行Agent::StartIoThread。
-```c
+```cpp
 bool Agent::StartIoThread() {
   io_ = InspectorIo::Start(client_->getThreadHandle(), ...);
   return true;
 }
 ```
 StartIoThread中的client_->getThreadHandle()是重要的逻辑，我们先来分析该函数。
-```c
+```cpp
   std::shared_ptr<MainThreadHandle> getThreadHandle() {
     if (!interface_) {
       interface_ = std::make_shared<MainThreadInterface>(env_->inspector_agent(), ...);
@@ -227,7 +227,7 @@ StartIoThread中的client_->getThreadHandle()是重要的逻辑，我们先来�
   }
 ```
 getThreadHandle首先创建来一个MainThreadInterface对象，接着又调用了他的GetHandle方法，我们看一下该方法的逻辑。
-```c
+```cpp
 std::shared_ptr<MainThreadHandle> MainThreadInterface::GetHandle() {
   if (handle_ == nullptr)
     handle_ = std::make_shared<MainThreadHandle>(this);
@@ -238,7 +238,7 @@ GetHandlei了创建了一个MainThreadHandle对象，最终结构如下所示。
 ![](https://img-blog.csdnimg.cn/2db9591e808048029abcffde4ecfc591.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 分析完后我们继续看Agent::StartIoThread中InspectorIo::Start的逻辑。
 
-```c
+```cpp
 std::unique_ptr<InspectorIo> InspectorIo::Start(std::shared_ptr<MainThreadHandle> main_thread, ...) {
   auto io = std::unique_ptr<InspectorIo>(new InspectorIo(main_thread, ...));
   return io;
@@ -246,7 +246,7 @@ std::unique_ptr<InspectorIo> InspectorIo::Start(std::shared_ptr<MainThreadHandle
 ```
 InspectorIo::Star里新建了一个InspectorIo对象，我们看看InspectorIo构造函数的逻辑。
 
-```c
+```cpp
 InspectorIo::InspectorIo(std::shared_ptr<MainThreadHandle> main_thread, ...)
     : 
     // 初始化main_thread_
@@ -262,7 +262,7 @@ Inspector在子线程里启动的原因主要有两个。
 2 如果主线程陷入死循环，我们就无法实时抓取进程的profile数据来分析原因。  
 接着继续看一下子线程里执行InspectorIo::ThreadMain的逻辑。
 
-```c
+```cpp
 void InspectorIo::ThreadMain(void* io) {
   static_cast<InspectorIo*>(io)->ThreadMain();
 }
@@ -287,7 +287,7 @@ ThreadMain里主要三个逻辑
 2 创建一个服务器并启动。  
 3 开启事件循环。  
 接下来看一下服务器的逻辑，首先看一下创建服务器的逻辑。
-```c
+```cpp
 InspectorSocketServer::InspectorSocketServer(std::unique_ptr<SocketServerDelegate> delegate, ...)
     : 
       // 保存delegate
@@ -301,7 +301,7 @@ InspectorSocketServer::InspectorSocketServer(std::unique_ptr<SocketServerDelegat
 执行完后形成以下结构。  
 ![](https://img-blog.csdnimg.cn/36f2215207b642ae89f52e445717b8de.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 接着我们看启动服务器的逻辑。
-```c
+```cpp
 bool InspectorSocketServer::Start() {
   // DNS解析,比如输入的是localhost
   struct addrinfo hints;
@@ -328,7 +328,7 @@ bool InspectorSocketServer::Start() {
 }
 ```
 首先根据参数做一个DNS解析，然后根据拿到的ip列表（通常是一个），创建对应个数的ServerSocket对象，并执行他的Listen方法。ServerSocket表示一个监听socket。看一下ServerSocket的构造函数。
-```c
+```cpp
 ServerSocket(InspectorSocketServer* server)
             : tcp_socket_(uv_tcp_t()), server_(server) {}
 ```
@@ -336,7 +336,7 @@ ServerSocket(InspectorSocketServer* server)
 ![](https://img-blog.csdnimg.cn/085c4f5baa7e4c73a22951893c81f4c6.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 接着看一下ServerSocket的Listen方法。
 
-```c
+```cpp
 int ServerSocket::Listen(sockaddr* addr, uv_loop_t* loop) {
   uv_tcp_t* server = &tcp_socket_;
   uv_tcp_init(loop, server)
@@ -349,7 +349,7 @@ int ServerSocket::Listen(sockaddr* addr, uv_loop_t* loop) {
 Listen调用Libuv的接口完成服务器的启动。至此，Inspector提供的Weboscket服务器启动了。
 ### 3.2.2 处理连接
 从刚才分析中可以看到，当有连接到来时执行回调ServerSocket::SocketConnectedCallback。
-```c
+```cpp
 void ServerSocket::SocketConnectedCallback(uv_stream_t* tcp_socket,
                                            int status) {
   if (status == 0) {
@@ -361,7 +361,7 @@ void ServerSocket::SocketConnectedCallback(uv_stream_t* tcp_socket,
 }
 ```
 接着看InspectorSocketServer的Accept是如何处理连接的。
-```c
+```cpp
 void InspectorSocketServer::Accept(int server_port,
                                    uv_stream_t* server_socket) {
                                    
@@ -386,7 +386,7 @@ void InspectorSocketServer::Accept(int server_port,
 Accept的首先创建里一个SocketSession和SocketSession::Delegate对象。然后调用InspectorSocket::Accept，从代码中可以看到InspectorSocket::Accept会返回一个InspectorSocket对象。InspectorSocket是对通信socket的封装（和客户端通信的socket，区别于服务器的监听socket）。然后记录session对象对应的InspectorSocket对象，同时记录sessionId和session的映射关系。结构如下图所示。  
 ![](https://img-blog.csdnimg.cn/5b5137ecb7284b78959388fced80e0e9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 接着看一下InspectorSocket::Accept返回InspectorSocket的逻辑。
-```c
+```cpp
 InspectorSocket::Pointer InspectorSocket::Accept(uv_stream_t* server,
                                                  DelegatePointer delegate) {
   auto tcp = TcpHolder::Accept(server, std::move(delegate));
@@ -397,7 +397,7 @@ InspectorSocket::Pointer InspectorSocket::Accept(uv_stream_t* server,
 ```
 InspectorSocket::Accept的代码不多，但是逻辑还是挺多的。  
 1 InspectorSocket::Accept再次调用TcpHolder::Accept获得一个TcpHolder对象。
-```c
+```cpp
 TcpHolder::Pointer TcpHolder::Accept(
     uv_stream_t* server,
     InspectorSocket::DelegatePointer delegate) {
@@ -415,7 +415,7 @@ TcpHolder::Pointer TcpHolder::Accept(
 }
 ```
 2  新建一个HttpHandler对象。
-```c
+```cpp
 explicit HttpHandler(InspectorSocket* inspector, TcpHolder::Pointer tcp)
                      : ProtocolHandler(inspector, std::move(tcp)){
                          
@@ -440,7 +440,7 @@ HttpHandler是对uv_tcp_t的封装，主要通过HTTP解析器llhttp对HTTP协�
 至此，就完成了连接处理的分析。
 ###  3.2.3 协议升级
 完成了TCP连接的处理后，接下来要完成协议升级，因为Inspector是通过WebSocket协议和客户端通信的，所以需要通过一个HTTP请求来完成HTTP到WebSocekt协议的升级。从刚才的分析中看当有数据到来时会执行OnDataReceivedCb回调。
-```c
+```cpp
 void TcpHolder::OnDataReceivedCb(uv_stream_t* tcp, ssize_t nread,
                                  const uv_buf_t* buf) {
   TcpHolder* holder = From(tcp);
@@ -451,7 +451,7 @@ void TcpHolder::OnDataReceivedCb(uv_stream_t* tcp, ssize_t nread,
 ```
 TCP层收到数据后交给应用层解析，直接调用上层的OnData回调。
 
-```c
+```cpp
 void OnData(std::vector<char>* data) override {
     // 解析HTTP协议
     llhttp_execute(&parser_, data->data(), data->size());
@@ -461,7 +461,7 @@ void OnData(std::vector<char>* data) override {
 ```
 OnData可能会被多次回调，并通过llhttp_execute解析收到的HTTP报文，当发现是一个协议升级的请求后，就调用OnSocketUpgrade回调。delegate是TCP层保存的SocketSession::Delegate对象。来看一下该对象的OnSocketUpgrade方法。
 
-```c
+```cpp
 void SocketSession::Delegate::OnSocketUpgrade(const std::string& host,
                                               const std::string& path,
                                               const std::string& ws_key) {
@@ -470,7 +470,7 @@ void SocketSession::Delegate::OnSocketUpgrade(const std::string& host,
 }
 ```
 OnSocketUpgrade又调用来server_（InspectorSocketServer对象）的SessionStarted。
-```c
+```cpp
 void InspectorSocketServer::SessionStarted(int session_id,
                                            const std::string& id,
                                            const std::string& ws_key) {
@@ -483,13 +483,13 @@ void InspectorSocketServer::SessionStarted(int session_id,
 ```
 首先通过session_id找到建立TCP连接时分配的SocketSession对象。  
 1 执行session->Accept(ws_key);回复客户端同意协议升级。
-```c
+```cpp
 void Accept(const std::string& ws_key) {
   ws_socket_->AcceptUpgrade(ws_key);
 }
 ```
 从结构图我们可以看到ws_socket_是一个InspectorSocket对象。
-```c
+```cpp
 void AcceptUpgrade(const std::string& accept_key) override {
     char accept_string[ACCEPT_KEY_LENGTH];
     generate_accept_string(accept_key, &accept_string);
@@ -512,7 +512,7 @@ void AcceptUpgrade(const std::string& accept_key) override {
 ```
 AcceptUpgradeh首先回复客户端101表示同意升级道WebSocket协议，然后切换数据处理器为WsHandler，即后续的数据按照WebSocket协议处理。  
 2 执行delegate_->StartSession(session_id, id)建立和V8 Inspector的会话。delegate_是InspectorIoDelegate对象。
-```c
+```cpp
 void InspectorIoDelegate::StartSession(int session_id,
                                        const std::string& target_id) {
   auto session = main_thread_->Connect(
@@ -529,7 +529,7 @@ void InspectorIoDelegate::StartSession(int session_id,
 首先通过main_thread_->Connect拿到一个session，并在InspectorIoDelegate中记录映射关系。结构图如下。  
 ![](https://img-blog.csdnimg.cn/a1f20d470ab94e65b40a2a851be9be67.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 接下来看一下main_thread_->Connect的逻辑（main_thread_是MainThreadHandle对象）。
-```c
+```cpp
 std::unique_ptr<InspectorSession> MainThreadHandle::Connect(
     std::unique_ptr<InspectorSessionDelegate> delegate,
     bool prevent_shutdown) {
@@ -542,7 +542,7 @@ std::unique_ptr<InspectorSession> MainThreadHandle::Connect(
 }
 ```
 Connect函数新建了一个CrossThreadInspectorSession对象。
-```c
+```cpp
  CrossThreadInspectorSession(
       int id,
       std::shared_ptr<MainThreadHandle> thread,
@@ -557,14 +557,14 @@ Connect函数新建了一个CrossThreadInspectorSession对象。
   }
 ```
 继续看MainThreadSessionState::Connect。
-```c
+```cpp
 void Connect(std::unique_ptr<InspectorSessionDelegate> delegate) {
     Agent* agent = thread_->inspector_agent();
     session_ = agent->Connect(std::move(delegate), prevent_shutdown_);
 }
 ```
 继续调agent->Connect。
-```c
+```cpp
 std::unique_ptr<InspectorSession> Agent::Connect(
     std::unique_ptr<InspectorSessionDelegate> delegate,
     bool prevent_shutdown) {
@@ -576,7 +576,7 @@ std::unique_ptr<InspectorSession> Agent::Connect(
 }
 ```
 继续调connectFrontend
-```c
+```cpp
   int connectFrontend(std::unique_ptr<InspectorSessionDelegate> delegate,
                       bool prevent_shutdown) {
     int session_id = next_session_id_++;
@@ -590,7 +590,7 @@ std::unique_ptr<InspectorSession> Agent::Connect(
   }
 ```
 connectFrontend创建了一个ChannelImpl并且在channels_中保存了映射关系。看看ChannelImpl的构造函数。
-```c
+```cpp
 explicit ChannelImpl(Environment* env,
                      const std::unique_ptr<V8Inspector>& inspector,
                      std::unique_ptr<InspectorSessionDelegate> delegate, ...)
@@ -603,7 +603,7 @@ ChannelImpl调用inspector->connect建立了一个和V8 Inspector的会话。结
 ![](https://img-blog.csdnimg.cn/3265bafd385c49beb345a604aa77ebc2.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 ###  3.2.4 客户端到V8 Inspector的数据处理
 TCP连接建立了，协议升级也完成了，接下来就可以开始处理业务数据。从前面的分析中我们已经知道数据到来时会执行TcpHoldler的handler_->OnData回调。因为已经完成了协议升级，所以这时候的handler变成了WeSocket handler。
-```c
+```cpp
   void OnData(std::vector<char>* data) override {
     // 1. Parse.
     int processed = 0;
@@ -617,7 +617,7 @@ TCP连接建立了，协议升级也完成了，接下来就可以开始处理�
   }
 ```
 OnData通过ParseWsFrames解析WebSocket协议。
-```c
+```cpp
 int ParseWsFrames(const std::vector<char>& buffer) {
     int bytes_consumed = 0;
     std::vector<char> output;
@@ -633,7 +633,7 @@ int ParseWsFrames(const std::vector<char>& buffer) {
   }
 ```
 前面已经分析过delegate是TcpHoldler的delegate，即SocketSession::Delegate对象。
-```c
+```cpp
 void SocketSession::Delegate::OnWsFrame(const std::vector<char>& data) {
   server_->MessageReceived(session_id_,
                            std::string(data.data(), 
@@ -647,7 +647,7 @@ void MessageReceived(int session_id, const std::string& message) {
 }
 ```
 继续回调delegate_->MessageReceived。InspectorSocketServer的delegate_是InspectorIoDelegate对象。
-```c
+```cpp
 void InspectorIoDelegate::MessageReceived(int session_id,
                                           const std::string& message) {
   auto session = sessions_.find(session_id);
@@ -669,7 +669,7 @@ void Dispatch(std::unique_ptr<StringBuffer> message) {
 }
 ```
 session_是SameThreadInspectorSession对象。
-```c
+```cpp
 void SameThreadInspectorSession::Dispatch(
     const v8_inspector::StringView& message) {
   auto client = client_.lock();
@@ -679,14 +679,14 @@ void SameThreadInspectorSession::Dispatch(
 ```
 继续调client->dispatchMessageFromFrontend。
 
-```c
+```cpp
  void dispatchMessageFromFrontend(int session_id, const StringView& message) {
    channels_[session_id]->dispatchProtocolMessage(message);
  }
 ```
 通过session_id找到对应的ChannelImpl，继续调ChannelImpl的dispatchProtocolMessage。
 
-```c
+```cpp
  voiddispatchProtocolMessage(const StringView& message) {
    session_->dispatchProtocolMessage(message);
  }
@@ -694,7 +694,7 @@ void SameThreadInspectorSession::Dispatch(
 最终调用和V8 Inspector的会话对象把数据发送给V8。至此客户端到V8 Inspector的通信过程就完成了。
 ###  3.2.5 V8 Inspector到客户端的数据处理
 接着看从V8 inspector到客户端的数据传递逻辑。V8 inspector是通过channel的sendResponse函数传递给客户端的。
-```c
+```cpp
  void sendResponse(
       int callId,
       std::unique_ptr<v8_inspector::StringBuffer> message) override {
@@ -707,14 +707,14 @@ void SameThreadInspectorSession::Dispatch(
  }
 ```
 delegate_是IoSessionDelegate对象。
-```c
+```cpp
 void SendMessageToFrontend(const v8_inspector::StringView& message) override {
     request_queue_->Post(id_, TransportAction::kSendMessage,
                          StringBuffer::create(message));
   }
 ```
 request_queue_是RequestQueueData对象。
-```c
+```cpp
  void Post(int session_id,
             TransportAction action,
             std::unique_ptr<StringBuffer> message) {
@@ -729,7 +729,7 @@ request_queue_是RequestQueueData对象。
   }
 ```
 Post首先把消息入队，然后通过异步的方式通知async_接着看async_的处理函数（在子线程的事件循环里执行）。
-```c
+```cpp
 uv_async_init(loop, &async_, [](uv_async_t* async) {
    // 拿到async对应的上下文
    RequestQueueData* wrapper = node::ContainerOf(&RequestQueueData::async_, async);
@@ -738,7 +738,7 @@ uv_async_init(loop, &async_, [](uv_async_t* async) {
 });
 ```
 
-```c
+```cpp
   void DoDispatch() {
     for (const auto& request : GetMessages()) {
       request.Dispatch(server_);
@@ -746,7 +746,7 @@ uv_async_init(loop, &async_, [](uv_async_t* async) {
   }
 ```
 request是RequestToServer对象。
-```c
+```cpp
   void Dispatch(InspectorSocketServer* server) const {
     switch (action_) {
       case TransportAction::kSendMessage:
@@ -758,7 +758,7 @@ request是RequestToServer对象。
   }
 ```
 接着看InspectorSocketServer的Send。
-```c
+```cpp
 void InspectorSocketServer::Send(int session_id, const std::string& message) {
   SocketSession* session = Session(session_id);
   if (session != nullptr) {
@@ -767,13 +767,13 @@ void InspectorSocketServer::Send(int session_id, const std::string& message) {
 }
 ```
 session代表可客户端的一个连接。
-```c
+```cpp
 void SocketSession::Send(const std::string& message) {
   ws_socket_->Write(message.data(), message.length());
 }
 ```
 接着调用WebSocket handler的Write。
-```c
+```cpp
 
   void Write(const std::vector<char> data) override {
     std::vector<char> output = encode_frame_hybi17(data);
@@ -781,14 +781,14 @@ void SocketSession::Send(const std::string& message) {
   }
 ```
 WriteRaw是基类ProtocolHandler实现的。
-```c
+```cpp
 int ProtocolHandler::WriteRaw(const std::vector<char>& buffer,
                               uv_write_cb write_cb) {
   return tcp_->WriteRaw(buffer, write_cb);
 }
 ```
 最终是通过TCP连接返回给客户端。
-```c
+```cpp
 int TcpHolder::WriteRaw(const std::vector<char>& buffer, uv_write_cb write_cb) {
   // Freed in write_request_cleanup
   WriteRequest* wr = new WriteRequest(handler_, buffer);
@@ -803,7 +803,7 @@ int TcpHolder::WriteRaw(const std::vector<char>& buffer, uv_write_cb write_cb) {
 
 # 4 动态开启Inspector
 默认打开Inspector能力是不安全的，这意味着能连上websocket服务器的客户端都能通过协议控制Node.js进程，通常我们是在Node.js进程出现问题的时候，动态开启Inspector。
-```c
+```js
 const http = require('http');
 const inspector = require('inspector');
 const fs = require('fs');

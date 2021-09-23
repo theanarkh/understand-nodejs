@@ -1,7 +1,7 @@
 前言：调试代码不管对于开发还是学习源码都是非常重要的技能，本文简单介绍vscode调试Node.js相关代码的调试技巧。
 # 1 调试业务JS
 调试业务JS可能是普遍的场景，随着Node.js和调试工具的成熟，调试也变得越来越简单。下面是vscode的lauch.json配置。
-```c
+```json
 {
     "version": "0.2.0",
     "configurations": [
@@ -22,7 +22,7 @@
 
 # 2 调试Addon的C++
 写Addon的场景可能不多，但是当你需要的时候，你就会需要调试它。下面的配置只可以调试C++代码。
-```c
+```json
 {
     "version": "0.2.0",
     "configurations": [
@@ -47,7 +47,7 @@
 
 # 3 调试Addon的C++和JS
 Addon通常需要通过JS暴露出来使用，如果我们需要调试C++和JS，那么就可以使用以下配置。
-```c
+```json
 {
     "version": "0.2.0",
     "configurations": [
@@ -74,11 +74,11 @@ Addon通常需要通过JS暴露出来使用，如果我们需要调试C++和JS�
 
 # 4 调试Node.js源码C++
 我们不仅用Node.js，我们可能还会学习Node.js源码，学习源码的时候就少不了调试。可以通过下面的方式调试Node.js的C++源码。
-```c
+```text
 ./configure --debug && make
 ```
 使用以下配置
-```c
+```json
 {
     "version": "0.2.0",
     "configurations": [
@@ -101,7 +101,7 @@ Addon通常需要通过JS暴露出来使用，如果我们需要调试C++和JS�
 
 # 5 调试Node.js源码C++和JS代码
 Node.js的源码不仅仅有C++，还有JS，如果我们想同时调试，那么就使用以下配置。
-```c
+```json
 {
     "version": "0.2.0",
     "configurations": [
