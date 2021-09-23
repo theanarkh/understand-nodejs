@@ -4,10 +4,10 @@
 ### 13.1.1 创建process对象
 Node.js启动的时候会执行以下代码创建process对象（env.cc）。
 
-```
+```cpp
     Local<Object> process_object = node::CreateProcessObject(this).FromMaybe(Local<Object>());   
     set_process_object(process_object);   
-process对象通过CreateProcessObject创建，然后保存到env对象中。我们看一下CreateProcessObject。
+    //  process对象通过CreateProcessObject创建，然后保存到env对象中。我们看一下CreateProcessObject。
     MaybeLocal<Object> CreateProcessObject(Environment* env) {  
       Isolate* isolate = env->isolate();  
       EscapableHandleScope scope(isolate);  
@@ -34,7 +34,7 @@ process对象通过CreateProcessObject创建，然后保存到env对象中。我
 
 这是使用V8创建一个对象的典型例子，并且设置了一些属性。Node.js启动过程中，很多地方都会给process挂载属性。下面我们看我们常用的process.env是怎么挂载的。
 ### 13.1.2 挂载env属性
-```
+```cpp
     Local<String> env_string = FIXED_ONE_BYTE_STRING(isolate_, "env");
     Local<Object> env_var_proxy;  
     // 设置process的env属性
@@ -51,7 +51,7 @@ process对象通过CreateProcessObject创建，然后保存到env对象中。我
 
 上面的代码通过CreateEnvVarProxy创建了一个对象，然后保存到env_var_proxy中，最后给process挂载了env属性。它的值是CreateEnvVarProxy创建的对象。
 
-```
+```cpp
     MaybeLocal<Object> CreateEnvVarProxy(Local<Context> context,  
                         Isolate* isolate,  
                        Local<Object> data) {  
@@ -71,7 +71,7 @@ process对象通过CreateProcessObject创建，然后保存到env对象中。我
 
 CreateEnvVarProxy首先申请一个对象模板，然后设置通过该对象模板创建的对象的访问描述符。我们看一下getter描述符（EnvGetter）的实现，getter描述符和我们在JS里使用的类似。
 
-```
+```cpp
     static void EnvGetter(Local<Name> property,  
                 const PropertyCallbackInfo<Value>& info) { 
       Environment* env = Environment::GetCurrent(info);  
@@ -84,20 +84,20 @@ CreateEnvVarProxy首先申请一个对象模板，然后设置通过该对象模
 
 我们看到getter是从env->env_vars()中获取数据，那么env->env_vars()又是什么呢？env_vars是一个kv存储系统，其实就是一个map。它只在Node.js初始化的时候设置（创建env对象时）。
 
-```
+```cpp
 set_env_vars(per_process::system_environment); 
 ```
 
  
 那么per_process::system_environment又是什么呢？我们继续往下看，
 
-```
+```cpp
 std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();  
 ```
 
 我们看到system_environment是一个RealEnvStore对象。我们看一下RealEnvStore类的实现。
 
-```
+```cpp
     class RealEnvStore final : public KVStore {  
      public:  
       MaybeLocal<String> Get(Isolate* isolate, Local<String> key) const override;  
@@ -110,7 +110,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 比较简单，就是增删改查，我们看一下查询Get的实现。
 
-```
+```cpp
     MaybeLocal<String> RealEnvStore::Get(Isolate* isolate,  
                                          Local<String> property) const {  
       Mutex::ScopedLock lock(per_process::env_var_mutex);  
@@ -136,7 +136,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 ### 13.1.3 挂载其它属性
 在Node.js的启动过程中会不断地挂载属性到process。主要在bootstrap/node.js中。不一一列举。
 
-```
+```js
     const rawMethods = internalBinding('process_methods');
     process.dlopen = rawMethods.dlopen;  
     process.uptime = rawMethods.uptime; 
@@ -145,7 +145,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 下面是process_methods模块导出的属性，主列出常用的。
 
-```
+```cpp
     env->SetMethod(target, "memoryUsage", MemoryUsage);  
     env->SetMethod(target, "cpuUsage", CPUUsage);  
     env->SetMethod(target, "hrtime", Hrtime);    
@@ -155,7 +155,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 我们看到在JS层访问process属性的时候，访问的是对应的C++层的这些方法，大部分也只是对Libuv的封装。另外在Node.js初始化的过程中会执行PatchProcessObject。PatchProcessObject函数会挂载一些额外的属性给process。
 
-```
+```js
     // process.argv  
     process->Set(context,  
            FIXED_ONE_BYTE_STRING(isolate, "argv"),  
@@ -172,7 +172,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 在Node.js初始化的过程中，在多个地方都会给process对象挂载属性，这里只列出了一部分，有兴趣的同学可以从bootstrap/node.js的代码开始看都挂载了什么属性。因为Node.js支持多线程，所以针对线程的情况，有一些特殊的处理。
 
-```
+```js
     const perThreadSetup = require('internal/process/per_thread');  
     // rawMethods来自process_methods模块导出的属性
     const wrapped = perThreadSetup.wrapProcessMethods(rawMethods);  
@@ -185,7 +185,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 大部分函数都是对process_methods模块（node_process_methods.cc）的封装。但是有一个属性我们需要关注一下，就是exit，因为在线程中调用process.exit的时候，只会退出单个线程，而不是整个进程。
 
-```
+```js
     function exit(code) {  
        if (code || code === 0)  
          process.exitCode = code;  
@@ -200,7 +200,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 我们继续看reallyExit
 
-```
+```cpp
     static void ReallyExit(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
       RunAtExit(env);  
@@ -211,7 +211,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 调用了env的Exit。
 
-```
+```cpp
     void Environment::Exit(int exit_code) {  
       if (is_main_thread()) {  
         stop_sub_worker_contexts();  
@@ -225,7 +225,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 这里我们看到了重点，根据当前是主线程还是子线程会做不同的处理。一个线程会对应一个env，env对象中的worker_context_保存就是线程对象（Worker）。我们先看子线程的逻辑。
 
-```
+```cpp
     void Worker::Exit(int code) {  
       Mutex::ScopedLock lock(mutex_);  
       if (env_ != nullptr) {  
@@ -252,7 +252,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 我们看到子线程最后调用uv_stop提出了Libuv事件循环，然后退出。我们再来看主线程的退出逻辑。
 
-```
+```cpp
     if (is_main_thread()) {  
       stop_sub_worker_contexts();  
       DisposePlatform();  
@@ -262,7 +262,7 @@ std::shared_ptr<KVStore> system_environment = std::make_shared<RealEnvStore>();
 
 我们看到最后主进程中调用exit退出进程。但是退出前还有一些处理工作，我们看stop_sub_worker_contexts
 
-```
+```cpp
     void Environment::stop_sub_worker_contexts() {  
       while (!sub_worker_contexts_.empty()) {  
         Worker* w = *sub_worker_contexts_.begin();  
@@ -277,7 +277,7 @@ sub_worker_contexts保存的是Worker对象列表，每次创建一个线程的�
 ## 13.2 创建子进程
 因为Node.js是单进程的，但有很多事情可能不适合在主进程里处理的，所以Node.js提供了子进程模块，我们可以创建子进程做一些额外任务的处理，另外，子进程的好处是，一旦子进程出问题挂掉不会影响主进程。我们首先看一下在用C语言如何创建一个进程。
 
-```
+```cpp
     #include<unistd.h>  
     #include<stdlib.h>  
        
@@ -300,7 +300,7 @@ fork函数的特点，我们听得最多的可能是执行一次返回两次，�
 图13-1  
 我们从fork这个函数开始，看一下整个流程。
 
-```
+```js
     function fork(modulePath /* , args, options */) {  
       // 一系列参数处理  
       return spawn(options.execPath, args, options);  
@@ -309,7 +309,7 @@ fork函数的特点，我们听得最多的可能是执行一次返回两次，�
 
 我们接着看spawn
 
-```
+```js
     var spawn = exports.spawn = function(/*file, args, options*/) {  var opts = normalizeSpawnArguments.apply(null, arguments);  
       var options = opts.options;  
       var child = new ChildProcess();  
@@ -333,7 +333,7 @@ fork函数的特点，我们听得最多的可能是执行一次返回两次，�
 
 我们看到spawn函数只是对ChildProcess的封装。然后调用它的spawn函数。我们看看ChildProcess。
 
-```
+```js
     function ChildProcess() {  
       // C++层定义  
       this._handle = new Process();  
@@ -348,7 +348,7 @@ fork函数的特点，我们听得最多的可能是执行一次返回两次，�
 
 ChildProcess是对C++层的封装，不过Process在C++层也没有太多逻辑，进行参数的处理然后调用Libuv的uv_spawn。我们通过uv_spawn来到了C语言层。我们看看uv_spawn的整体流程。
 
-```
+```cpp
     int uv_spawn(uv_loop_t* loop,  
                  uv_process_t* process,  
                  const uv_process_options_t* options) {  
@@ -420,7 +420,7 @@ uv_spawn的逻辑大致分为下面几个
 1 处理子进程退出  
 主进程在创建子进程之前，会注册SIGCHLD信号。对应的处理函数是uv__chld。当进程退出的时候。Node.js主进程会收到SIGCHLD信号。然后执行uv__chld。该函数遍历Libuv进程队列中的节点，通过waitpid判断该节点对应的进程是否已经退出后，从而处理已退出的节点，然后移出Libuv队列，最后执行已退出进程的回调。
 
-```
+```cpp
     static void uv__chld(uv_signal_t* handle, int signum) {  
       uv_process_t* process;  
       uv_loop_t* loop;  
@@ -496,7 +496,7 @@ uv_spawn的逻辑大致分为下面几个
 图13-2  
 主进程和子进程通过共享file和inode结构体，实现对同一块内存的读写。主进程fork创建子进程后，会通过read阻塞等待子进程的消息。我们看一下子进程的逻辑。
 
-```
+```cpp
     static void uv__process_child_init(const uv_process_options_t* options,
                                          int stdio_count,  
                        int (*pipes)[2],  
@@ -536,7 +536,7 @@ uv_spawn的逻辑大致分为下面几个
 ### 13.2.2 同步创建进程
 同步方式创建的进程，主进程会等待子进程退出后才能继续执行。接下来看看如何以同步的方式创建进程。JS层入口函数是spawnSync。spawnSync调用C++模块spawn_sync的spawn函数创建进程，我们看一下对应的C++模块spawn_sync导出的属性。
 
-```
+```cpp
     void SyncProcessRunner::Initialize(Local<Object> target,  
                                        Local<Value> unused,  
                                        Local<Context> context,  
@@ -548,7 +548,7 @@ uv_spawn的逻辑大致分为下面几个
 
 该模块值导出了一个属性spawn，当我们调用spawn的时候，执行的是C++的Spawn。
 
-```
+```cpp
     void SyncProcessRunner::Spawn(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
       env->PrintSyncTrace();  
@@ -561,7 +561,7 @@ uv_spawn的逻辑大致分为下面几个
 
 Spawn中主要是新建了一个SyncProcessRunner对象并且执行Run方法。我们看一下SyncProcessRunner的Run做了什么。
 
-```
+```cpp
     MaybeLocal<Object> SyncProcessRunner::Run(Local<Value> options) {  
       EscapableHandleScope scope(env()->isolate());  
       Maybe<bool> r = TryInitializeAndRunLoop(options);   
@@ -572,7 +572,7 @@ Spawn中主要是新建了一个SyncProcessRunner对象并且执行Run方法。�
 
 执行了TryInitializeAndRunLoop。  
 
-```
+```cpp
     Maybe<bool> SyncProcessRunner::TryInitializeAndRunLoop(Local<Value> options) {
         int r;  
         
@@ -624,7 +624,7 @@ Spawn中主要是新建了一个SyncProcessRunner对象并且执行Run方法。�
 #### 13.2.2.1 执行时间
 因为同步方式创建子进程会导致Node.js主进程阻塞，为了避免子进程有问题，从而影响主进程的执行，Node.js支持可配置子进程的最大执行时间。我们看到，Node.js开启了一个定时器，并设置了回调KillTimerCallback。
 
-```
+```cpp
     void SyncProcessRunner::KillTimerCallback(uv_timer_t* handle) {  
       SyncProcessRunner* self = reinterpret_cast<SyncProcessRunner*>(handle->data);  
       self->OnKillTimerTimeout();  
@@ -663,7 +663,7 @@ Spawn中主要是新建了一个SyncProcessRunner对象并且执行Run方法。�
 #### 13.2.2.2 子进程退出处理
 退出处理主要是记录子进程退出时的错误码和被哪个信号杀死的（如果有的话）。
 
-```
+```cpp
     void SyncProcessRunner::ExitCallback(uv_process_t* handle,  
                                          int64_t exit_status,  
                                          int term_signal) {  
@@ -686,7 +686,7 @@ Spawn中主要是新建了一个SyncProcessRunner对象并且执行Run方法。�
 ### 13.3.1 创建通信通道
 我们从fork函数开始分析Node.js中进程间通信的逻辑。
 
-```
+```js
     function fork(modulePath) {  
      // 忽略options参数处理  
      if (typeof options.stdio === 'string') {  
@@ -707,7 +707,7 @@ Spawn中主要是新建了一个SyncProcessRunner对象并且执行Run方法。�
 
 我们看一下stdioStringToArray的处理。
 
-```
+```js
     function stdioStringToArray(stdio, channel) {  
       const options = [];  
       
@@ -727,7 +727,7 @@ Spawn中主要是新建了一个SyncProcessRunner对象并且执行Run方法。�
 
 stdioStringToArray会返回一个数组，比如['pipe', 'pipe', 'pipe', 'ipc']或[0, 1, 2, 'ipc']，ipc代表需要创建一个进程间通信的通道，并且支持文件描述传递。我们接着看spawn。
 
-```
+```js
     ChildProcess.prototype.spawn = function(options) {  
       let i = 0;  
       // 预处理进程间通信的数据结构  
@@ -752,7 +752,7 @@ stdioStringToArray会返回一个数组，比如['pipe', 'pipe', 'pipe', 'ipc']�
 
 Spawn中会执行getValidStdio预处理进程间通信的数据结构。我们只关注ipc的。
 
-```
+```js
     function getValidStdio(stdio, sync) {  
       let ipc;  
       let ipcFd;  
@@ -778,7 +778,7 @@ Spawn中会执行getValidStdio预处理进程间通信的数据结构。我们�
 
 我们看到这里会new Pipe(PipeConstants.IPC);创建一个Unix域用于进程间通信，但是这里只是定义了一个C++对象，还没有可用的文件描述符。我们接着往下看C++层的spawn中关于进程间通信的处理。C++层首先处理参数，
 
-```
+```cpp
     static void ParseStdioOptions(Environment* env,  
                                     Local<Object> js_options,  
                                     uv_process_options_t* options) {  
@@ -811,7 +811,7 @@ Spawn中会执行getValidStdio预处理进程间通信的数据结构。我们�
 
 这里会把StreamForWrap的结果保存到stream中，我们看看StreamForWrap的逻辑
 
-```
+```cpp
      static uv_stream_t* StreamForWrap(Environment* env, Local<Object> stdio) {  
        Local<String> handle_key = env->handle_string();  
        /*
@@ -834,7 +834,7 @@ Spawn中会执行getValidStdio预处理进程间通信的数据结构。我们�
 
 以上代码获取了IPC对应的stream结构体。在Libuv中会把文件描述符保存到stream中。我们接着看C++层调用Libuv的uv_spawn。
 
-```
+```cpp
     int uv_spawn(uv_loop_t* loop,  
                  uv_process_t* process,  
                  const uv_process_options_t* options) {  
@@ -869,7 +869,7 @@ Spawn中会执行getValidStdio预处理进程间通信的数据结构。我们�
 
 Libuv中会创建用于进程间通信的文件描述符，然后设置到对应的数据结构中。
 
-```
+```cpp
     static int uv__process_open_stream(uv_stdio_container_t* container,  
                                        int pipefds[2]) {  
       int flags;  
@@ -899,7 +899,7 @@ Libuv中会创建用于进程间通信的文件描述符，然后设置到对应
 ### 13.3.2 主进程处理通信通道
 1 读端
 
-```
+```js
     function setupChannel(target, channel, serializationMode) {    
       // channel是new Pipe(PipeConstants.IPC);  
       const control = new Control(channel);    
@@ -949,7 +949,7 @@ Libuv中会创建用于进程间通信的文件描述符，然后设置到对应
 onread处理完后会触发internalMessage或message事件，message是用户使用的。 
 2写端
 
-```
+```js
     target._send = function(message, handle, options, callback) {  
        let obj;  
        const req = new WriteWrap();  
@@ -962,7 +962,7 @@ onread处理完后会触发internalMessage或message事件，message是用户使
 
 我们看看writeChannelMessage
 
-```
+```js
     writeChannelMessage(channel, req, message, handle) {  
       const ser = new ChildProcessSerializer();  
       ser.writeHeader();  
@@ -982,7 +982,7 @@ onread处理完后会触发internalMessage或message事件，message是用户使
 ### 13.3.3 子进程处理通信通道
 接着我们看看子进程的逻辑，Node.js在创建子进程的时候，主进程会通过环境变量NODE_CHANNEL_FD告诉子进程Unix域通信对应的文件描述符。在执行子进程的时候，会处理这个文件描述符。具体实现在setupChildProcessIpcChannel函数中。
 
-```
+```js
     function setupChildProcessIpcChannel() {  
       // 主进程通过环境变量设置该值
       if (process.env.NODE_CHANNEL_FD) {  
@@ -995,7 +995,7 @@ onread处理完后会触发internalMessage或message事件，message是用户使
 
 接着执行_forkChild函数。
 
-```
+```js
     function _forkChild(fd, serializationMode) {  
       const p = new Pipe(PipeConstants.IPC);  
       p.open(fd);  
@@ -1009,7 +1009,7 @@ onread处理完后会触发internalMessage或message事件，message是用户使
 ### 13.4.1 发送文件描述符
 我们看进程间通信的发送函数send的实现
 
-```
+```js
     process.send = function(message, handle, options, callback) {  
         return this._send(message, handle, options, callback);  
     };  
@@ -1062,7 +1062,7 @@ onread处理完后会触发internalMessage或message事件，message是用户使
 
 Node.js在发送一个封装了文件描述符的对象之前，首先会把JS层使用的对象转成C++层使用的对象。如TCP
 
-```
+```js
     send(message, server, options) {  
           return server._handle;  
     } 
@@ -1070,7 +1070,7 @@ Node.js在发送一个封装了文件描述符的对象之前，首先会把JS�
 
 我们接着看writeChannelMessage。
 
-```
+```js
     // channel是new Pipe(PipeConstants.IPC);  
     writeChannelMessage(channel, req, message, handle) {  
         const string = JSONStringify(message) + '\n';
@@ -1080,7 +1080,7 @@ Node.js在发送一个封装了文件描述符的对象之前，首先会把JS�
 
 我们看一下writeUtf8String
 
-```
+```cpp
     template <enum encoding enc>  
     int StreamBase::WriteString(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
@@ -1123,7 +1123,7 @@ Write会调用Libuv的uv__write，uv__write会把Libuv层的handle中的fd取出
 ### 13.4.2 接收文件描述符
 分析完发送，我们再看一下接收的逻辑。前面我们分析过，当文件描述符收到数据时，会把文件文件描述符封装成对应的对象。
 
-```
+```cpp
     void LibuvStreamWrap::OnUvRead(ssize_t nread, const uv_buf_t* buf) {  
       HandleScope scope(env()->isolate());  
       Context::Scope context_scope(env()->context());  
@@ -1163,7 +1163,7 @@ Write会调用Libuv的uv__write，uv__write会把Libuv层的handle中的fd取出
 
 接着我们看看JS层的处理。
 
-```
+```js
     channel.onread = function(arrayBuffer) {  
       // 收到的文件描述符  
       const recvHandle = channel.pendingHandle;  
@@ -1193,7 +1193,7 @@ Write会调用Libuv的uv__write，uv__write会把Libuv层的handle中的fd取出
 
 这里会触发内部事件internalMessage
 
-```
+```js
     target.on('internalMessage', function(message, handle) {  
       // 是否收到了handle  
       if (message.cmd !== 'NODE_HANDLE') return;  
@@ -1214,7 +1214,7 @@ Write会调用Libuv的uv__write，uv__write会把Libuv层的handle中的fd取出
 
 我们看到这里会把C++层的对象转成JS层使用的对象。如TCP
 
-```
+```js
     got(message, handle, emit) {  
         const server = new net.Server();  
         server.listen(handle, () => {  
