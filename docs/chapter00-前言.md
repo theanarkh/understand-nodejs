@@ -50,11 +50,7 @@ Node.js的源码由JS、C++、C组成。
 
 ## 其它资源
 个人博客
-csdn [https://blog.csdn.net/THEANARKH](https://blog.csdn.net/THEANARKH)
-知乎[https://www.zhihu.com/people/theanarkh](https://www.zhihu.com/people/theanarkh)
-github [https://github.com/theanarkh](https://github.com/theanarkh)
+csdn [https://blog.csdn.net/THEANARKH](https://blog.csdn.net/THEANARKH)  
+知乎[https://www.zhihu.com/people/theanarkh](https://www.zhihu.com/people/theanarkh)  
+github [https://github.com/theanarkh](https://github.com/theanarkh)  
 阅读Node.js源码时，所用到的基础知识、所作积累和记录几乎都在上面的博客中。 如果你有任何问题可以到[https://github.com/theanarkh/understand-nodejs](https://github.com/theanarkh/understand-nodejs)提issue或者联系我。
-
-## 最后更新
-
-<small>最后更新: {{ git.date.strftime('%Y-%m-%d') }}</small>

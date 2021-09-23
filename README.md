@@ -1,7 +1,6 @@
 # 通过源码分析nodejs原理<br/>
 
-* 微信：theratliter<br /> 
-* 公众号：编程杂技 <br />
+* [官网](https://theanarkh.github.io/understand-nodejs)
 * 知乎：[Node.js源码分析](https://www.zhihu.com/column/c_1094251741922619392)
 * [为什么要读Node.js源码？](https://zhuanlan.zhihu.com/p/350625461)<br/>
 * [Node.js的底层原理](https://zhuanlan.zhihu.com/p/375276722)<br/>
