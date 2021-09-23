@@ -1,14 +1,14 @@
 Node.js的模块分为用户JS模块、Node.js原生JS模块、Node.js内置C++模块。本章介绍这些模块加载的原理以及Node.js中模块加载器的类型和原理。
 下面我们以一个例子为开始，分析Node.js中模块加载的原理。假设我们有一个文件demo.js，代码如下
 
-```
+```js
     const myjs= require(‘myjs); 
     const net = require(‘net’); 
 ```
 
 其中myjs的代码如下
 
-```
+```js
     exports.hello = ‘world’;
 ```
 
@@ -16,7 +16,7 @@ Node.js的模块分为用户JS模块、Node.js原生JS模块、Node.js内置C++�
 require('internal/modules/cjs/loader').Module.runMain(process.argv[1]) 
 其中runMain函数在pre_execution.js的initializeCJSLoader中挂载
 
-```
+```js
     function initializeCJSLoader() {  
       const CJSLoader = require('internal/modules/cjs/loader');  
       CJSLoader.Module._initPaths();  
@@ -27,7 +27,7 @@ require('internal/modules/cjs/loader').Module.runMain(process.argv[1])
 
 我们看到runMain是run_main.js导出的函数。继续往下看
 
-```
+```js
     const CJSLoader = require('internal/modules/cjs/loader');
     const { Module } = CJSLoader;
     function executeUserEntryPoint(main = process.argv[1]) {  
@@ -47,7 +47,7 @@ require('internal/modules/cjs/loader').Module.runMain(process.argv[1])
 
 process.argv[1]就是我们要执行的JS文件。最后通过cjs/loader.js的Module._load加载了我们的JS。下面我们看一下具体的处理逻辑。
 
-```
+```js
     Module._load = function(request, parent, isMain) {  
       const filename = Module._resolveFilename(request, parent, isMain);  
       
@@ -79,7 +79,7 @@ _load函数主要是三个逻辑
 1	不是原生模块，则新建一个Module表示用户的JS模块，然后执行load函数加载。  
 这里我们只需要关注3的逻辑，在Node.js中，用户定义的模块使用Module表示。
 
-```
+```js
     function Module(id = '', parent) {  
       // 模块对应的文件路径  
       this.id = id;  
@@ -98,7 +98,7 @@ _load函数主要是三个逻辑
 
 接着看一下load函数的逻辑。
 
-```
+```js
     Module.prototype.load = function(filename) {  
       this.filename = filename;  
       // 拓展名  
@@ -115,7 +115,7 @@ Node.js会根据不同的文件拓展名使用不同的函数处理。
 ### 19.1.1 加载JSON模块
 加载JSON模块是比较简单的
 
-```
+```js
     Module._extensions['.json'] = function(module, filename) {  
       const content = fs.readFileSync(filename, 'utf8');  
       
@@ -131,7 +131,7 @@ Node.js会根据不同的文件拓展名使用不同的函数处理。
 直接读取JSON文件的内容，然后解析成对象就行。
 ### 19.1.2 加载JS模块
 
-```
+```js
     Module._extensions['.js'] = function(module, filename) {  
       const content = fs.readFileSync(filename, 'utf8');  
       module._compile(content, filename);  
@@ -140,7 +140,7 @@ Node.js会根据不同的文件拓展名使用不同的函数处理。
 
 读完文件的内容，然后执行_compile
 
-```
+```js
     Module.prototype._compile = function(content, filename) {  
       // 生成一个函数  
       const compiledWrapper = wrapSafe(filename, content, this);  
@@ -173,7 +173,7 @@ _compile里面包括了几个重要的逻辑
 我们看一下这三个逻辑。
 1 wrapSafe
 
-```
+```js
     function wrapSafe(filename, content, cjsModuleInstance) {    
         const wrapper = Module.wrap(content);    
         return vm.runInThisContext(wrapper, {    
@@ -195,7 +195,7 @@ _compile里面包括了几个重要的逻辑
 
 vm.runInThisContext的第一个参数是”(function() {})”的时候，会返回一个函数。所以执行Module.wrap后会返回一个字符串，内容如下
 
-```
+```js
     (function (exports, require, module, __filename, __dirname) { 
       // 
     });   
@@ -204,7 +204,7 @@ vm.runInThisContext的第一个参数是”(function() {})”的时候，会返�
 接着我们看一下require函数，即我们平时在代码中使用的require。
 2 require
 
-```
+```js
     Module.prototype.require = function(id) {  
       requireDepth++;  
       try {  
@@ -219,7 +219,7 @@ require是对Module._load的封装，Module._load会把模块导出的变量通�
 3 执行代码
 我们回到_compile函数。看一下执行vm.runInThisContext返回的函数。
 
-```
+```js
 compiledWrapper.call(exports,
                      exports,
                      require,
@@ -230,7 +230,7 @@ compiledWrapper.call(exports,
 
 相当于执行以下代码
 
-```
+```js
     (function (exports, require, module, __filename, __dirname) {  
       const myjs= require(‘myjs);
       const net = require(‘net’);
@@ -241,7 +241,7 @@ compiledWrapper.call(exports,
 ### 19.1.3 加载node模块
 Node拓展的模块本质上是动态链接库，我们看require一个.node模块的时候的过程。我们从加载.node模块的源码开始。
 
-```
+```js
     Module._extensions['.node'] = function(module, filename) {  
       // ...  
       return process.dlopen(module, path.toNamespacedPath(filename)); 
@@ -250,20 +250,20 @@ Node拓展的模块本质上是动态链接库，我们看require一个.node模�
 
 直接调了process.dlopen，该函数在node.js里定义。  
 
-```
+```js
     const rawMethods = internalBinding('process_methods');  
     process.dlopen = rawMethods.dlopen;  
 ```
 
 找到process_methods模块对应的是node_process_methods.cc。  
 
-```
+```cpp
 env->SetMethod(target, "dlopen", binding::DLOpen);  
 ```
 
 之前说过，Node.js的拓展模块其实是动态链接库，那么我们先看看一个动态链接库我们是如何使用的。以下是示例代码。  
 
-```
+```cpp
     #include <stdio.h>  
     #include <stdlib.h>  
     #include <dlfcn.h>  
@@ -281,7 +281,7 @@ env->SetMethod(target, "dlopen", binding::DLOpen);
 
 了解动态链接库的使用，我们继续分析刚才看到的DLOpen函数。  
 
-```
+```cpp
     void DLOpen(const FunctionCallbackInfo<Value>& args) {  
       
       int32_t flags = DLib::kDefaultFlags;
@@ -306,7 +306,7 @@ env->SetMethod(target, "dlopen", binding::DLOpen);
 
 我们看到重点是TryLoadAddon函数，该函数的逻辑就是执行它的第三个参数。我们发现第三个参数是一个函数，入参是DLib对象。所以我们先看看这个类。 
 
-```
+```cpp
     class DLib {  
      public:  
       static const int kDefaultFlags = RTLD_LAZY;  
@@ -324,7 +324,7 @@ env->SetMethod(target, "dlopen", binding::DLOpen);
 
 再看一下实现。  
 
-```
+```cpp
     bool DLib::Open() {  
       handle_ = dlopen(filename_.c_str(), flags_);  
       if (handle_ != nullptr) return true;  
@@ -335,19 +335,19 @@ env->SetMethod(target, "dlopen", binding::DLOpen);
 
 DLib就是对动态链接库的一个封装，它封装了动态链接库的文件名和操作。TryLoadAddon函数首先根据require传入的文件名，构造一个DLib，然后执行  
 
-```
+```cpp
 const bool is_opened = dlib->Open();  
 ```
 
 Open函数打开了一个动态链接库，这时候我们要先了解一下打开一个动态链接库究竟发生了什么。首先我们一般C++插件最后一句代码的定义。
 
-```
+```cpp
 NAPI_MODULE(NODE_GYP_MODULE_NAME, init)  
 ```
 
 这是个宏定义。 
 
-```
+```cpp
     #define NAPI_MODULE(modname, regfunc) \    
       NAPI_MODULE_X(modname, regfunc, NULL, 0)    
      #define NAPI_MODULE_X(modname, regfunc, priv, flags)                  \    
@@ -369,13 +369,13 @@ NAPI_MODULE(NODE_GYP_MODULE_NAME, init)
 
 所以一个node扩展就是定义了一个napi_module模块和一个register_modname（modname是我们定义的）函数。__attribute((constructor))是代表该函数会先执行的意思，具体可以查阅文档。看到这里我们知道，当我们打开一个动态链接库的时候，会执行_register_modname函数，该函数执行的是  
 
-```
+```cpp
 napi_module_register(&_module);    
 ```
 
 我们继续展开。
 
-```
+```cpp
       
     // Registers a NAPI module.  
     void napi_module_register(napi_module* mod) {  
@@ -396,7 +396,7 @@ napi_module_register(&_module);
 
 Node.js把napi模块转成node_module。最后调用node_module_register。 
 
-```
+```cpp
       
     extern "C" void node_module_register(void* m) {  
       struct node_module* mp = reinterpret_cast<struct node_module*>(m);  
@@ -416,14 +416,14 @@ Node.js把napi模块转成node_module。最后调用node_module_register。
 
 napi模块不是NM_F_INTERNAL模块，node_is_initialized是在Node.js初始化时设置的变量，这时候已经是true。所以注册napi模块时，会执行thread_local_modpending = mp。thread_local_modpending 类似一个全局变量，保存当前加载的模块。分析到这，我们回到DLOpen函数。 
 
-```
+```cpp
     node_module* mp = thread_local_modpending;  
     thread_local_modpending = nullptr;  
 ```
 
 这时候我们就知道刚才那个变量thread_local_modpending的作用了。node_module* mp = thread_local_modpending后我们拿到了我们刚才定义的napi模块的信息。接着执行node_module的函数nm_register_func。  
 
-```
+```cpp
     if (mp->nm_context_register_func != nullptr) {  
       mp->nm_context_register_func(exports, 
                                      module, 
@@ -436,7 +436,7 @@ napi模块不是NM_F_INTERNAL模块，node_is_initialized是在Node.js初始化�
 
 从刚才的node_module定义中我们看到函数是napi_module_register_cb。  
 
-```
+```cpp
     static void napi_module_register_cb(v8::Local<v8::Object> exports,  
                                       v8::Local<v8::Value> module,  
                                       v8::Local<v8::Context> context,  
@@ -448,7 +448,7 @@ napi模块不是NM_F_INTERNAL模块，node_is_initialized是在Node.js初始化�
 
 该函数调用napi_module_register_by_symbol函数，并传入napi_module的nm_register_func函数。 
 
-```
+```cpp
     void napi_module_register_by_symbol(v8::Local<v8::Object> exports,  
                                       v8::Local<v8::Value> module,  
                                       v8::Local<v8::Context> context,  
@@ -475,7 +475,7 @@ init就是我们定义的函数。入参是env和exports，可以对比我们定
 上一节我们了解了Node.js执行node demo.js的过程，其中我们在demo.js中使用require加载net模块。net是原生JS模块。这时候就会进入原生模块的处理逻辑。
 原生模块是Node.js内部实现的JS模块。使用NativeModule来表示。
 
-```
+```js
     class NativeModule {  
       // 原生JS模块的map  
       static map = new Map(moduleIds.map((id) => [id, new NativeModule(id)]));  
@@ -496,7 +496,7 @@ init就是我们定义的函数。入参是env和exports，可以对比我们定
  
 当我们执行require(‘net’)时，就会进入_load函数。_load函数判断要加载的模块是原生JS模块后，会通过loadNativeModule函数加载原生JS模块。我们看这个函数的定义。
 
-```
+```js
     function loadNativeModule(filename, request) {  
       const mod = NativeModule.map.get(filename);  
       if (mod) {  
@@ -508,7 +508,7 @@ init就是我们定义的函数。入参是env和exports，可以对比我们定
 
 在Node.js启动过程中我们分析过，mod是一个NativeModule对象，接着看compileForPublicLoader。
 
-```
+```js
     compileForPublicLoader() {  
         this.compileForInternalLoader();  
         return this.exports;  
@@ -541,7 +541,7 @@ init就是我们定义的函数。入参是env和exports，可以对比我们定
 
 我们重点看compileFunction这里的逻辑。该函数是node_native_module_env.cc模块导出的函数。具体的代码就不贴了，通过层层查找，最后到node_native_module.cc 的NativeModuleLoader::CompileAsModule
 
-```
+```cpp
     MaybeLocal<Function> NativeModuleLoader::CompileAsModule(  
         Local<Context> context,  
         const char* id,  
@@ -563,7 +563,7 @@ init就是我们定义的函数。入参是env和exports，可以对比我们定
 
 我们继续看LookupAndCompile。
 
-```
+```cpp
     MaybeLocal<Function> NativeModuleLoader::LookupAndCompile(  
         Local<Context> context,  
         const char* id,  
@@ -603,7 +603,7 @@ init就是我们定义的函数。入参是env和exports，可以对比我们定
 
 LookupAndCompile函数首先找到加载模块的源码，然后编译出一个函数。我们看一下LoadBuiltinModuleSource如何查找模块源码的。
 
-```
+```cpp
     MaybeLocal<String> NativeModuleLoader::LoadBuiltinModuleSource(Isolate* isolate, const char* id) {  
       const auto source_it = source_.find(id);  
       return source_it->second.ToStringChecked(isolate);  
@@ -612,7 +612,7 @@ LookupAndCompile函数首先找到加载模块的源码，然后编译出一个�
 
 这里是id是net，通过该id从_source中找到对应的数据，那么_source是什么呢？因为Node.js为了提高效率，把原生JS模块的源码字符串直接转成ASCII码存到内存里。这样加载这些模块的时候，就不需要硬盘IO了。直接从内存读取就行。我们看一下_source的定义（在编译Node.js源码或者执行js2c.py生成的node_javascript.cc中）。
 
-```
+```cpp
     source_.emplace("net", UnionBytes{net_raw, 46682});  
     source_.emplace("cyb", UnionBytes{cyb_raw, 63});  
     source_.emplace("os", UnionBytes{os_raw, 7548});  
@@ -620,7 +620,7 @@ LookupAndCompile函数首先找到加载模块的源码，然后编译出一个�
 
 cyb是我增加的测试模块。我们可以看一下该模块的内容。
 
-```
+```cpp
     static const uint8_t cyb_raw[] = {  
      99,111,110,115,116, 32, 99,121, 98, 32, 61, 32,105,110,116,101,114,110, 97,108, 66,105,110,100,105,110,103, 40, 39, 99,  
     121, 98, 95,119,114, 97,112, 39, 41, 59, 32, 10,109,111,100,117,108,101, 46,101,120,112,111,114,116,115, 32, 61, 32, 99,  
@@ -630,7 +630,7 @@ cyb是我增加的测试模块。我们可以看一下该模块的内容。
 
 我们转成字符串看一下是什么
 
-```
+```js
     Buffer.from([99,111,110,115,116, 32, 99,121, 98, 32, 61, 32,105,110,116,101,114,110, 97,108, 66,105,110,100,105,110,103, 40, 39, 99,
     121, 98, 95,119,114, 97,112, 39, 41, 59, 32, 10,109,111,100,117,108,101, 46,101,120,112,111,114,116,115, 32, 61, 32, 99,    
     121, 98, 59].join(',').split(',')).toString('utf-8')  
@@ -638,14 +638,14 @@ cyb是我增加的测试模块。我们可以看一下该模块的内容。
 
 输出
 
-```
+```js
     const cyb = internalBinding('cyb_wrap');   
     module.exports = cyb;  
 ```
 
 所以我们执行require('net')时，通过NativeModule的compileForInternalLoader，最终会在_source中找到net模块对应的源码字符串，然后编译成一个函数。
 
-```
+```js
     const fn = compileFunction(id);  
     fn(this.exports, 
        // 加载原生JS模块的加载器
@@ -661,7 +661,7 @@ cyb是我增加的测试模块。我们可以看一下该模块的内容。
 19.3 加载内置C++模块
 在原生JS模块中我们一般会加载一些内置的C++模块，这是Node.js拓展JS功能的关键之处。比如我们require(‘net’)的时候，net模块会加载tcp_wrap模块。
 
-```
+```js
     const {  
       TCP,  
       TCPConnectWrap,  
@@ -672,7 +672,7 @@ cyb是我增加的测试模块。我们可以看一下该模块的内容。
 C++模块加载器也是在internal/bootstrap/loaders.js中定义的，分为三种。  
 1 internalBinding：不暴露给用户的访问的接口，只能在Node.js代码中访问，比如原生JS模块（flag为NM_F_INTERNAL）。
 
-```
+```js
     let internalBinding;  
     {  
       const bindingObj = ObjectCreate(null);   
@@ -690,7 +690,7 @@ C++模块加载器也是在internal/bootstrap/loaders.js中定义的，分为三
 internalBinding是在getInternalBinding函数基础上加了缓存功能。getInternalBinding是C++层定义的函数对JS暴露的接口名。它的作用是从C++模块链表中找到对应的模块。  
 2 process.binding：暴露给用户调用C++模块的接口，但是只能访问部分C++模块（flag为NM_F_BUILTIN的C++模块）。
 
-```
+```js
     process.binding = function binding(module) {  
       module = String(module);  
       if (internalBindingWhitelist.has(module)) {  
@@ -702,7 +702,7 @@ internalBinding是在getInternalBinding函数基础上加了缓存功能。getIn
 
 binding是在internalBinding的基础上加了白名单的逻辑，只对外暴露部分模块。
 
-```
+```js
     const internalBindingWhitelist = new SafeSet([  
       'async_wrap',  
       'buffer',  
@@ -738,7 +738,7 @@ binding是在internalBinding的基础上加了白名单的逻辑，只对外暴�
 
 3 process._linkedBinding: 暴露给用户访问C++模块的接口，用于访问用户自己添加的但是没有加到内置模块的C++模块（flag为NM_F_LINKED）。
 
-```
+```js
     const bindingObj = ObjectCreate(null);  
     process._linkedBinding = function _linkedBinding(module) {  
       module = String(module);  
@@ -752,7 +752,7 @@ binding是在internalBinding的基础上加了白名单的逻辑，只对外暴�
 _linkedBinding是在getLinkedBinding函数基础上加了缓存功能，getLinkedBinding是C++层定义的函数对外暴露的名字。getLinkedBinding从另一个C++模块链表中查找对应的模块。
 上一节已经分析过，internalBinding是加载原生JS模块时传入的实参。internalBinding是对getInternalBinding的封装。getInternalBinding对应的是binding::GetInternalBinding（node_binding.cc）。
 
-```
+```cpp
     // 根据模块名查找对应的模块  
     void GetInternalBinding(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
@@ -777,7 +777,7 @@ _linkedBinding是在getLinkedBinding函数基础上加了缓存功能，getLinke
 
 modlist_internal是一条链表，在Node.js启动过程的时候，由各个C++模块连成的链表。通过模块名找到对应的C++模块后，执行InitModule初始化模块。
 
-```
+```cpp
     // 初始化一个模块，即执行它里面的注册函数  
     static Local<Object> InitModule(Environment* env,  
                      node_module* mod,  
