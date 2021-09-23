@@ -9,7 +9,7 @@
 图14-1  
 我们看一下在Node.js中如何使用线程。
 
-```
+```js
     const { Worker, isMainThread, parentPort } = require('worker_threads');  
     if (isMainThread) {  
       const worker = new Worker(__filename);  
@@ -29,7 +29,7 @@
 
 主线程
 
-```
+```js
     const { Worker, isMainThread, parentPort } = require('worker_threads');  
     const worker = new Worker(‘子线程文件路径’);  
     worker.once('message', (message) => {  
@@ -40,7 +40,7 @@
 
 子线程
 
-```
+```js
     const { Worker, isMainThread, parentPort } = require('worker_threads');  
     parentPort.once('message', (message) => {  
       parentPort.postMessage(message);  
@@ -57,7 +57,7 @@
 14.2.1 Message
 Message类代表的是子线程间通信的一条消息。
 
-```
+```cpp
     class Message : public MemoryRetainer {  
      public:  
       explicit Message(MallocedBuffer<char>&& payload = MallocedBuffer<char>());  
@@ -95,7 +95,7 @@ Message类代表的是子线程间通信的一条消息。
 ### 14.2.2 MessagePortData
 MessagePortData是管理消息发送和接收的类。 
 
-```
+```cpp
     class MessagePortData : public MemoryRetainer {  
      public:  
       explicit MessagePortData(MessagePort* owner);  
@@ -121,7 +121,7 @@ MessagePortData是管理消息发送和接收的类。
 
 我们看一下实现。
 
-```
+```cpp
     MessagePortData::MessagePortData(MessagePort* owner) : owner_(owner) { }  
       
     MessagePortData::~MessagePortData() {  
@@ -173,7 +173,7 @@ MessagePortData是管理消息发送和接收的类。
 ### 14.2.3 MessagePort
 MessagePort表示的是通信的一端。
 
-```
+```cpp
     class MessagePort : public HandleWrap {  
      public:  
       MessagePort(Environment* env,  
@@ -228,7 +228,7 @@ MessagePort表示的是通信的一端。
 
 我们看一下实现，只列出部分函数。
 
-```
+```cpp
     // 端口是否不接收消息了  
     bool MessagePort::IsDetached() const {  
       return data_ == nullptr || IsHandleClosing();  
@@ -346,7 +346,7 @@ MessagePort表示的是通信的一端。
 ### 14.2.4 MessageChannel
 MessageChannel表示线程间通信的两个端。
 
-```
+```cpp
     static void MessageChannel(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
        
@@ -370,7 +370,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 图14-2  
 最后我们看一下线程间通信模块导出的一些功能。
 
-```
+```cpp
     static void InitMessaging(Local<Object> target,  
                               Local<Value> unused,  
                               Local<Context> context,  
@@ -404,7 +404,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 ## 14.3 多线程的实现
 本节我们从worker_threads模块开始分析多线程的实现。这是一个C++模块。我们看一下它导出的功能。require("work_threads")的时候就是引用了InitWorker函数导出的功能。
 
-```
+```cpp
     void InitWorker(Local<Object> target,    
                     Local<Value> unused,    
                     Local<Context> context,    
@@ -474,7 +474,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 
 了解work_threads模块导出的功能后，我们看在JS层执行new Worker的时候的逻辑。根据上面代码导出的逻辑，我们知道这时候首先会新建一个C++对象。然后执行New回调，并传入新建的C++对象。我们看New函数的逻辑。我们省略一系列的参数处理，主要代码如下。
 
-```
+```cpp
     // args.This()就是我们刚才传进来的this  
     Worker* worker = new Worker(env, args.This(),   
                     url, per_isolate_opts,  
@@ -483,7 +483,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 
 我们再看Worker类的声明。
 
-```
+```cpp
     class Worker : public AsyncWrap {  
      public:  
       // 函数声明  
@@ -533,7 +533,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 
 这里只讲一下env_的定义，因为这是一个非常重要的地方。我们看到Worker类继承AsyncWrap，AsyncWrap继承了BaseObject。BaseObject中也定义了env_属性。我们看一下在C++中如果子类父类都定义了一个属性时是怎样的。我们来看一个例子
 
-```
+```cpp
     #include <iostream>  
     using namespace std;  
       
@@ -576,7 +576,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
     内存大小：8  
 由输出结果我们可以知道，b内存大小是8个字节。即两个int。所以b的内存布局中两个a属性都分配了内存。当我们通过b.console输出value时，因为console是在A上定义的，所以输出1，但是我们通过b.value访问时，输出的是2。因为访问的是B中定义的value，同理如果我们在B中定义console，输出也会是2。Worker中定义的env_我们后续会看到它的作用。接着我们看一下Worker类的初始化逻辑。
 
-```
+```cpp
     Worker::Worker(Environment* env,    
                    Local<Object> wrap,...)    
         : AsyncWrap(env, wrap, AsyncWrap::PROVIDER_WORKER),    
@@ -615,7 +615,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 
 了解了new Worker的逻辑后，我们看在JS层是如何使用的。我们看JS层Worker类的构造函数。
 
-```
+```js
     constructor(filename, options = {}) {  
         super();  
         // 忽略一系列参数处理，new Worker就是上面提到的C++层的  
@@ -654,7 +654,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 3 创建子线程。  
 我们看创建线程的时候，做了什么。
 
-```
+```cpp
     void Worker::StartThread(const FunctionCallbackInfo<Value>& args) {  
       Worker* w;  
       ASSIGN_OR_RETURN_UNWRAP(&w, args.This());  
@@ -698,7 +698,7 @@ Message、MessagePortData、MessagePort和MessageChannel的关系图如图14-2�
 
 StartThread新建了一个子线程，然后在子线程中执行Run，我们继续看Run
 
-```
+```cpp
     void Worker::Run() {  
       // 线程执行所需要的数据结构，比如loop，isolate，和主线程独立  
       WorkerThreadData data(this);  
@@ -775,7 +775,7 @@ StartThread新建了一个子线程，然后在子线程中执行Run，我们继
 2 更新子线程的env_。刚才已经分析过，Worker类中定义了env_属性，所以这里通过this.env_更新时，是不会影响基类（BaseObject）中的值的。因为子线程是在新的环境执行的，所以在新环境中使用该Worker实例时，需要使用新的环境变量。而在主线程使用该Worker实例时，是通过BaseObject的env()访问的。从而获取的是主线程的环境。因为Worker实例是在主线程和子线程之间共享的，Node.js在Worker类中重新定义了一个env_属性正是为了解决这个问题。  
 3 CreateEnvMessagePort
 
-```
+```cpp
     void Worker::CreateEnvMessagePort(Environment* env) {  
       child_port_ = MessagePort::New(env,
                                          env->context(),  
@@ -791,7 +791,7 @@ child_port_data_这个变量刚才我们已经看到过，在这里首先申请�
 
 4 执行internal/main/worker_thread.js
 
-```
+```js
     // 设置process对象  
     patchProcessObject();  
     // 获取刚才缓存的端口child_port_  
@@ -832,7 +832,7 @@ child_port_data_这个变量刚才我们已经看到过，在这里首先申请�
 我们看到worker_thread.js中通过runMain完成了子线程的代码执行，然后开始事件循环。
 我们看一下当事件循环结束时，Node.js的逻辑。
 
-```
+```cpp
     // 给主线程提交一个任务，通知主线程子线程执行完毕，因为主线程不能直接执行join阻塞自己    
     w->env()->SetImmediateThreadsafe(    
         [w = std::unique_ptr<Worker>(w)](Environment* env) {    
@@ -846,7 +846,7 @@ child_port_data_这个变量刚才我们已经看到过，在这里首先申请�
 
 通过w->env()获取的是主线程的执行环境。我们看一下SetImmediateThreadsafe。
 
-```
+```cpp
     template <typename Fn>  
     void Environment::SetImmediateThreadsafe(Fn&& cb) {  
       auto callback = std::make_unique<NativeImmediateCallbackImpl<Fn>>(  
@@ -861,7 +861,7 @@ child_port_data_这个变量刚才我们已经看到过，在这里首先申请�
 
 SetImmediateThreadsafe用于通知执行环境所在的事件循环有异步任务完成。并且是线程安全的。因为可能有多个线程会操作native_immediates_threadsafe_。在主线程事件循环的Poll IO阶段就会执行task_queues_async_回调。我们看一下task_queues_async_对应的回调。
 
-```
+```cpp
     uv_async_init(  
          event_loop(),  
          &task_queues_async_,  
@@ -875,7 +875,7 @@ SetImmediateThreadsafe用于通知执行环境所在的事件循环有异步任�
 
 所以在Poll IO阶段执行的回调是RunAndClearNativeImmediates
 
-```
+```cpp
     void Environment::RunAndClearNativeImmediates(bool only_refed) {  
       TraceEventScope trace_scope(TRACING_CATEGORY_NODE1(environment),  
                                   "RunAndClearNativeImmediates", this);  
@@ -905,7 +905,7 @@ SetImmediateThreadsafe用于通知执行环境所在的事件循环有异步任�
 
 RunAndClearNativeImmediates会执行队列里的回调。对应Worker的JoinThread
 
-```
+```cpp
     void Worker::JoinThread() {  
       // 阻塞等待子线程结束，执行到这子线程已经结束了  
       CHECK_EQ(uv_thread_join(&tid_), 0);  
@@ -936,7 +936,7 @@ RunAndClearNativeImmediates会执行队列里的回调。对应Worker的JoinThre
 
 最后我们看一下如果结束正在执行的子线程。在JS中我能可以通过terminate函数终止线程的执行。
 
-```
+```cpp
     terminate(callback) {  
         this[kHandle].stopThread();  
     }  
@@ -976,7 +976,7 @@ Terminate是对C++模块stopThread的封装。
 ## 14.4 线程间通信
 本节我们看一下线程间通信的过程。
 
-```
+```js
     const { Worker, isMainThread, parentPort } = require('worker_threads');  
     if (isMainThread) {  
       const worker = new Worker(__filename);  
@@ -994,7 +994,7 @@ Terminate是对C++模块stopThread的封装。
 
 我们知道isMainThread在子线程里是false，parentPort就是messageChannel中的一端。用于和主线程通信，所以parentPort.postMessage给对端发送消息，就是给主线程发送消息，我们再看看worker.postMessage('Hello, world!')。
 
-```
+```js
     postMessage(...args) {  
        this[kPublicPort].postMessage(...args);  
     }  
@@ -1002,7 +1002,7 @@ Terminate是对C++模块stopThread的封装。
 
 kPublicPort指向的就是messageChannel的一端。this[kPublicPort].postMessage(...args)即给另一端发送消息。我们看一下postMessage的实现。
 
-```
+```cpp
     void MessagePort::PostMessage(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
       Local<Object> obj = args.This();  
@@ -1021,7 +1021,7 @@ kPublicPort指向的就是messageChannel的一端。this[kPublicPort].postMessag
 
 我们接着看port->PostMessage
 
-```
+```cpp
     Maybe<bool> MessagePort::PostMessage(Environment* env,  
                                          Local<Value> message_v,  
                                          const TransferList& transfer_v) {  
@@ -1045,7 +1045,7 @@ kPublicPort指向的就是messageChannel的一端。this[kPublicPort].postMessag
 
 PostMessage通过AddToIncomingQueue把消息插入对端的消息队列我们看一下AddToIncomingQueue
 
-```
+```cpp
     void MessagePortData::AddToIncomingQueue(Message&& message) {  
       // 加锁操作消息队列  
       Mutex::ScopedLock lock(mutex_);  
@@ -1059,7 +1059,7 @@ PostMessage通过AddToIncomingQueue把消息插入对端的消息队列我们看
 
 插入消息队列后，如果有关联的端口，则会通知Libuv。我们继续看TriggerAsync。
 
-```
+```cpp
     void MessagePort::TriggerAsync() {  
       if (IsHandleClosing()) return;  
       CHECK_EQ(uv_async_send(&async_), 0);  
@@ -1068,7 +1068,7 @@ PostMessage通过AddToIncomingQueue把消息插入对端的消息队列我们看
 
 Libuv在Poll IO阶段就会执行对应的回调。回调是在new MessagePort时设置的。
 
-```
+```cpp
     auto onmessage = [](uv_async_t* handle) {  
       MessagePort* channel = ContainerOf(&MessagePort::async_, handle);  
       channel->OnMessage();  
@@ -1081,7 +1081,7 @@ Libuv在Poll IO阶段就会执行对应的回调。回调是在new MessagePort�
 
 我们继续看OnMessage。
 
-```
+```cpp
     void MessagePort::OnMessage() {  
       HandleScope handle_scope(env()->isolate());  
       Local<Context> context = object(env()->isolate())->CreationContext();  
@@ -1132,7 +1132,7 @@ Libuv在Poll IO阶段就会执行对应的回调。回调是在new MessagePort�
 
 我们看到这里会不断地调用ReceiveMessage读取数据，然后回调JS层。直到达到阈值或者回调失败。我们看一下ReceiveMessage的逻辑。
 
-```
+```cpp
     MaybeLocal<Value> MessagePort::ReceiveMessage(Local<Context> context,  
                                                   bool only_if_receiving) {  
       Message received;  
