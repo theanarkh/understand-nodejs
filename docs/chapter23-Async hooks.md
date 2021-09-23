@@ -3,7 +3,7 @@
 # 1 env中的AsyncHooks
 在Node.js的env对象中有一个AsyncHooks对象，负责Node.js进程中async_hooks的管理。我们看一下定义。
 ## 1.1 类定义
-```c
+```cpp
 class AsyncHooks : public MemoryRetainer {
  public:
   
@@ -50,7 +50,7 @@ class AsyncHooks : public MemoryRetainer {
 接下来看一下env的AsyncHooks对象提供了哪些API，这些API是上层的基础。
 ## 1.2 读API
 我们看一下env对象中获取AsyncHooks对象对应字段的API。
-```c
+```cpp
 // 获取对应的字段
 inline AliasedUint32Array& AsyncHooks::fields() {
   return fields_;
@@ -95,7 +95,7 @@ inline double Environment::get_default_trigger_async_id() {
 }
 ```
 ## 1.3 写API
-```c
+```cpp
 inline void AsyncHooks::push_async_ids(double async_id,
                                        double trigger_async_id) {
   // 获取当前栈顶指针
@@ -126,7 +126,7 @@ inline bool AsyncHooks::pop_async_id(double async_id) {
 ```
 # 2 底层资源封装类 - AsyncWrap
 接着看一下异步资源的基类AsyncWrap。所有依赖于C、C++层实现的资源（比如TCP、UDP）都会继承AsyncWrap。看看该类的定义。
-```c
+```cpp
 class AsyncWrap : public BaseObject {
  private:
   ProviderType provider_type_ = PROVIDER_NONE;
@@ -136,7 +136,7 @@ class AsyncWrap : public BaseObject {
 ```
 我们看到每个AsyncWrap对象都有async_id_、trigger_async_id_和provider_type_属性，这正是在init回调里拿到的数据。我们看看AsyncWrap的构造函数。接下来看一下新建一个资源（AsyncWrap）时的逻辑。
 ## 2.1 资源初始化
-```c
+```cpp
 AsyncWrap::AsyncWrap(Environment* env,
                      Local<Object> object,
                      ProviderType provider,
@@ -162,7 +162,7 @@ void AsyncWrap::AsyncReset(Local<Object> resource, double execution_async_id,
 }
 ```
 接着看EmitAsyncInit
-```c
+```cpp
 void AsyncWrap::EmitAsyncInit(Environment* env,
                               Local<Object> object,
                               Local<String> type,
@@ -185,12 +185,12 @@ void AsyncWrap::EmitAsyncInit(Environment* env,
 }
 ```
 那么env->async_hooks_init_function()的值是什么呢？这是在Node.js初始化时设置的。
-```c
+```js
 const { nativeHooks } = require('internal/async_hooks');
 internalBinding('async_wrap').setupHooks(nativeHooks);
 ```
 SetupHooks的实现如下
-```c
+```cpp
 static void SetupHooks(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Local<Object> fn_obj = args[0].As<Object>();
@@ -214,7 +214,7 @@ static void SetupHooks(const FunctionCallbackInfo<Value>& args) {
 }
 ```
 nativeHooks的实现如下
-```c
+```js
 nativeHooks: {
   init: emitInitNative,
   before: emitBeforeNative,
@@ -224,7 +224,7 @@ nativeHooks: {
 }
 ```
 这些Hooks会执行对应的回调，比如emitInitNative
-```c
+```js
 function emitInitNative(asyncId, type, triggerAsyncId, resource) {
   for (var i = 0; i < active_hooks.array.length; i++) {
 	  if (typeof active_hooks.array[i][init_symbol] === 'function') {
@@ -239,7 +239,7 @@ function emitInitNative(asyncId, type, triggerAsyncId, resource) {
 active_hooks.array的值就是我们在业务代码里设置的钩子，每次调研createHooks的时候就对应数组的一个元素。
 ## 2.2 执行资源回调
 当业务代码异步请求底层API，并且底层满足条件时，就会执行上层的回调，比如监听一个socket时，有连接到来。Node.js就会调用MakeCallback函数执行回调。
-```c
+```cpp
 MaybeLocal<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
                                           int argc,
                                           Local<Value>* argv) {
@@ -252,7 +252,7 @@ MaybeLocal<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
 }
 ```
 MakeCallback中会调用InternalMakeCallback。
-```c
+```cpp
 MaybeLocal<Value> InternalMakeCallback(Environment* env,
                                        Local<Object> recv,
                                        const Local<Function> callback,
@@ -268,7 +268,7 @@ MaybeLocal<Value> InternalMakeCallback(Environment* env,
 }
 ```
 我们看看新建和关闭scope都做了什么事情。
-```c
+```cpp
 InternalCallbackScope::InternalCallbackScope(Environment* env,
                                              Local<Object> object,
                                              const async_context& asyncContext,
@@ -291,7 +291,7 @@ InternalCallbackScope::InternalCallbackScope(Environment* env,
 }	
 ```
 在scope里会把当前AsyncWrap对象的执行上下文作为当前执行上下文，并且触发before钩子，然后执行业务回调，所以我们在回调里获取当前执行上下文时就拿到了AsyncWrap对应的值（ 调用executionAsyncId），接着看Close
-```c
+```cpp
 void InternalCallbackScope::Close() {
   // 执行
   if (pushed_ids_)
@@ -307,7 +307,7 @@ Close在执行回调后被调用，主要是恢复当前执行上下文并且触
 并不是所有的异步资源都是底层实现的，比如定时器，tick也被定义为异步资源，因为他们都是和回调相关。这种异步资源是在JS层实现的，这里只分析Timeout。
 ## 3.1 创建资源
 我们看一下执行setTimeout时的核心逻辑。
-```c
+```js
 function setTimeout(callback, after, arg1, arg2, arg3) {
   const timeout = new Timeout(callback, after, args, false, true);
   return timeout;
@@ -327,7 +327,7 @@ function initAsyncResource(resource, type) {
 }
 ```
 执行setTimeout时，Node.js会创建一个Timeout对象，设置async_hooks相关的上下文并记录到Timeout对象中。然后触发init钩子。
-```c
+```js
 function emitInitScript(asyncId, type, triggerAsyncId, resource) {
   emitInitNative(asyncId, type, triggerAsyncId, resource);
 }
@@ -335,7 +335,7 @@ function emitInitScript(asyncId, type, triggerAsyncId, resource) {
 以上代码会执行每个async_hooks对象的init回调(通常我们只有一个async_hooks对象)。
 ## 3.1 执行回调
 当定时器到期时，会执行回调，我们看看相关的逻辑。
-```c
+```js
 // 触发before钩子
 emitBefore(asyncId, timer[trigger_async_id_symbol]);
 // 执行回调
@@ -344,7 +344,7 @@ timer._onTimeout();
 emitAfter(asyncId);
 ```
 我们看到执行超时回调的前后会触发对应的钩子。
-```c
+```js
 function emitBeforeScript(asyncId, triggerAsyncId) {
   // 和底层的push_async_ids逻辑一样
   pushAsyncIds(asyncId, triggerAsyncId);
@@ -364,7 +364,7 @@ function emitAfterScript(asyncId) {
 JS层的实现和底层是保持一致的。如果我们在setTimeout回调里新建一个资源，比如再次执行setTimeout，这时候trigger async id就是第一个setTimeout对应的async id，所以就连起来了，后面我们会看到具体的例子。
 # 4 DefaultTriggerAsyncIdScope
 Node.js为了避免过多通过参数传递的方式传递async id，就设计了DefaultTriggerAsyncIdScope。DefaultTriggerAsyncIdScope的作用类似在多个函数外维护一个变量，多个函数都可以通过DefaultTriggerAsyncIdScope获得trigger async id，而不需要通过层层传递的方式，他的实现非常简单。
-```c
+```cpp
 class DefaultTriggerAsyncIdScope {
    private:
     AsyncHooks* async_hooks_;
@@ -387,7 +387,7 @@ inline AsyncHooks::DefaultTriggerAsyncIdScope ::~DefaultTriggerAsyncIdScope() {
 }
 ```
 DefaultTriggerAsyncIdScope主要是记录旧的id，然后把新的id设置到env中，当其他函数调用get_default_trigger_async_id时就可以获取设置的async id。同样JS层也实现了类似的API。
-```c
+```js
 function defaultTriggerAsyncIdScope(triggerAsyncId, block, ...args) {
   const oldDefaultTriggerAsyncId = async_id_fields[kDefaultTriggerAsyncId];
   async_id_fields[kDefaultTriggerAsyncId] = triggerAsyncId;
@@ -400,7 +400,7 @@ function defaultTriggerAsyncIdScope(triggerAsyncId, block, ...args) {
 }
 ```
 在执行block函数时，可以获取到设置的值，而不需要传递，执行完block后恢复。我们看看如何使用。下面摘自net模块的代码。
-```c
+```js
 // 获取handle里的async id
 this[async_id_symbol] = getNewAsyncId(this._handle);
 defaultTriggerAsyncIdScope(this[async_id_symbol],
@@ -409,7 +409,7 @@ defaultTriggerAsyncIdScope(this[async_id_symbol],
                              this);
 ```
 我们看一下这里具体的情况。在defaultTriggerAsyncIdScope中会以emitListeningNT为入参执行process.nextTick。我们看看nextTick的实现。
-```c
+```js
 function nextTick(callback) {
   // 获取新的async id
   const asyncId = newAsyncId();
@@ -428,7 +428,7 @@ function nextTick(callback) {
 }
 ```
 我们看到在nextTick中通过getDefaultTriggerAsyncId拿到了trigger async id。
-```c
+```js
 function getDefaultTriggerAsyncId() {
   const defaultTriggerAsyncId = async_id_fields[kDefaultTriggerAsyncId];
   if (defaultTriggerAsyncId < 0)
@@ -437,7 +437,7 @@ function getDefaultTriggerAsyncId() {
 }
 ```
 getDefaultTriggerAsyncId返回的就是刚才通过defaultTriggerAsyncIdScope设置的async id。所以在触发TickObject的init钩子时用户就可以拿到对应的id。不过更重要的时，在异步执行nextTick的任务时，还可以拿到原始的trigger async id。因为该id记录在tickObject中。我们看看执行tick任务时的逻辑。
-```c
+```js
 function processTicksAndRejections() {
   let tock;
   do {
@@ -459,7 +459,7 @@ function processTicksAndRejections() {
 ```
 # 5 资源销毁
 资源销毁的时候也会触发对应的钩子，不过不同的是这个钩子是异步触发的。无论是JS还是好C++层触发销毁钩子的时候，逻辑都是一致的。
-```c
+```cpp
 void AsyncWrap::EmitDestroy(Environment* env, double async_id) {
   // 之前为空则设置回调
   if (env->destroy_async_id_list()->empty()) {
@@ -483,7 +483,7 @@ void Environment::CreateImmediate(Fn&& cb, bool ref) {
 }
 ```
 在事件循环的check阶段就会执行里面的任务，从而执行回调DestroyAsyncIdsCallback。
-```c
+```cpp
 void AsyncWrap::DestroyAsyncIdsCallback(Environment* env) {
   Local<Function> fn = env->async_hooks_destroy_function();
   do {
@@ -501,7 +501,7 @@ void AsyncWrap::DestroyAsyncIdsCallback(Environment* env) {
 ```
 # 6 Async hooks的使用
 我们通常以以下方式使用Async hooks
-```c
+```js
 const async_hooks = require('async_hooks');
 async_hooks.createHook({
   init(asyncId, type, triggerAsyncId) {},
@@ -513,13 +513,13 @@ async_hooks.createHook({
 .enable();
 ```
 async_hooks是对资源生命周期的抽象，资源就是操作对象和回调的抽象。async_hooks定义了五个生命周期钩子，当资源的状态到达某个周期节点时，async_hooks就会触发对应的钩子。下面我们看一下具体的实现。我们首先看一下createHook。
-```c
+```js
 function createHook(fns) {
   return new AsyncHook(fns);
 }
 ```
 createHook是对AsyncHook的封装
-```c
+```js
 class AsyncHook {
   constructor({ init, before, after, destroy, promiseResolve }) {
   	// 记录回调
@@ -532,7 +532,7 @@ class AsyncHook {
 }
 ```
 AsyncHook的初始化很简单，创建一个AsyncHook对象记录回调函数。创建了AsyncHook之后，我们需要调用AsyncHook的enable函数手动开启。
-```c
+```js
 class AsyncHook {
   enable() {
     // 获取一个AsyncHook对象数组和一个整形数组
@@ -562,14 +562,14 @@ class AsyncHook {
 1 hooks_array：是一个AsyncHook对象数组，主要用于记录用户创建了哪些AsyncHook对象，然后哪些AsyncHook对象里都设置了哪些钩子，在回调的时候就会遍历这个对象数组，执行里面的回调。
 2 hook_fields：对应底层的async_hook_fields。
 3 enableHooks： 
-```c
+```js
 function enableHooks() {
   // 记录async_hooks的开启个数
   async_hook_fields[kCheck] += 1;
 }
 ```
 至此，async_hooks的初始化就完成了，我们发现逻辑非常简单。下面我们看一下他是如何串起来的。下面我们以TCP模块为例。
-```c
+```js
 const { createHook, executionAsyncId } = require('async_hooks');
 const fs = require('fs');
 const net = require('net');
@@ -584,7 +584,7 @@ createHook({
 net.createServer((conn) => {}).listen(8080);
 ```
 以上代码输出
-```c
+```text
 init: type: TCPSERVERWRAP asyncId: 2 trigger id: 1 executionAsyncId(): 1 triggerAsyncId(): 0
 init: type: TickObject asyncId: 3 trigger id: 2 executionAsyncId(): 1 triggerAsyncId(): 0
 before: asyncId: 3 executionAsyncId(): 3 triggerAsyncId(): 2
@@ -594,11 +594,11 @@ after: asyncId: 3 executionAsyncId(): 3 triggerAsyncId(): 2
 ![](https://img-blog.csdnimg.cn/9278bab03a714155b75a50341cad2b9c.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 对应输出
 
-```c
+```text
 init: type: TCPSERVERWRAP asyncId: 2 trigger id: 1 executionAsyncId(): 1 triggerAsyncId(): 0
 ```
 那TickObject是怎么来的呢？我们接着看listen里的另一段逻辑。
-```c
+```js
 this[async_id_symbol] = getNewAsyncId(this._handle);
 defaultTriggerAsyncIdScope(this[async_id_symbol],
                            process.nextTick,
@@ -606,7 +606,7 @@ defaultTriggerAsyncIdScope(this[async_id_symbol],
                            this);
 ```
 上面的代码我们刚才已经分析过，在执行process.nextTick的时候会创建一个TickObject对象封装执行上下文和回调。
-```c
+```js
 const asyncId = newAsyncId();
 const triggerAsyncId = getDefaultTriggerAsyncId();
 const tickObject = {
@@ -620,12 +620,12 @@ emitInit(asyncId, 'TickObject', triggerAsyncId, tickObject);
 这次再次触发了init钩子，结构如下（nextTick通过getDefaultTriggerAsyncId获取的id是defaultTriggerAsyncIdScope设置的id）。
 ![](https://img-blog.csdnimg.cn/cfbb1aa23e0f4f1f9c482e220234da29.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 对应输出
-```c
+```text
 init: type: TickObject asyncId: 3 trigger id: 2 executionAsyncId(): 1 triggerAsyncId(): 0
 ```
 接着执行tick任务。
 
-```c
+```js
 const asyncId = tock[async_id_symbol];
 emitBefore(asyncId, tock[trigger_async_id_symbol]);
 try {
@@ -639,7 +639,7 @@ emitAfter(asyncId);
 emitBefore时，结构图如下。
 ![](https://img-blog.csdnimg.cn/7c0ae3440d1a47ea9d75e3f7ee0f87eb.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 对应输出
-```
+```text
 before: asyncId: 3 executionAsyncId(): 3 triggerAsyncId(): 2
 after: asyncId: 3 executionAsyncId(): 3 triggerAsyncId(): 2
 ```
@@ -647,7 +647,7 @@ after: asyncId: 3 executionAsyncId(): 3 triggerAsyncId(): 2
 ![](https://img-blog.csdnimg.cn/00cb54acd1d344d28e7a5da0ab9b8e9f.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 如果这时候有一个连接建立会输出什么呢？当有连接建立时，会执行C++层的OnConnection。
 OnConnection会创建一个新的TCP对象表示和客户端通信的对象。
-```c
+```cpp
 MaybeLocal<Object> TCPWrap::Instantiate(Environment* env,
                                         AsyncWrap* parent,
                                         TCPWrap::SocketType type) {
@@ -660,23 +660,23 @@ MaybeLocal<Object> TCPWrap::Instantiate(Environment* env,
 首先定义了一个AsyncHooks::DefaultTriggerAsyncIdScope。DefaultTriggerAsyncIdScope用于设置默认default_trigger_async_id为parent的async id（值是2），执行Instantiate时会执行析构函数恢复原来状态。接着NewInstance的时候就会新建一个TCPWrap对象，从而创建一个AsyncWrap对象。然后触发init钩子，结构图如下。
 ![](https://img-blog.csdnimg.cn/4732aabf2bda4a53875c570f0ba713e7.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 对应输出
-```c
+```text
 init: type: TCPWRAP asyncId: 4 trigger id: 2 executionAsyncId(): 0 triggerAsyncId(): 0
 ```
 创建完对象后，通过AsyncWrap::MakeCallback回调JS层，刚才我们已经分析过AsyncWrap::MakeCallback会触发before和after钩子，触发before钩子时，结构图如下。
 ![](https://img-blog.csdnimg.cn/a680fd236f1e4aa5b1986dce327e4422.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 对应输出
-```
+```text
 before: asyncId: 2 executionAsyncId(): 2 triggerAsyncId(): 1
 ```
 同样，在回调函数里执行executionAsyncId和triggerAsyncId拿到的内容是一样的。触发after后再恢复上下文，所以输出也是一样的。
-```c
+```text
 after: asyncId: 2 executionAsyncId(): 2 triggerAsyncId(): 1
 ```
 
 # 7 AsyncResource
 异步资源并不是Node.js内置的，Node.js只是提供了一套机制，业务层也可以使用。Node.js也提供了一个类给业务使用，核心代码如下。
-```c
+```js
 class AsyncResource {
   constructor(type, opts = {}) {
     let triggerAsyncId = opts;
@@ -725,7 +725,7 @@ class AsyncResource {
 }
 ```
 使用方式如下。
-```c
+```js
 const { AsyncResource, executionAsyncId,triggerAsyncId } = require('async_hooks');
 const asyncResource = new AsyncResource('Demo');
 asyncResource.runInAsyncScope(() => {
@@ -736,7 +736,7 @@ runInAsyncScope中会把asyncResource的执行上下文设置为当前执行上�
 # 8 AsyncLocalStorage
 AsyncLocalStorage是基于AsyncResource实现的一个维护异步逻辑中公共上下文的类。我们可以把他理解为Redis。我们看一下怎么使用。
 ## 8.1 使用
-```c
+```js
 const { AsyncLocalStorage } = require('async_hooks');
 
 const asyncLocalStorage = new AsyncLocalStorage();
@@ -754,14 +754,14 @@ asyncLocalStorage.run(1, () => {
 ```
 执行上面代码会输出
 
-```c
+```text
 1: start
 1: finish
 ```
 run的时候初始化公共的上下文，然后在run里执行的异步代码也可以拿得到这个公共上下文，这个在记录日志traceId时就会很有用，否则我们就需要把traceId传遍代码每个需要的地方。下面我们看一下实现。
 ## 8.2 实现
 我们先看一下创建AsyncLocalStorage的逻辑
-```c
+```js
 class AsyncLocalStorage {
   constructor() {
     this.kResourceStore = Symbol('kResourceStore');
@@ -770,7 +770,7 @@ class AsyncLocalStorage {
 }
 ```
 创建AsyncLocalStorage的时候很简单，主要是置状态为false，并且设置kResourceStore的值为Symbol('kResourceStore')。设置为Symbol('kResourceStore')而不是‘kResourceStore‘很重要，我们后面会看到。继续看一下执行AsyncLocalStorage.run的逻辑。
-```c
+```js
  run(store, callback, ...args) {
 	// 新建一个AsyncResource
     const resource = new AsyncResource('AsyncLocalStorage', defaultAlsResourceOpts);
@@ -782,7 +782,7 @@ class AsyncLocalStorage {
   }
 ```
 设置完上下文之后执行runInAsyncScope的回调，回调里首先执行里enterWith。
-```c
+```js
 enterWith(store) {
 	// 修改AsyncLocalStorage状态
    this._enable();
@@ -801,7 +801,7 @@ _enable() {
 }
 ```
 挂载完公共上下文后，就执行业务回调。回调里可以通过asyncLocalStorage.getStore()获得设置的公共上下文。
-```c
+```js
 getStore() {
   if(this.enabled) {
     const resource = executionAsyncResource();
@@ -810,7 +810,7 @@ getStore() {
 }
 ```
 getStore的原理很简单，就是首先拿到当前执行上下文对应的资源，然后根据AsyncLocalStorage的kResourceStore的值从resource中拿到公共上下文。如果是同步执行getStore，那么executionAsyncResource返回的就是我们在run的时候创建的AsyncResource，但是如果是异步getStore那么怎么办呢？因为这时候executionAsyncResource返回的不再是我们创建的AsyncResource，也就拿不到他挂载的公共上下文。为了解决这个问题，Node.js对公共上下文进行了传递。
-```c
+```js
 const storageList = []; // AsyncLocalStorage对象数组
 const storageHook = createHook({
   init(asyncId, type, triggerAsyncId, resource) {
@@ -829,7 +829,7 @@ const storageHook = createHook({
   }
 ```
 我们看到Node.js内部创建了一个Hooks，在每次资源创建的时候，Node.js会把当前执行上下文对应的资源中的一个或多个key（根据storageList里对象的this.kResourceStore字段）对应的值挂载到新创建的资源中。所以在asyncLocalStorage.getStore()时即使不是我们在执行run时创建的资源对象，也可以获得具体asyncLocalStorage对象所设置的资源，我们再来看一个例子。
-```c
+```js
 const { AsyncLocalStorage } = require('async_hooks');
   
 const asyncLocalStorage = new AsyncLocalStorage();
@@ -848,7 +848,7 @@ asyncLocalStorage.run(0, () => {
 });
 ```
 除了通过asyncLocalStorage.run设置上下文，我们通过asyncLocalStorage2.enterWith也给对象上下文的资源对象挂载一个新属性，key是Symbol('kResourceStore')，值是{hello: "world"}，然后在logWithId中输出asyncLocalStorage2.getStore()。从输出中可以看到成功从资源中获得挂载的所有上下文。
-```c
+```text
 { hello: 'world' }
 0: start
 { hello: 'world' }
@@ -871,14 +871,14 @@ Immediate {
 ```
 可以看到资源对象挂载里两个key为Symbol(kResourceStore)的属性。
 # 9 初始化时的Async hooks
-```c
+```js
 const async_hooks = require('async_hooks');
 const eid = async_hooks.executionAsyncId();
 const tid = async_hooks.triggerAsyncId();
 console.log(eid, tid);
 ```
 以上代码中,输出1和0。对应的API实现如下。
-```c
+```js
 // 获取当前的async id
 function executionAsyncId() {
   return async_id_fields[kExecutionAsyncId];
@@ -893,11 +893,11 @@ function triggerAsyncId() {
 AliasedFloat64Array async_id_fields_;
 ```
 AliasedFloat64Array是个类型别名。
-```c
+```cpp
 typedef AliasedBufferBase<double, v8::Float64Array> AliasedFloat64Array;
 ```
 AliasedBufferBase的构造函数如下
-```c
+```cpp
   AliasedBufferBase(v8::Isolate* isolate, const size_t count)
       : isolate_(isolate), count_(count), byte_offset_(0) {
    
@@ -908,7 +908,7 @@ AliasedBufferBase的构造函数如下
   }
 ```
 底层是一个ArrayBuffer。
-```c
+```cpp
 Local<ArrayBuffer> v8::ArrayBuffer::New(Isolate* isolate, size_t byte_length) {
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
   LOG_API(i_isolate, ArrayBuffer, New);
@@ -925,7 +925,7 @@ ArrayBuffer::New在申请内存时传入了i::InitializedFlag::kZeroInitialized�
 enum class InitializedFlag : uint8_t { kUninitialized, kZeroInitialized };
 ```
 回到例子中，为什么输出会是1和0而不是0和0呢？答案在Node.js启动时的这段代码。
-```c
+```cpp
 {
       InternalCallbackScope callback_scope(
           env.get(),
@@ -939,7 +939,7 @@ enum class InitializedFlag : uint8_t { kUninitialized, kZeroInitialized };
 }
 ```
 InternalCallbackScope刚才已经分析过，他会把1和0设置为当前的执行上下文。然后在LoadEnvironment里执行我的JS代码时获取到的值就是1和0。那么如果我们改成以下代码会输出什么呢？
-```c
+```js
 const async_hooks = require('async_hooks');
 Promise.resolve().then(() => {
   const eid = async_hooks.executionAsyncId();

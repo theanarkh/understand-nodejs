@@ -2,25 +2,25 @@
 
 # 1 初始化子线程的Inspector
 在Node.js启动子线程的时候，会初始化Inspector。
-```c
+```cpp
 env_->InitializeInspector(std::move(inspector_parent_handle_));
 ```
 在分析InitializeInspector之前，我们先看一下inspector_parent_handle_。
-```c
+```cpp
 std::unique_ptr<inspector::ParentInspectorHandle> inspector_parent_handle_;
 ```
 inspector_parent_handle_是一个ParentInspectorHandle对象，这个对象是子线程和主线程通信的桥梁。我们看一下他的初始化逻辑（在主线程里执行）。
-```c
+```cpp
 inspector_parent_handle_ = env->inspector_agent()->GetParentHandle(thread_id_, url);
 ```
 调用agent的GetParentHandle获取一个ParentInspectorHandle对象。
-```c
+```cpp
 std::unique_ptr<ParentInspectorHandle> Agent::GetParentHandle(int thread_id, const std::string& url) {
  return client_->getWorkerManager()->NewParentHandle(thread_id, url);
 }
 ```
 内部其实是通过client_->getWorkerManager()对象的NewParentHandle方法获取ParentInspectorHandle对象，接下来我们看一下WorkerManager的NewParentHandle。
-```c
+```cpp
 std::unique_ptr<ParentInspectorHandle> WorkerManager::NewParentHandle(int thread_id, const std::string& url) {
   bool wait = !delegates_waiting_on_start_.empty();
   return std::make_unique<ParentInspectorHandle>(thread_id, url, thread_, wait);
@@ -39,7 +39,7 @@ ParentInspectorHandle::ParentInspectorHandle(
 最终的架构图如下入所示。
 ![](https://img-blog.csdnimg.cn/bcd42b781c5446919df9cc16b9f04ebf.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 分析完ParentInspectorHandle后继续看一下env_->InitializeInspector(std::move(inspector_parent_handle_))的逻辑（在子线程里执行）。
-```c
+```cpp
 int Environment::InitializeInspector(
     std::unique_ptr<inspector::ParentInspectorHandle> parent_handle) {
   
@@ -53,7 +53,7 @@ int Environment::InitializeInspector(
 }
 ```
 首先把ParentInspectorHandle对象保存到agent中，然后调用agent的Start方法。
-```c
+```cpp
 bool Agent::Start(...) {
 	// 新建client对象
    client_ = std::make_shared<NodeInspectorClient>(parent_env_, is_main);
@@ -64,7 +64,7 @@ bool Agent::Start(...) {
 Agent::Start创建了一个client对象，然后调用ParentInspectorHandle对象的WorkerStarted方法（刚才SetParentHandle的时候保存的），我们看一下这时候的架构图。
 ![](https://img-blog.csdnimg.cn/6a355ff65a934af7a728824968ea3afc.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 接着看parent_handle_->WorkerStarted。
-```c
+```cpp
 void ParentInspectorHandle::WorkerStarted(
     std::shared_ptr<MainThreadHandle> worker_thread, bool waiting) {
   std::unique_ptr<Request> request(
@@ -73,7 +73,7 @@ void ParentInspectorHandle::WorkerStarted(
 }
 ```
 WorkerStarted创建了一个WorkerStartedRequest请求，然后通过parent_thread_->Post提交，parent_thread_是MainThreadInterface对象。
-```c
+```cpp
 void MainThreadInterface::Post(std::unique_ptr<Request> request) {
   Mutex::ScopedLock scoped_lock(requests_lock_);
   // 之前是空则需要唤醒消费者
@@ -101,7 +101,7 @@ void MainThreadInterface::Post(std::unique_ptr<Request> request) {
 我们看看这时候的架构图。
 ![](https://img-blog.csdnimg.cn/58c87d7fa58d448693147af38566a4e2.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 接着看回调里执行MainThreadInterface对象DispatchMessages方法的逻辑。
-```c
+```cpp
 void MainThreadInterface::DispatchMessages() {
   // 遍历请求队列
   requests_.swap(dispatching_message_queue_);
@@ -115,14 +115,14 @@ void MainThreadInterface::DispatchMessages() {
 }
 ```
 task是WorkerStartedRequest对象，看一下Call方法的代码。
-```c
+```cpp
 void Call(MainThreadInterface* thread) override {
   auto manager = thread->inspector_agent()->GetWorkerManager();
   manager->WorkerStarted(id_, info_, waiting_);
 }
 ```
 接着调用agent的WorkerManager的WorkerStarted。
-```c
+```cpp
 void WorkerManager::WorkerStarted(int session_id,
                                   const WorkerInfo& info,
                                   bool waiting) {
@@ -137,7 +137,7 @@ WorkerStarted记录了一个id和上下文，因为delegates_初始化的时候�
 我们发现，和主线程不一样，主线程会启动一个WebSocket服务器接收客户端的连接请求，而子线程只是初始化了一些数据结构。下面我们看一下基于这些数据结构，主线程是如何动态开启调试子线程的。
 # 2 主线程开启调试子线程的能力
 我们可以以以下方式开启对子线程的调试。
-```c
+```js
 const { Worker, workerData } = require('worker_threads');
 const { Session } = require('inspector');
 // 新建一个新的通信通道
@@ -157,22 +157,22 @@ worker.on('online', () => {
 setInterval(() => {}, 100000);
 ```
 我们先来分析一下connect函数的逻辑。
-```c
+```js
  connect() {
     this[connectionSymbol] = new Connection((message) => this[onMessageSymbol](message));
   }
 ```
 新建了一个Connection对象并传入一个回调函数，该回调函数在收到消息时被回调。Connection是C++层导出的对象，由模版类JSBindingsConnection实现。
-```c
+```cpp
 template <typename ConnectionType>
 class JSBindingsConnection {}
 ```
 我们看看导出的路逻辑。
-```c
+```cpp
 JSBindingsConnection<Connection>::Bind(env, target);
 ```
 接着看Bind。
-```c
+```cpp
 static void Bind(Environment* env, Local<Object> target) {
 	// class_name是Connection
     Local<String> class_name = ConnectionType::GetClassName(env);
@@ -189,7 +189,7 @@ static void Bind(Environment* env, Local<Object> target) {
   }
 ```
 当我们在JS层执行new Connection的时候，就会执行JSBindingsConnection::New。
-```c
+```cpp
  static void New(const FunctionCallbackInfo<Value>& info) {
    Environment* env = Environment::GetCurrent(info);
    Local<Function> callback = info[0].As<Function>();
@@ -197,7 +197,7 @@ static void Bind(Environment* env, Local<Object> target) {
  }
 ```
 我们看看新建一个JSBindingsConnection对象时的逻辑。
-```c
+```cpp
 JSBindingsConnection(Environment* env,
                        Local<Object> wrap,
                        Local<Function> callback)
@@ -217,7 +217,7 @@ static std::unique_ptr<InspectorSession> Connect(
 }
 ```
 最终是传入了一个JSBindingsSessionDelegate对象调用Agent的Connect方法。
-```c
+```cpp
 std::unique_ptr<InspectorSession> Agent::Connect(
     std::unique_ptr<InspectorSessionDelegate> delegate,
     bool prevent_shutdown) {
@@ -230,7 +230,7 @@ std::unique_ptr<InspectorSession> Agent::Connect(
 }
 ```
 Agent的Connect方法继续调用client_->connectFrontend。
-```c
+```cpp
 int connectFrontend(std::unique_ptr<InspectorSessionDelegate> delegate,
                       bool prevent_shutdown) {
     int session_id = next_session_id_++;
@@ -244,7 +244,7 @@ int connectFrontend(std::unique_ptr<InspectorSessionDelegate> delegate,
   }
 ```
 connectFrontend新建了一个ChannelImpl对象，在新建ChannelImpl时，会初始化子线程处理的逻辑。
-```c
+```cpp
  explicit ChannelImpl(Environment* env,
                        const std::unique_ptr<V8Inspector>& inspector,
                        std::shared_ptr<WorkerManager> worker_manager,
@@ -270,7 +270,7 @@ connectFrontend新建了一个ChannelImpl对象，在新建ChannelImpl时，会�
 }
 ```
 我们这里只关注处理子线程相关的逻辑。看一下 worker_agent_->Wire。
-```c
+```cpp
 void WorkerAgent::Wire(UberDispatcher* dispatcher) {
   frontend_.reset(new NodeWorker::Frontend(dispatcher->channel()));
   NodeWorker::Dispatcher::wire(dispatcher, this);
@@ -281,7 +281,7 @@ void WorkerAgent::Wire(UberDispatcher* dispatcher) {
 这时候的架构图如下
 ![](https://img-blog.csdnimg.cn/b2be97e0e6c44f69a77178e8912cccfe.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 接着看一下NodeWorker::Dispatcher::wire(dispatcher, this)的逻辑。
-```c
+```cpp
 void Dispatcher::wire(UberDispatcher* uber, Backend* backend)
 {
     std::unique_ptr<DispatcherImpl> dispatcher(new DispatcherImpl(uber->channel(), backend));
@@ -290,7 +290,7 @@ void Dispatcher::wire(UberDispatcher* uber, Backend* backend)
 }
 ```
 首先新建了一个DispatcherImpl对象。
-```c
+```cpp
 DispatcherImpl(FrontendChannel* frontendChannel, Backend* backend)
         : DispatcherBase(frontendChannel)
         , m_backend(backend) {
@@ -301,7 +301,7 @@ DispatcherImpl(FrontendChannel* frontendChannel, Backend* backend)
     }
 ```
 除了初始化一些字段，另外了一个kv数据结构，这个是一个路由配置，后面我们会看到它的作用。新建完DispatcherImpl后又调用了uber->registerBackend("NodeWorker", std::move(dispatcher))注册该对象。
-```c
+```cpp
 void UberDispatcher::registerBackend(const String& name, std::unique_ptr<protocol::DispatcherBase> dispatcher)
 {
     m_dispatchers[name] = std::move(dispatcher);
@@ -310,7 +310,7 @@ void UberDispatcher::registerBackend(const String& name, std::unique_ptr<protoco
 这时候的架构图如下。
 ![](https://img-blog.csdnimg.cn/f03fc092481a48a3bb8538a2fc645340.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 我们看到这里其实是建立了一个路由体系，后面收到命令时就会根据这些路由配置进行转发，类似Node.js Express框架路由机制。这时候可以通过session的post给主线程发送NodeWorker.enable命令来开启子线程的调试。我们分析这个过程。
-```c
+```js
 post(method, params, callback) {
     // 忽略参数处理
     // 保存请求对应的回调
@@ -322,7 +322,7 @@ post(method, params, callback) {
 }
 ```
 this[connectionSymbol]对应的是JSBindingsConnection对象。
-```c
+```cpp
 static void Dispatch(const FunctionCallbackInfo<Value>& info) {
     Environment* env = Environment::GetCurrent(info);
     JSBindingsConnection* session;
@@ -334,7 +334,7 @@ static void Dispatch(const FunctionCallbackInfo<Value>& info) {
 }
 ```
 session_是一个SameThreadInspectorSession对象。
-```c
+```cpp
 void SameThreadInspectorSession::Dispatch(
     const v8_inspector::StringView& message) {
   auto client = client_.lock();
@@ -346,7 +346,7 @@ void dispatchMessageFromFrontend(int session_id, const StringView& message) {
 }
 ```
 最终调用了ChannelImpl的dispatchProtocolMessage。
-```c
+```cpp
 void dispatchProtocolMessage(const StringView& message) {
     std::string raw_message = protocol::StringUtil::StringViewToUtf8(message);
     std::unique_ptr<protocol::DictionaryValue> value =
@@ -367,7 +367,7 @@ void dispatchProtocolMessage(const StringView& message) {
   }
 ```
 因为NodeWorker.enable是Node.js拓展的命令，所以会走到else里面的逻辑。根据路由配置找到该命令对应的处理逻辑（NodeWorker.enable以.切分，对应两级路由）。
-```c
+```cpp
 void UberDispatcher::dispatch(int callId, const String& in_method, std::unique_ptr<Value> parsedMessage, const ProtocolMessage& rawMessage)
 {
     // 找到一级路由配置
@@ -378,7 +378,7 @@ void UberDispatcher::dispatch(int callId, const String& in_method, std::unique_p
 }
 ```
 NodeWorker.enable对应的路由处理器代码如下
-```c
+```cpp
 void DispatcherImpl::dispatch(int callId, const String& method, const ProtocolMessage& message, std::unique_ptr<protocol::DictionaryValue> messageObject)
 {
 	// 查找二级路由
@@ -389,7 +389,7 @@ void DispatcherImpl::dispatch(int callId, const String& method, const ProtocolMe
 }
 ```
 dispatch继续寻找命令对应的处理函数，最终找到NodeWorker.enable命令的处理函数为DispatcherImpl::enable。
-```c
+```cpp
 void DispatcherImpl::enable(...)
 {
     std::unique_ptr<DispatcherBase::WeakPtr> weak = weakPtr();
@@ -399,7 +399,7 @@ void DispatcherImpl::enable(...)
 }
 ```
 根据架构图可以知道m_backend是WorkerAgent对象。
-```c
+```cpp
 DispatchResponse WorkerAgent::enable(bool waitForDebuggerOnStart) {
   auto manager = manager_.lock();
   std::unique_ptr<AgentWorkerInspectorDelegate> delegate(new AgentWorkerInspectorDelegate(workers_));
@@ -408,7 +408,7 @@ DispatchResponse WorkerAgent::enable(bool waitForDebuggerOnStart) {
 }
 ```
 继续调用WorkerManager的SetAutoAttach方法。
-```c
+```cpp
 std::unique_ptr<WorkerManagerEventHandle> WorkerManager::SetAutoAttach(
     std::unique_ptr<WorkerDelegate> attach_delegate) {
   int id = ++next_delegate_id_;
@@ -423,7 +423,7 @@ std::unique_ptr<WorkerManagerEventHandle> WorkerManager::SetAutoAttach(
 }
 ```
 SetAutoAttach遍历子线程。
-```c
+```cpp
 void Report(const std::unique_ptr<WorkerDelegate>& delegate,
             const WorkerInfo& info, bool waiting) {
   if (info.worker_thread)
@@ -431,7 +431,7 @@ void Report(const std::unique_ptr<WorkerDelegate>& delegate,
 }
 ```
 info是一个WorkerInfo对象，该对象是子线程初始化和主线程建立关系的数据结构。delegate是AgentWorkerInspectorDelegate对象。
-```c
+```cpp
 void WorkerCreated(const std::string& title,
                      const std::string& url,
                      bool waiting,
@@ -440,7 +440,7 @@ void WorkerCreated(const std::string& title,
 }
 ```
 workers_是一个NodeWorkers对象。
-```c
+```cpp
 void NodeWorkers::WorkerCreated(const std::string& title,
                                 const std::string& url,
                                 bool waiting,
@@ -461,7 +461,7 @@ void NodeWorkers::WorkerCreated(const std::string& title,
 WorkerCreated建立了一条和子线程通信的通道，然后通知命令的发送方通道建立成功。这时候架构图如下。
 ![](https://img-blog.csdnimg.cn/3ecfcb9115a64a119fc0677ee7c159e9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 接着看attachedToWorker。
-```c
+```cpp
 void Frontend::attachedToWorker(const String& sessionId, std::unique_ptr<protocol::NodeWorker::WorkerInfo> workerInfo, bool waitingForDebugger)
 {
     std::unique_ptr<AttachedToWorkerNotification> messageData = AttachedToWorkerNotification::create()
@@ -474,7 +474,7 @@ void Frontend::attachedToWorker(const String& sessionId, std::unique_ptr<protoco
 }
 ```
 继续看sendProtocolNotification
-```c
+```cpp
  void sendProtocolNotification(
       std::unique_ptr<Serializable> message) override {
     sendMessageToFrontend(message->serializeToJSON());
@@ -485,7 +485,7 @@ void Frontend::attachedToWorker(const String& sessionId, std::unique_ptr<protoco
  }
 ```
 这里的delegate_是一个JSBindingsSessionDelegate对象。
-```c
+```cpp
    void SendMessageToFrontend(const v8_inspector::StringView& message)
         override {
       Isolate* isolate = env_->isolate();
@@ -505,7 +505,7 @@ void OnMessage(Local<Value> value) {
 }
 ```
 JS层回调逻辑如下。
-```c
+```js
 [onMessageSymbol](message) {
     const parsed = JSONParse(message);
     // 收到的消息如果是某个请求的响应，则有个id字段记录了请求对应的id，否则则触发事件
@@ -524,7 +524,7 @@ JS层回调逻辑如下。
 主线程拿到Worker Session对一个的id，后续就可以通过命令NodeWorker.sendMessageToWorker加上该id和子线程通信。大致原理如下，主线程通过自己的channel和子线程的channel进行通信，从而达到控制子线程的目的。
 ![](https://img-blog.csdnimg.cn/658f975ad0664dc1b08b7a59d30db786.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 我们分析一下NodeWorker.sendMessageToWorker命令的逻辑，对应处理函数为DispatcherImpl::sendMessageToWorker。
-```c
+```cpp
 void DispatcherImpl::sendMessageToWorker(...)
 {
     std::unique_ptr<DispatcherBase::WeakPtr> weak = weakPtr();
@@ -536,7 +536,7 @@ void DispatcherImpl::sendMessageToWorker(...)
 
 ```
 继续分析m_backend->sendMessageToWorker。
-```c
+```cpp
 DispatchResponse WorkerAgent::sendMessageToWorker(const String& message,
                                                   const String& sessionId) {
   workers_->Receive(sessionId, message);
@@ -549,7 +549,7 @@ void NodeWorkers::Receive(const std::string& id, const std::string& message) {
 }
 ```
 sessions_对应的是和子线程的通信的数据结构CrossThreadInspectorSession。看一下该对象的Dispatch方法。
-```c
+```cpp
 void Dispatch(const StringView& message) override {
     state_.Call(&MainThreadSessionState::Dispatch,
                 StringBuffer::create(message));
@@ -557,14 +557,14 @@ void Dispatch(const StringView& message) override {
 ```
 再次调了MainThreadSessionState::Dispatch
 
-```c
+```cpp
 void Dispatch(std::unique_ptr<StringBuffer> message) {
     session_->Dispatch(message->string());
 }
 ```
 session_是SameThreadInspectorSession对象。继续看它的Dispatch方法。
 
-```c
+```cpp
 void SameThreadInspectorSession::Dispatch(
     const v8_inspector::StringView& message) {
   auto client = client_.lock();
@@ -576,7 +576,7 @@ void dispatchMessageFromFrontend(int session_id, const StringView& message) {
 }
 ```
 通过层层调用，最终拿到了一个合子线程通信的channel，dispatchProtocolMessage方法刚才已经分析过，该方法会根据命令做不同的处理，因为我们这里发送的是V8内置的命令，所以会交给V8 Inspector处理。当V8 Inspector处理完后，会通过ChannelImpl的sendResponse返回结果。
-```c
+```cpp
 void sendResponse(
       int callId,
       std::unique_ptr<v8_inspector::StringBuffer> message) override {
@@ -611,7 +611,7 @@ void Frontend::receivedMessageFromWorker(const String& sessionId, const String& 
 }
 ```
 m_frontendChannel是主线程的ChannelImpl对象。
-```c
+```cpp
 void sendProtocolNotification(
     std::unique_ptr<Serializable> message) override {
     sendMessageToFrontend(message->serializeToJSON());
@@ -625,7 +625,7 @@ delegate_是C++层传入的JSBindingsSessionDelegate对象。最终通过JSBindi
 
 ## 2.1 使用通用的V8命令
 通过下面代码收集子线程的CPU Profile信息。
-```c
+```js
 const { Worker, workerData } = require('worker_threads');
 const { Session } = require('inspector');
 const session = new Session();
@@ -659,7 +659,7 @@ setInterval(() => {}, 100000);
 通过这种方式可以通过命令控制子线程的调试和数据收集。
 ## 2.2 在子线程中动态执行脚本
 可以通过执行脚本开启子线程的WebSocket服务，像调试主线程一样。
-```c
+```js
 const { Worker, workerData } = require('worker_threads');
 const { Session } = require('inspector');
 const session = new Session();
@@ -697,7 +697,7 @@ worker.on('online', () => {
 setInterval(() => {}, 100000);
 ```
 执行上面的代码就拿到以下输出
-```c
+```js
 {
   id: 1,
   result: {
@@ -712,7 +712,7 @@ setInterval(() => {}, 100000);
 # 3 子线程调试主线程
 不仅可以通过主线程调试子线程，还可以通过子线程调试主线程。Node.js在子线程暴露了connectToMainThread方法连接到主线程的Inspector（只能在work_threads中使用），实现的原理和之前分析的类似，主要是子线程连接到主线程的V8 Inspector，通过和该Inspector完成对主线程的控制。看下面一个例子。
 主线程代码
-```c
+```js
 const { Worker, workerData } = require('worker_threads');
 const http = require('http');
 
@@ -723,7 +723,7 @@ http.createServer((_, res) => {
 }).listen(8000);
 ```
 worker.js代码如下
-```c
+```js
 const fs = require('fs');
 const { workerData: { port } } = require('worker_threads');
 const { Session } = require('inspector');
