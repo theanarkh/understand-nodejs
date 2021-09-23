@@ -8,7 +8,7 @@ Linux系统中万物皆文件，从应用层来看，我们拿到都是一个文
 
 下面我们看一下具体的代码
 
-```
+```js
     function readFileSync(path, options) {  
       options = getOptions(options, { flag: 'r' });  
       // 传的是fd还是文件路径  
@@ -72,7 +72,7 @@ Linux系统中万物皆文件，从应用层来看，我们拿到都是一个文
 
 tryReadSync调用的是fs.readSync，然后到binding.read(node_file.cc中定义的Read函数)。Read函数主要逻辑如下
 
-```
+```cpp
     FSReqWrapSync req_wrap_sync;  
     const int bytesRead = SyncCall(env, 
                                        args[6], 
@@ -87,7 +87,7 @@ tryReadSync调用的是fs.readSync，然后到binding.read(node_file.cc中定义
 
 我们看一下SyncCall的实现
 
-```
+```cpp
     int SyncCall(Environment* env, 
                   v8::Local<v8::Value> ctx,  
            FSReqWrapSync* req_wrap, 
@@ -115,7 +115,7 @@ tryReadSync调用的是fs.readSync，然后到binding.read(node_file.cc中定义
 
 下面我们看具体的实现
 
-```
+```js
     function readFile(path, options, callback) {  
       callback = maybeCallback(callback || options);  
       options = getOptions(options, { flag: 'r' });  
@@ -150,7 +150,7 @@ tryReadSync调用的是fs.readSync，然后到binding.read(node_file.cc中定义
 
 ReadFileContext对象用于管理文件读操作整个过程，FSReqCallback是对uv_fs_t的封装，每次读操作对于Libuv来说就是一次请求，该请求的上下文就是使用uv_fs_t表示。请求完成后，会执行FSReqCallback对象的oncomplete函数。所以我们继续看readFileAfterOpen。
 
-```
+```js
     function readFileAfterOpen(err, fd) {  
       const context = this.context;  
       // 打开出错则直接执行用户回调，传入err  
@@ -171,7 +171,7 @@ ReadFileContext对象用于管理文件读操作整个过程，FSReqCallback是�
 
 拿到文件的元数据后，执行readFileAfterStat，这段逻辑和同步的类似，根据元数据中记录的文件大小，分配一个buffer用于后续读取文件内容。然后执行读操作。
 
-```
+```js
     read() {  
         let buffer;  
         let offset;  
@@ -197,7 +197,7 @@ ReadFileContext对象用于管理文件读操作整个过程，FSReqCallback是�
 
 AsyncCall最后调用Libuv的uv_fs_read函数。我们看一下这个函数的关键逻辑。
 
-```
+```cpp
     do {                        \  
         if (cb != NULL) {          \  
           uv__req_register(loop, req);  \  
@@ -226,7 +226,7 @@ uv__work_submit是给线程池提交一个任务，当子线程执行这个任�
 
 我们看一下具体实现。
 
-```
+```js
     function watchFile(filename, options, listener) {  
       filename = getValidatedPath(filename);  
       filename = pathModule.resolve(filename);  
@@ -261,7 +261,7 @@ uv__work_submit是给线程池提交一个任务，当子线程执行这个任�
 
 StatWatcher是管理文件监听的类，我们看一下watchers.kFSStatWatcherStart方法的实现。
 
-```
+```cpp
     StatWatcher.prototype[kFSStatWatcherStart] = function(filename,persistent, interval) {  
       this._handle = new _StatWatcher(this[kUseBigint]);  
       this._handle.onchange = onchange;  
@@ -273,7 +273,7 @@ StatWatcher是管理文件监听的类，我们看一下watchers.kFSStatWatcherS
 
 新建一个_StatWatcher对象，_StatWatcher是C++模块提供的功能（node_stat_watcher.cc），然后执行它的start方法。Start方法执行Libuv的uv_fs_poll_start开始监听文件。
 
-```
+```cpp
     int uv_fs_poll_start(uv_fs_poll_t* handle,uv_fs_poll_cb cb,  
     const char* path, unsigned int interval) {  
       // 管理文件监听的数据结构  
@@ -312,7 +312,7 @@ StatWatcher是管理文件监听的类，我们看一下watchers.kFSStatWatcherS
 
 Start函数初始化一个poll_ctx结构体，用于管理文件监听，然后发起异步请求文件元数据的请求，获取元数据后，执行poll_cb回调。
 
-```
+```cpp
     static void poll_cb(uv_fs_t* req) {  
       uv_stat_t* statbuf;  
       struct poll_ctx* ctx;  
@@ -365,7 +365,7 @@ Start函数初始化一个poll_ctx结构体，用于管理文件监听，然后�
 
 基于轮询的监听文件机制本质上是不断轮询文件的元数据，然后和上一次的元数据进行对比，如果有不一致的就认为文件变化了，因为第一次获取元数据时，还没有可以对比的数据，所以不认为是文件变化，这时候开启一个定时器。隔一段时间再去获取文件的元数据，如此反复，直到用户调stop函数停止这个行为。下面是Libuv关于文件变化的定义。
 
-```
+```cpp
     static int statbuf_eq(const uv_stat_t* a, const uv_stat_t* b) {
       return a->st_ctim.tv_nsec == b->st_ctim.tv_nsec  
           && a->st_mtim.tv_nsec == b->st_mtim.tv_nsec  
@@ -387,7 +387,7 @@ Start函数初始化一个poll_ctx结构体，用于管理文件监听，然后�
 ### 12.3.2基于inotify的文件监听机制
 我们看到基于轮询的监听其实效率是很低的，因为需要我们不断去轮询文件的元数据，如果文件大部分时间里都没有变化，那就会白白浪费CPU。如果文件改变了会主动通知我们那就好了，这就是基于inotify机制的文件监听。Node.js提供的接口是watch。watch的实现和watchFile的比较类似。
 
-```
+```js
     function watch(filename, options, listener) {  
       // Don't make changes directly on options object  
       options = copyObject(options);  
@@ -427,7 +427,7 @@ Libuv在inotify机制的基础上做了一层封装。我们看一下inotify在L
 
 我们再来看一下Libuv中的实现。我们从一个使用例子开始。
 
-```
+```cpp
     int main(int argc, char **argv) {  
         // 实现循环核心结构体loop  
         loop = uv_default_loop();   
@@ -450,7 +450,7 @@ Libuv在inotify机制的基础上做了一层封装。我们看一下inotify在L
 
 Libuv在第一次监听文件的时候(调用uv_fs_event_start的时候)，会创建一个inotify实例。
 
-```
+```cpp
     static int init_inotify(uv_loop_t* loop) {  
       int err;  
       // 初始化过了则直接返回       
@@ -481,7 +481,7 @@ Libuv在第一次监听文件的时候(调用uv_fs_event_start的时候)，会�
 
 Libuv把inotify实例对应的fd通过uv__io_start注册到epoll中，当有文件变化的时候，就会执行回调uv__inotify_read。分析完Libuv申请inotify实例的逻辑，我们回到main函数看看uv_fs_event_start函数。用户使用uv_fs_event_start函数来往Libuv注册一个待监听的文件。我们看看实现。
 
-```
+```cpp
     int uv_fs_event_start(uv_fs_event_t* handle,  
                           uv_fs_event_cb cb,  
                           const char* path,  
@@ -547,7 +547,7 @@ Libuv把inotify实例对应的fd通过uv__io_start注册到epoll中，当有文�
 3 Libuv判断该id是不是在自己维护的红黑树中。不在红黑树中，则插入红黑树。返回一个红黑树中对应的节点。把本次请求的信息封装到handle中（回调时需要）。然后把handle插入刚才返回的节点的队列中。  
 这时候注册过程就完成了。Libuv在Poll IO阶段如果检测到有文件发生变化，则会执行回调uv__inotify_read。
 
-```
+```cpp
     static void uv__inotify_read(uv_loop_t* loop,  
                                  uv__io_t* dummy,  
                                  unsigned int events) {  
@@ -610,12 +610,12 @@ uv__inotify_read函数的逻辑就是从操作系统中把数据读取出来，�
 ## 12.4 Promise化API
 Node.js的API都是遵循callback模式的，比如我们要读取一个文件的内容。我们通常会这样写
 
-```
+```js
     const fs = require('fs');  
     fs.readFile('filename', 'utf-8' ,(err,data) => {  
       console.log(data)  
     })  
-为了支持Promise模式，我们通常这样写
+    //为了支持Promise模式，我们通常这样写
     const fs = require('fs');  
     function readFile(filename) {  
         return new Promise((resolve, reject) => {  
@@ -628,7 +628,7 @@ Node.js的API都是遵循callback模式的，比如我们要读取一个文件�
 
 但是在Node.js V14中，文件模块支持了Promise化的api。我们可以直接使用await进行文件操作。我们看一下使用例子。
 
-```
+```js
     const { open, readFile } = require('fs').promises;  
     async function runDemo() {   
       try {  
@@ -642,7 +642,7 @@ Node.js的API都是遵循callback模式的，比如我们要读取一个文件�
 
 从例子中我们看到，和之前的API调用方式类似，不同的地方在于我们不用再写回调了，而是通过await的方式接收结果。这只是新版API的特性之一。在新版API之前，文件模块大部分API都是类似工具函数，比如readFile，writeFile，新版API中支持面向对象的调用方式。
 
-```
+```js
     const { open, readFile } = require('fs').promises;  
     async function runDemo() {  
       let filehandle;  
@@ -661,7 +661,7 @@ Node.js的API都是遵循callback模式的，比如我们要读取一个文件�
 
 面向对象的模式中，我们首先需要通过open函数拿到一个FileHandle对象（对文件描述符的封装），然后就可以在该对象上调各种文件操作的函数。在使用面向对象模式的API时有一个需要注意的地方是Node.js不会为我们关闭文件描述符，即使文件操作出错，所以我们需要自己手动关闭文件描述符，否则会造成文件描述符泄漏，而在非面向对象模式中，在文件操作完毕后，不管成功还是失败，Node.js都会为我们关闭文件描述符。下面我们看一下具体的实现。首先介绍一个FileHandle类。该类是对文件描述符的封装，提供了面向对象的API。
 
-```
+```js
     class FileHandle {  
       constructor(filehandle) {  
         // filehandle为C++对象  
@@ -689,7 +689,7 @@ FileHandle的逻辑比较简单，首先封装了一系列文件操作的API，�
 1 操作文件系统API
 这里我们以readFile为例进行分析
 
-```
+```js
     async function readFile(path, options) {  
       options = getOptions(options, { flag: 'r' });  
       const flag = options.flag || 'r';  
@@ -704,7 +704,7 @@ FileHandle的逻辑比较简单，首先封装了一系列文件操作的API，�
 
 从readFile代码中我们看到不同调用方式下，Node.js的处理是不一样的，当FileHandle是我们维护时，关闭操作也是我们负责执行，当FileHandle是Node.js维护时，Node.js在文件操作完毕后，不管成功还是失败都会主动关闭文件描述符。接着我们看到readFileHandle的实现。
 
-```
+```js
     async function readFileHandle(filehandle, options) {  
       // 获取文件元信息  
       const statFields = await binding.fstat(filehandle.fd, false, kUsePromises);  
@@ -750,7 +750,7 @@ FileHandle的逻辑比较简单，首先封装了一系列文件操作的API，�
 
 接着我们看read函数的实现
 
-```
+```js
     async function read(handle, buffer, offset, length, position) {  
       // ...  
       const bytesRead = (await binding.read(handle.fd, buffer, offset, length, position, kUsePromises)) || 0;  
@@ -760,7 +760,7 @@ FileHandle的逻辑比较简单，首先封装了一系列文件操作的API，�
 
 Read最终执行了node_file.cc 的Read。我们看一下Read函数的关键代码。
 
-```
+```cpp
     static void Read(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
       // ...  
@@ -790,7 +790,7 @@ Read函数分为三种情况，同步和异步，其中异步又分为两种，c
 
 GetReqWrap根据第六个参数获取对应的值。
 
-```
+```cpp
     FSReqBase* GetReqWrap(Environment* env, v8::Local<v8::Value> value,  
                           bool use_bigint) {  
       // 是对象说明是继承FSReqBase的对象,比如FSReqCallback（异步模式）                      
@@ -811,7 +811,7 @@ GetReqWrap根据第六个参数获取对应的值。
 
 这里我们只关注Promise模式。所以GetReqWrap返回的是一个FSReqPromise对象，我们回到Read函数。看到以下代码
 
-```
+```cpp
     FSReqBase* req_wrap_async = GetReqWrap(env, args[5]);  
     AsyncCall(env, req_wrap_async, args, "read", UTF8, AfterInteger,  
                   uv_fs_read, fd, &uvbuf, 1, pos);  
@@ -830,7 +830,7 @@ GetReqWrap根据第六个参数获取对应的值。
 
 AsyncCall是对AsyncDestCall的封装
 
-```
+```cpp
     template <typename Func, typename... Args>  
     FSReqBase* AsyncDestCall(Environment* env, FSReqBase* req_wrap,  
                              const v8::FunctionCallbackInfo<v8::Value>& args,  
@@ -858,7 +858,7 @@ AsyncCall是对AsyncDestCall的封装
 
 AsyncDestCall函数主要做了两个操作，首先通过Dispatch调用底层Libuv的函数，比如这里是uv_fs_read。如果出错执行回调返回错误，否则执行req_wrap->SetReturnValue(args)。我们知道req_wrap是在GetReqWrap函数中由FSReqPromise<AliasedBigUint64Array>::New(env, use_bigint)创建。
 
-```
+```cpp
     template <typename AliasedBufferT>  
     FSReqPromise<AliasedBufferT>*  
     FSReqPromise<AliasedBufferT>::New(Environment* env, bool use_bigint) {  
@@ -882,7 +882,7 @@ AsyncDestCall函数主要做了两个操作，首先通过Dispatch调用底层Li
 
 所以req_wrap是一个FSReqPromise对象。我们看一下FSReqPromise对象的SetReturnValue方法。
 
-```
+```cpp
     template <typename AliasedBufferT>  
     void FSReqPromise<AliasedBufferT>::SetReturnValue(  
         const v8::FunctionCallbackInfo<v8::Value>& args) {  
@@ -898,7 +898,7 @@ AsyncDestCall函数主要做了两个操作，首先通过Dispatch调用底层Li
 
 至此我们看到了新版API实现的核心逻辑，正是这个Promise返回值。通过层层返回后，在JS层就拿到这个Promise，然后处于pending状态等待决议。我们继续看一下Promise决议的逻辑。在分析Read函数中我们看到执行Libuv的uv_fs_read函数时，设置的回调是AfterInteger。那么当读取文件成功后就会执行该函数。所以我们看看该函数的逻辑。
 
-```
+```cpp
     void AfterInteger(uv_fs_t* req) {  
       // 通过属性拿到对象的地址  
       FSReqBase* req_wrap = FSReqBase::from_req(req);  
@@ -911,7 +911,7 @@ AsyncDestCall函数主要做了两个操作，首先通过Dispatch调用底层Li
 
 接着我们看一下Resolve
 
-```
+```cpp
     template <typename AliasedBufferT>  
     void FSReqPromise<AliasedBufferT>::Resolve(v8::Local<v8::Value> value) {  
       finished_ = true;  
@@ -928,7 +928,7 @@ AsyncDestCall函数主要做了两个操作，首先通过Dispatch调用底层Li
 
 Resolve函数修改Promise的状态和设置返回值，从而JS层拿到这个决议的值。回到fs层
 
-```
+```js
     const bytesRead = (await binding.read(handle.fd, 
                                              buffer, 
                                              offset, 
@@ -940,7 +940,7 @@ Resolve函数修改Promise的状态和设置返回值，从而JS层拿到这个�
 ## 12.5 流式API
 前面分析了Node.js中文件模块的多种文件操作的方式，不管是同步、异步还是Promise化的API，它们都有一个问题就是对于用户来说，文件操作都是一次性完成的，比如我们调用readFile读取一个文件时，Node.js会通过一次或多次调用操作系统的接口把所有的文件内容读到内存中，同样我们调用writeFile写一个文件时，Node.js会通过一次或多次调用操作系统接口把用户的数据写入硬盘，这对内存来说是非常有压力的。假设我们有这样的一个场景，我们需要读取一个文件的内容，然后返回给前端，如果我们直接读取整个文件内容，然后再执行写操作这无疑是非常消耗内存，也是非常低效的。
 
-```
+```js
     const http = require('http');  
     const fs = require('fs');  
     const server = http.createServer((req, res) => {  
@@ -952,7 +952,7 @@ Resolve函数修改Promise的状态和设置返回值，从而JS层拿到这个�
 
 这时候我们需要使用流式的API。
 
-```
+```js
     const http = require('http');  
     const fs = require('fs');  
     const server = http.createServer((req, res) => {  
@@ -967,7 +967,7 @@ Resolve函数修改Promise的状态和设置返回值，从而JS层拿到这个�
 ### 12.5.1 可读文件流
 可读文件流是对文件进行流式读取的抽象。我们可以通过fs.createReadStream创建一个文件可读流。文件可读流继承于可读流，所以我们可以以可读流的方式使用它。
 
-```
+```js
     const fs = require('fs');  
     const { Writable } = require('stream');  
     class DemoWritable extends Writable {  
@@ -981,7 +981,7 @@ Resolve函数修改Promise的状态和设置返回值，从而JS层拿到这个�
 
 或者
 
-```
+```js
     const fs = require('fs');  
     const readStream = fs.createReadStream('11111.md');  
     readStream.on('data', (data) => {  
@@ -991,7 +991,7 @@ Resolve函数修改Promise的状态和设置返回值，从而JS层拿到这个�
 
 我们看一下createReadStream的实现。
 
-```
+```js
     fs.createReadStream = function(path, options) {  
       return new ReadStream(path, options);  
     };  
@@ -999,7 +999,7 @@ Resolve函数修改Promise的状态和设置返回值，从而JS层拿到这个�
 
 CreateReadStream是对ReadStream的封装。
 
-```
+```js
     function ReadStream(path, options) {  
       if (!(this instanceof ReadStream))  
         return new ReadStream(path, options);  
@@ -1063,7 +1063,7 @@ CreateReadStream是对ReadStream的封装。
 
 ReadStream初始化完后做了两个操作，首先调用open打开文件（如果需要的话），接着监听流结束事件，用户可以设置autoClose选项控制当流结束或者出错时是否销毁流，对于文件流来说，销毁流意味着关闭地方文件描述符。我们接着看一下open的实现
 
-```
+```js
     // 打开文件  
     ReadStream.prototype.open = function() {  
       var self = this;  
@@ -1090,7 +1090,7 @@ ReadStream初始化完后做了两个操作，首先调用open打开文件（如
 
 open函数首先打开文件，打开成功后开启流式读取。从而文件内容就会源源不断地流向目的流。我们继续看一下读取操作的实现。
 
-```
+```js
     // 实现可读流的钩子函数  
     ReadStream.prototype._read = function(n) {  
       // 如果没有调用open而是直接调用该方法则先执行open  
@@ -1162,7 +1162,7 @@ open函数首先打开文件，打开成功后开启流式读取。从而文件�
 
 当我们设置autoClose为false的时候，我们就需要自己手动调用close函数关闭可读文件流。关闭文件流很简单，就是正常地销毁流。我们看看销毁流的时候，Node.js做了什么。
 
-```
+```js
     // 关闭底层文件  
     ReadStream.prototype._destroy = function(err, cb) {  
       const isOpen = typeof this.fd !== 'number';  
@@ -1190,11 +1190,11 @@ open函数首先打开文件，打开成功后开启流式读取。从而文件�
 ### 12.5.2 可写文件流
 可写文件流是对文件进行流式写入的抽象。我们可以通过fs.createWriteStream创建一个文件可写流。文件可些流继承于可写流，所以我们可以以可写流的方式使用它。
 
-```
+```js
     const fs = require('fs');  
     const writeStream = fs.createWriteStream('123.md');
     writeStream.end('world');  
-或者
+    // 或者
     const fs = require('fs');  
     const { Readable } = require('stream');  
       
@@ -1218,7 +1218,7 @@ open函数首先打开文件，打开成功后开启流式读取。从而文件�
 
 我们看一下createWriteStream的实现。
 
-```
+```js
     fs.createWriteStream = function(path, options) {  
       return new WriteStream(path, options);  
     };  
@@ -1226,7 +1226,7 @@ open函数首先打开文件，打开成功后开启流式读取。从而文件�
 
 createWriteStream是对WriteStream的封装，我们看一下WriteStream的实现
 
-```
+```js
     function WriteStream(path, options) {  
       if (!(this instanceof WriteStream))  
         return new WriteStream(path, options);  
@@ -1283,7 +1283,7 @@ createWriteStream是对WriteStream的封装，我们看一下WriteStream的实�
 
 WriteStream初始化了一系列字段后，如果传的是文件路径则打开文件，如果传的文件描述符则不需要再次打开文件。后续对文件可写流的操作就是对文件描述符的操作。我们首先看一下写入文件的逻辑。我们知道可写流只是实现了一些抽象的逻辑，具体的写逻辑是具体的流通过_write或者_writev实现的，我们看一下_write的实现。
 
-```
+```js
     WriteStream.prototype._write = function(data, encoding, cb) {  
       if (!(data instanceof Buffer)) {  
         const err = new errors.TypeError('ERR_INVALID_ARG_TYPE',  
@@ -1318,7 +1318,7 @@ WriteStream初始化了一系列字段后，如果传的是文件路径则打开
 
 _write就是根据用户传入数据的大小，不断调用fs.write往底层写入数据，直到写完成或者出错。接着我们看一下批量写的逻辑。
 
-```
+```js
     // 实现可写流批量写钩子  
     WriteStream.prototype._writev = function(data, cb) {  
       if (typeof this.fd !== 'number') {  
@@ -1359,7 +1359,7 @@ _write就是根据用户传入数据的大小，不断调用fs.write往底层写
 
 批量写入的逻辑和_write类似，只不过它调用的是不同的接口往底层写。接下来我们看关闭文件可写流的实现。
 
-```
+```js
     WriteStream.prototype.close = function(cb) {  
       // 关闭文件成功后执行的回调  
       if (cb) {  
@@ -1388,7 +1388,7 @@ _write就是根据用户传入数据的大小，不断调用fs.write往底层写
     fs.createReadStream('11111.md').pipe(fs.createWriteStream('123.md'));  
 因为可读文件流在文件读完后会调用可写文件的end方法，从而关闭可读流和可写流对应的文件描述符。而在以下代码中情况就变得复杂。
 
-```
+```js
     const stream = fs.createWriteStream('123.md');  
     stream.write('hello');  
     // stream.close 或 stream.end();
@@ -1396,7 +1396,7 @@ _write就是根据用户传入数据的大小，不断调用fs.write往底层写
 
 在默认情况，我们可以调用end或者close去通知Node.js流结束。但是如果我们设置了autoClose为false，那么我们只能调用close而不能调用end。否则会造成文件描述符泄漏。因为end只是关闭了流。但是没有触发销毁流的逻辑。而close会触发销毁流的逻辑。我们看一下具体的代码。
 
-```
+```js
     const fs = require('fs');  
     const stream = fs.createWriteStream('123.md');  
     stream.write('hello');  
@@ -1409,7 +1409,7 @@ _write就是根据用户传入数据的大小，不断调用fs.write往底层写
 图12-6
 
 文件描述符17指向了123.md文件。所以文件描述符没有被关闭，引起文件描述符泄漏。我们修改一下代码。
-```
+```js
     const fs = require('fs');  
     const stream = fs.createWriteStream('123.md');  
     stream.end('hello');  
@@ -1419,7 +1419,7 @@ _write就是根据用户传入数据的大小，不断调用fs.write往底层写
  ![](https://img-blog.csdnimg.cn/da6c69dde9424e5e9897b90462eeb300.png)  
 图12-7  
 我们继续修改代码
-```
+```js
     const fs = require('fs');  
     const stream = fs.createWriteStream('123.md', {autoClose: false});  
     stream.end('hello');  
@@ -1430,7 +1430,7 @@ _write就是根据用户传入数据的大小，不断调用fs.write往底层写
 图12-8  
 我们看到使用end也无法关闭文件描述符。继续修改。
 
-```
+```js
     const fs = require('fs');  
     const stream = fs.createWriteStream('123.md', {autoClose: false})
     stream.close();  

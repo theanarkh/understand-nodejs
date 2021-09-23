@@ -10,7 +10,7 @@ Unix域通信本质还是基于内存之间的通信，客户端和服务器都�
 ### 9.1.1 初始化
 Unix域使用uv_pipe_t结构体表示，使用之前首先需要初始化uv_pipe_t。下面看一下它的实现逻辑。
 
-```
+```cpp
     int uv_pipe_init(uv_loop_t* loop, uv_pipe_t* handle, int ipc) { 
       uv__stream_init(loop, (uv_stream_t*)handle, UV_NAMED_PIPE);  
       handle->shutdown_req = NULL;  
@@ -25,7 +25,7 @@ uv_pipe_init逻辑很简单，就是初始化uv_pipe_t结构体的一些字段�
 ### 9.1.2 绑定Unix域路径
 开头说过，Unix域的实现类似TCP的实现。遵循网络socket编程那一套流程。服务端使用bind，listen等函数启动服务。
 
-```
+```cpp
     // name是unix路径名称  
     int uv_pipe_bind(uv_pipe_t* handle, const char* name) {  
       struct sockaddr_un saddr;  
@@ -63,7 +63,7 @@ uv_pipe_bind函数首先申请一个socket，然后调用操作系统的bind函�
 ### 9.1.3 启动服务
 绑定了路径后，就可以调用listen函数使得socket处于监听状态。
 
-```
+```cpp
     int uv_pipe_listen(uv_pipe_t* handle, int backlog, uv_connection_cb cb) {  
       // uv__stream_fd(handle)得到bind函数中获取的socket  
       if (listen(uv__stream_fd(handle), backlog))  
@@ -82,7 +82,7 @@ uv_pipe_listen执行操作系统的listen函数使得socket成为监听型的套
 ### 9.1.4 发起连接
 这时候，我们已经成功启动了一个Unix域服务。接下来就是看客户端的逻辑。
 
-```
+```cpp
     void uv_pipe_connect(uv_connect_t* req, 
                           uv_pipe_t* handle, 
                           const char* name, 
@@ -146,7 +146,7 @@ uv_pipe_connect函数首先以非阻塞的方式调用操作系统的connect函�
 ### 9.1.5 关闭Unix域
 我们可以通过uv_close关闭一个Unix域handle。uv_close中会调用uv__pipe_close。
 
-```
+```cpp
     void uv__pipe_close(uv_pipe_t* handle) {  
       // 如果是Unix域服务器则需要删除Unix域路径并删除指向的堆内存  
       if (handle->pipe_fname) {  
@@ -166,7 +166,7 @@ Unix域大致的流程和网络编程一样。分为服务端和客户端两面�
 ### 9.2.1 Unix域服务器
 在Node.js中，我们可以通过以下代码创建一个Unix域服务器
 
-```
+```js
     const server = net.createServer((client) => {  
       // 处理client  
     });  
@@ -177,7 +177,7 @@ Unix域大致的流程和网络编程一样。分为服务端和客户端两面�
 
 我们从listen函数开始分析这个过程。
 
-```
+```js
     Server.prototype.listen = function(...args) {  
       const normalized = normalizeArgs(args);  
       let options = normalized[0];  
@@ -216,7 +216,7 @@ Unix域大致的流程和网络编程一样。分为服务端和客户端两面�
 
 这段代码中最主要的是listenIncluster函数。我们看一下该函数的逻辑。
 
-```
+```js
     function listenIncluster(server, address, port, addressType,  
                              backlog, fd, exclusive, flags) {  
       exclusive = !!exclusive; 
@@ -230,7 +230,7 @@ Unix域大致的流程和网络编程一样。分为服务端和客户端两面�
 
 直接调用_listen2（isMaster只有在cluster.fork创建的进程中才是false，其余情况都是true，包括child_process模块创建的子进程）。我们继续看listen函数。
 
-```
+```js
     Server.prototype._listen2 = setupListenHandle;
     
     function setupListenHandle(address, 
@@ -255,8 +255,10 @@ Unix域大致的流程和网络编程一样。分为服务端和客户端两面�
                                  process.nextTick,  
                                  emitListeningNT,  
                                  this);  
-    } 
+    }
+```
 首先调用createServerHandle创建一个handle，然后执行listen函数。我们首先看一下createServerHandle。
+```js
     function createServerHandle(address, 
                                    port, 
                                    addressType, 
@@ -270,7 +272,7 @@ Unix域大致的流程和网络编程一样。分为服务端和客户端两面�
 
 创建了一个Pipe对象，然后调用它的bind和listen函数，我们看new Pipe的逻辑，从pipe_wrap.cc的导出逻辑，我们知道，这时候会新建一个C++对象，然后执行New函数，并且把新建的C++对象等信息作为入参。
 
-```
+```cpp
     void PipeWrap::New(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
       // 类型  
@@ -301,7 +303,7 @@ Unix域大致的流程和网络编程一样。分为服务端和客户端两面�
 ```
 
 New函数处理了参数，然后执行了new PipeWrap创建一个对象。
-```
+```cpp
     PipeWrap::PipeWrap(Environment* env,  
                        Local<Object> object,  
                        ProviderType provider,  
@@ -314,7 +316,7 @@ new Pipe执行完后，就会通过该C++对象调用Libuv的bind和listen完成
 ### 9.2.2 Unix域客户端
 接着我们看一下Unix域作为客户端使用时的过程。
 
-```
+```js
     Socket.prototype.connect = function(...args) {  
       const path = options.path;  
       // Unix域路径  
@@ -341,14 +343,16 @@ new Pipe执行完后，就会通过该C++对象调用Libuv的bind和listen完成
 
 首先新建一个handle，值是new Pipe。接着执行了internalConnect，internalConnect函数的主要逻辑如下
 
-```
+```js
     const req = new PipeConnectWrap();  
     // address为Unix域路径
     req.address = address;  
     req.oncomplete = afterConnect;  
     // 调用C++层connect
     err = self._handle.connect(req, address, afterConnect);  
+```
 我们看C++层的connect函数，
+```cpp
     void PipeWrap::Connect(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
       
@@ -381,7 +385,7 @@ new Pipe执行完后，就会通过该C++对象调用Libuv的bind和listen完成
 
 uv_pipe_connect函数，第一个参数是uv_connect_t结构体（request），第二个是一个uv_pipe_t结构体（handle），handle是对Unix域客户端的封装，request是请求的封装，它表示基于handle发起一次连接请求。连接成功后会执行AfterConnect。由前面分析我们知道，当连接成功时，首先会执行回调Libuv的uv__stream_io，然后执行C++层的AfterConnect。
 
-```
+```cpp
     // 主动发起连接，成功/失败后的回调  
     template <typename WrapType,typename UVType> = PipeWrap, uv_pipe_t
     void ConnectionWrap<WrapType, UVType>::AfterConnect(uv_connect_t* req        
@@ -422,7 +426,7 @@ uv_pipe_connect函数，第一个参数是uv_connect_t结构体（request），�
 
 我们再回到JS层的afterConnect
 
-```
+```js
     function afterConnect(status, handle, req, readable, writable) { 
       var self = handle.owner;  
       handle = self._handle;  

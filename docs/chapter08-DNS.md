@@ -3,7 +3,7 @@ Node.js的DNS模块使用了cares库和Libuv的线程池实现。cares是一个�
 ## 8.1 通过域名找IP
 我们看一下在Node.js中如何查询一个域名对于的IP的信息
 
-```
+```js
     dns.lookup('www.a.com', function(err, address, family) {  
         console.log(address);  
     });  
@@ -11,7 +11,7 @@ Node.js的DNS模块使用了cares库和Libuv的线程池实现。cares是一个�
 
 DNS功能的JS层实现在dns.js中
 
-```
+```js
     const req = new GetAddrInfoReqWrap();  
     req.callback = callback;  
     req.family = family;  
@@ -25,7 +25,7 @@ DNS功能的JS层实现在dns.js中
 
 Node.js设置了一些参数后，调用cares_wrap.cc的getaddrinfo方法，在care_wrap.cc的初始化函数中我们看到， getaddrinfo函数对应的函数是GetAddrInfo。
 
-```
+```cpp
     void Initialize(Local<Object> target,  
                     Local<Value> unused,  
                     Local<Context> context) {  
@@ -37,7 +37,7 @@ Node.js设置了一些参数后，调用cares_wrap.cc的getaddrinfo方法，在c
 
 GetAddrInfo的主要逻辑如下
 
-```
+```cpp
     auto req_wrap = new GetAddrInfoReqWrap(env, req_wrap_obj, args[4]->IsTrue());  
       
     struct addrinfo hints;  
@@ -56,7 +56,7 @@ GetAddrInfo的主要逻辑如下
 
 GetAddrInfo是对uv_getaddrinfo的封装，回调函数是AfterGetAddrInfo
 
-```
+```cpp
     int uv_getaddrinfo(uv_loop_t* loop,  
                         // 上层传进来的req  
                        uv_getaddrinfo_t* req,  
@@ -125,7 +125,7 @@ GetAddrInfo是对uv_getaddrinfo的封装，回调函数是AfterGetAddrInfo
 
 我们看到这个函数首先是对一个request进行初始化，然后根据是否传了回调，决定走异步还是同步的模式。同步的方式比较简单，就是直接阻塞Libuv事件循环，直到解析完成。如果是异步，则给线程池提交一个慢IO的任务。其中工作函数是uv__getaddrinfo_work。回调是uv__getaddrinfo_done。我们看一下这两个函数。
 
-```
+```cpp
     // 解析的工作函数  
     static void uv__getaddrinfo_work(struct uv__work* w) {  
       uv_getaddrinfo_t* req;  
@@ -143,7 +143,7 @@ GetAddrInfo是对uv_getaddrinfo的封装，回调函数是AfterGetAddrInfo
 
 uv__getaddrinfo_work函数主要是调用了系统提供的getaddrinfo去做解析。该函数会导致进程阻塞。结果返回后，执行uv__getaddrinfo_done。
 
-```
+```cpp
     static void uv__getaddrinfo_done(struct uv__work* w, int status) {  
       uv_getaddrinfo_t* req;  
       
@@ -179,7 +179,7 @@ uv__getaddrinfo_done会执行C++层的回调，从而执行JS层的回调。
 除了通过IP查询域名和域名查询IP外，其余的DNS功能都由cares实现，我们看一下cares的基本用法。
 ### 8.2.1 cares使用和原理
 
-```
+```cpp
     // channel是cares的核心结构体
     ares_channel channel;  
     struct ares_options options;  
@@ -220,12 +220,12 @@ uv__getaddrinfo_done会执行C++层的回调，从而执行JS层的回调。
 图8-1. 
 
 我们通过cares_wrap.cc分析其中的原理。我们从DNS模块提供的resolveCname函数开始。resolveCname函数由以下代码导出（dns.js）。
-```
+```js
 bindDefaultResolver(module.exports, getDefaultResolver())  
 ```
 我们看一下这两个函数（dns/utils.js）。
 
-```
+```js
     class Resolver {  
       constructor() {  
         this._handle = new ChannelWrap();  
@@ -261,7 +261,7 @@ bindDefaultResolver(module.exports, getDefaultResolver())
 
 getDefaultResolver导出的是一个Resolve对象，里面有resolveCname等一系列方法。接着看一下bindDefaultResolver，我们一会再看ChannelWrap。
 
-```
+```js
     const resolverKeys = [ 
       'resolveCname ',  
       // …
@@ -275,7 +275,7 @@ getDefaultResolver导出的是一个Resolve对象，里面有resolveCname等一�
 
 看起来很绕，其实就是把Resolve对象的方法导出到DNS模块。这样用户就可以使用了。我们看到resolveCname是由resolver函数生成的，resolver函数对cares系列函数进行了封装，最终调用的是this._handle.queryCname函数。我们来看一下这个handle（ChannelWrap类对象）的实现（cares_wrap.cc）。我们先看一下cares_wrap.cc模块导出的API。
 
-```
+```cpp
     Local<FunctionTemplate> channel_wrap = env->NewFunctionTemplate(ChannelWrap::New);  
     channel_wrap->InstanceTemplate()->SetInternalFieldCount(1);  
     channel_wrap->Inherit(AsyncWrap::GetConstructorTemplate(env));  
@@ -293,7 +293,7 @@ getDefaultResolver导出的是一个Resolve对象，里面有resolveCname等一�
 handle对应的就是以上代码导出的对象。当我们在JS层执行new ChannelWrap的时候。
 最终会调用C++层创建一个对象，并且执行ChannelWrap::New。
 
-```
+```cpp
     void ChannelWrap::New(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
       new ChannelWrap(env, args.This());  
@@ -302,7 +302,7 @@ handle对应的就是以上代码导出的对象。当我们在JS层执行new Ch
 
 我们看一下类ChannelWrap的定义。
 
-```
+```cpp
     class ChannelWrap : public AsyncWrap {  
      public:  
       // ...  
@@ -327,7 +327,7 @@ handle对应的就是以上代码导出的对象。当我们在JS层执行new Ch
 
 接着我们看看ChannelWrap构造函数的代码。
 
-```
+```cpp
     ChannelWrap::ChannelWrap(...) {  
       Setup();  
     }  
@@ -335,7 +335,7 @@ handle对应的就是以上代码导出的对象。当我们在JS层执行new Ch
 
 ChannelWrap里直接调用了Setup
 
-```
+```cpp
     void ChannelWrap::Setup() {  
       struct ares_options options;  
       memset(&options, 0, sizeof(options));  
@@ -364,7 +364,7 @@ ChannelWrap里直接调用了Setup
 我们看到，Node.js在这里初始化cares相关的逻辑。其中最重要的就是设置了cares socket状态变更时执行的回调ares_sockstate_cb（比如socket需要读取数据或者写入数据）。前面的cares使用例子中讲到了cares和事件驱动模块的配合使用，那么cares和Libuv是如何配合的呢？cares提供了一种机制，就是socket状态变更时通知事件驱动模块。DNS解析本质上也是网络IO，所以发起一个DNS查询也就是对应一个socket。DNS查询是由cares发起的，这就意味着socket是在cares中维护的，那Libuv怎么知道呢？正是cares提供的通知机制，使得Libuv知道发起DNS查询对应的socket，从而注册到Libuv中，等到事件触发后，再通知cares。下面我们看一下具体的实现。我们从发起一个cname查询开始分析。首先回顾一下cares_wrap模块导出的cname查询函数，
 env->SetProtoMethod(channel_wrap, "queryCname", Query<QueryCnameWrap>);Query是C++模板函数，QueryCnameWrap是C++类
 
-```
+```cpp
     template <class Wrap>  
     static void Query(const FunctionCallbackInfo<Value>& args) {  
       Environment* env = Environment::GetCurrent(args);  
@@ -397,7 +397,7 @@ Query只实现了一些通用的逻辑，然后调用Send函数，具体的Send�
 ### 8.2.3 具体实现
 我们看一下QueryCnameWrap类。
 
-```
+```cpp
     class QueryCnameWrap: public QueryWrap {  
      public:  
       QueryCnameWrap(ChannelWrap* channel, 
@@ -430,7 +430,7 @@ Query只实现了一些通用的逻辑，然后调用Send函数，具体的Send�
 
 我们看到QueryCnameWrap类的实现非常简单，主要定义Send和Parse的实现，最终还是会调用基类对应的函数。我们看一下基类QueryWrap中AresQuery的实现。
 
-```
+```cpp
     void AresQuery(const char* name,  
             int dnsclass,  
             int type) {  
@@ -445,7 +445,7 @@ Query只实现了一些通用的逻辑，然后调用Send函数，具体的Send�
 
 AresQuery函数提供统一发送查询操作。查询完成后执行Callback回调。接下来就涉及到cares和Node.js的具体交互了。Node.js把一个任务交给cares后，cares会新建一个socket，接着cares会通过Node.js设置的回调ares_sockstate_cb通知Node.js。我们看一下ares_query的关键逻辑。
 
-```
+```cpp
     void ares_query(ares_channel channel, const char *name, int dnsclass,  
                     int type, ares_callback callback, void *arg)  
     {  
@@ -485,7 +485,7 @@ AresQuery函数提供统一发送查询操作。查询完成后执行Callback回
 
 ares_query保存了Node.js的回调，并且设置回调qcallback，查询成功后会回调qcallback，qcallback再回调Node.js。接着执行ares_send，ares_send会调用ares__send_query。
 
-```
+```cpp
     void ares__send_query(ares_channel channel, 
                             struct query *query,  
                           struct timeval *now)  
@@ -513,7 +513,7 @@ ares_query保存了Node.js的回调，并且设置回调qcallback，查询成功
 
 ares__send_query首先申请一个socket，然后发送数据。因为UDP不是面向连接的，可以直接发送。我们看一下open_udp_socket。
 
-```
+```cpp
     static int open_udp_socket(ares_channel channel, struct server_state *server)  
     {  
       ares_socket_t s;  
@@ -550,7 +550,7 @@ ares__send_query函数做了三件事
 3 发送了DNS查询请求
 这时候流程走到了Node.js，我们看一下cares回调Node.js的时候，Node.js怎么处理的
 
-```
+```cpp
     struct node_ares_task : public MemoryRetainer {  
       ChannelWrap* channel;  
       // 关联的socket  
@@ -602,7 +602,7 @@ ares__send_query函数做了三件事
 
 每一个DNS查询的任务，在Node.js中用node_ares_task 管理。它封装了请求对应的channel、查询请求对应的socket和uv_poll_t。我们看一下ares_task_create
 
-```
+```cpp
     node_ares_task* ares_task_create(ChannelWrap* channel, ares_socket_t sock) {  
       auto task = new node_ares_task();  
       
@@ -620,7 +620,7 @@ ares__send_query函数做了三件事
 
 首先创建一个node_ares_task对象。然后初始化uv_poll_t并且把文件描述符保存到uv_poll_t。uv_poll_t是对文件描述符、回调、IO观察者的封装。文件描述符的事件触发时，会执行IO观察者的回调，从而执行uv_poll_t保存的回调。我们继续回到ares_sockstate_cb，当cares通知Node.js socket状态变更的时候，Node.js就会修改epoll节点的配置（感兴趣的事件）。当事件触发的时候，会执行ares_poll_cb。我们看一下该函数。
 
-```
+```cpp
     void ares_poll_cb(uv_poll_t* watcher, int status, int events) {  
       node_ares_task* task = ContainerOf(&node_ares_task::poll_watcher, watcher);  
       ChannelWrap* channel = task->channel;  
@@ -637,7 +637,7 @@ ares__send_query函数做了三件事
 
 当socket上感兴趣的事件触发时，Node.js调ares_process_fd处理。真正的处理函数是processfds。
 
-```
+```cpp
     static void processfds(ares_channel channel,  
                            fd_set *read_fds, ares_socket_t read_fd,  
                            fd_set *write_fds, ares_socket_t write_fd)  
@@ -654,7 +654,7 @@ ares__send_query函数做了三件事
 
 processfds是统一的处理函数，在各自函数内会做相应的判断和处理。我们这里是收到了UDP响应。则会执行read_udp_packets
 
-```
+```cpp
     static void read_udp_packets(ares_channel channel, fd_set *read_fds,  
                                  ares_socket_t read_fd, struct timeval *now){  
     // 读取响应  
@@ -666,7 +666,7 @@ processfds是统一的处理函数，在各自函数内会做相应的判断和�
 
 Cares读取响应然后解析响应，最后回调Node.js。Node.js设置的回调函数是Callback
 
-```
+```cpp
     static void Callback(void* arg, int status, int timeouts,  
                            unsigned char* answer_buf, int answer_len) {  
         QueryWrap* wrap = FromCallbackPointer(arg);  
@@ -714,7 +714,7 @@ Cares读取响应然后解析响应，最后回调Node.js。Node.js设置的回�
 
 任务完成后，Node.js会在check阶段（Node.js v10是使用async handle通知Libuv）加入一个节点，然后check阶段的时候执行对应子类的Parse函数，这里以QueryCnameWrap的Parse为例。
 
-```
+```cpp
     void Parse(unsigned char* buf, int len) override {  
         HandleScope handle_scope(env()->isolate());  
         Context::Scope context_scope(env()->context());  
@@ -733,7 +733,7 @@ Cares读取响应然后解析响应，最后回调Node.js。Node.js设置的回�
 
 收到DNS回复后，调用ParseGeneralReply解析回包，然后执行JS层DNS模块的回调。从而执行用户的回调。
 
-```
+```cpp
     void CallOnComplete(Local<Value> answer,  
                         Local<Value> extra = Local<Value>()) {  
       HandleScope handle_scope(env()->isolate());  

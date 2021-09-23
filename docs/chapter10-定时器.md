@@ -9,7 +9,7 @@ Node.js V14对定时器模块进行了重构，之前版本的实现是用一个
 Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 ### 10.1.1 Libuv中维护定时器的数据结构
 
-```
+```cpp
     // 取出loop中的计时器堆指针  
     static struct heap *timer_heap(const uv_loop_t* loop) {  
       return (struct heap*) &loop->timer_heap;   
@@ -19,7 +19,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 ### 10.1.2 比较函数
 因为Libuv使用二叉堆实现定时器，这就涉及到节点插入堆的时候的规则。
 
-```
+```cpp
     static int timer_less_than(const struct heap_node* ha,  
                    const struct heap_node* hb) {  
       const uv_timer_t* a;  
@@ -45,7 +45,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 ### 10.1.3 初始化定时器结构体
 如果需要使用定时器，首先要对定时器的结构体进行初始化。
 
-```
+```cpp
     // 初始化uv_timer_t结构体  
     int uv_timer_init(uv_loop_t* loop, uv_timer_t* handle) {  
       uv__handle_init(loop, (uv_handle_t*)handle, UV_TIMER);  
@@ -57,7 +57,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 
 ### 10.1.4 插入一个定时器
 
-```
+```cpp
     // 启动一个计时器  
     int uv_timer_start(uv_timer_t* handle,  
                        uv_timer_cb cb,  
@@ -93,7 +93,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 
 ### 10.1.5 停止一个定时器
 
-```
+```cpp
     // 停止一个计时器  
     int uv_timer_stop(uv_timer_t* handle) {  
       if (!uv__is_active(handle))  
@@ -112,7 +112,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 ### 10.1.6 重新设置定时器
 重新设置定时器类似插入一个定时器，它首先需要把之前的定时器从二叉堆中移除，然后重新插入二叉堆。
 
-```
+```cpp
     // 重新启动一个计时器，需要设置repeat标记   
     int uv_timer_again(uv_timer_t* handle) {  
       if (handle->timer_cb == NULL)  
@@ -134,7 +134,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 ### 10.1.7 计算二叉堆中超时时间最小值
 超时时间最小值，主要用于判断Poll IO节点是阻塞的最长时间。
 
-```
+```cpp
     // 计算最小堆中最小节点的超时时间，即最小的超时时间  
     int uv__next_timeout(const uv_loop_t* loop) {  
       const struct heap_node* heap_node;  
@@ -161,7 +161,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 ### 10.1.8 处理定时器
 处理超时定时器就是遍历二叉堆，判断哪个节点超时了。
 
-```
+```cpp
     // 找出已经超时的节点，并且执行里面的回调  
     void uv__run_timers(uv_loop_t* loop) {  
       struct heap_node* heap_node;  
@@ -189,7 +189,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 ### 10.2.1 TimersList  
 相对超时时间一样的定时器会被放到同一个队列，比如当前执行setTimeout(()=>{}, 10000})和5秒后执行setTimeout(()=>{}, 10000})，这两个任务就会在同一个List中，这个队列由TimersList来管理。对应图1中的List那个队列。
 
-```
+```js
     function TimersList(expiry, msecs) {  
       // 用于链表  
       this._idleNext = this;   
@@ -205,7 +205,7 @@ Libuv中使用二叉堆实现了定时器。最快到期的节点是根节点。
 expiry记录的是链表中最快超时的节点的绝对时间。每次执行定时器阶段时会动态更新，msecs是超时时间的相对值（相对插入时的当前时间）。用于计算该链表中的节点是否超时。后续我们会看到具体的用处。
 ### 10.2.2 优先队列
 
-```
+```js
     const timerListQueue = new PriorityQueue(compareTimersLists, setPosition)  
 ```
 
@@ -217,7 +217,7 @@ Node.js在初始化的时候设置了处理定时器的函数。
 setupTimers(processImmediate, processTimers);  
 setupTimers对应的C++函数是  
 
-```
+```cpp
     void SetupTimers(const FunctionCallbackInfo<Value>& args) {  
       auto env = Environment::GetCurrent(args);  
       env->set_immediate_callback_function(args[0].As<Function>());  
@@ -228,7 +228,7 @@ setupTimers对应的C++函数是
 SetupTimers在env中保存了两个函数，processImmediate是处理setImmediate的，processTimers是处理定时器的。当有节点超时时，Node.js会执行该函数处理超时的节点，后续会看到该函数的具体处理逻辑。下面我们看一下如何设置一个定时器。
 ## 10.4 设置定时器
 
-```
+```js
     function setTimeout(callback, after, arg1, arg2, arg3) {  
       // 忽略处理参数args逻辑
         // 新建一个Timeout对象
@@ -245,7 +245,7 @@ SetupTimers在env中保存了两个函数，processImmediate是处理setImmediat
 setTimeout主要包含两个操作，new Timeout和insert。我们逐个分析一下。
 1 setTimeout
 
-```
+```js
     function Timeout(callback, after, args, isRepeat, isRefed) {  
       after *= 1; // Coalesce to number or NaN  
         // 关于setTimeout的超时时间为0的问题在这里可以揭开迷雾
@@ -277,7 +277,7 @@ setTimeout主要包含两个操作，new Timeout和insert。我们逐个分析�
 
 Timeout主要是新建一个对象记录一些定时器的相对超时时间（用于支持setInterval，重新插入队列时找到所属队列）、开始时间（用于计算定时器是否超时）等上下文信息。这里有一个关键的逻辑是isRefed的值。Node.js支持ref和unref状态的定时器（setTimeout 和setUnrefTimeout），unref状态的定时器，不会影响事件循环的退出。即当只有unref状态的定时器时，事件循环会结束。当isRefed为true时会执行incRefCount();
 
-```
+```cpp
     function incRefCount() {  
       if (refCount++ === 0)  
         toggleTimerRef(true);  
@@ -300,7 +300,7 @@ Timeout主要是新建一个对象记录一些定时器的相对超时时间（�
 
 我们看到最终会调用Libuv的uv_ref或uv_unref修改定时器相关handle的状态，因为Node.js只会在Libuv中注册一个定时器handle并且是常驻的，如果JS层当前没有设置定时器，则需要修改定时器handle的状态为unref，否则会影响事件循环的退出。refCount值便是记录JS层ref状态的定时器个数的。所以当我们第一次执行setTimeout的时候，Node.js会激活Libuv的定时器节点。接着我们看一下insert。
 
-```
+```js
     let nextExpiry = Infinity;
     function insert(item, msecs, start = getLibuvNow()) {  
       msecs = MathTrunc(msecs);  
@@ -354,7 +354,7 @@ Insert的主要逻辑如下
 ## 10.5 处理定时器
 前面我们讲到了设置定时器处理函数和设置一个定时器，但是在哪里触发这个处理定时器的函数呢？答案在scheduleTimer函数。Node.js的实现中，所有JS层设置的定时器对应Libuv的一个定时器节点，Node.js维护了JS层所有定时器的超时最小值。在第一个设置定时器或者设置一个新的定时器时，如果新设置的定时器比当前的最小值小，则会通过scheduleTimer修改超时时间。超时的时候，就会执行回调。scheduleTimer函数是对C++函数的封装。  
 
-```
+```cpp
     void ScheduleTimer(const FunctionCallbackInfo<Value>& args) {  
       auto env = Environment::GetCurrent(args);  
       env->ScheduleTimer(args[0]->IntegerValue(env->context()).FromJust());  
@@ -368,14 +368,14 @@ Insert的主要逻辑如下
 
 uv_timer_start就是开启底层计时，即往Libuv的二叉堆插入一个节点（如果该handle已经存在二叉堆，则先删除）。超时时间是duration_ms，就是最快到期的时间，超时回调是RunTimers，在timer阶段会判断是否过期。是的话执行RunTimers函数。我们先看一下RunTimers函数的主要代码。
 
-```
+```cpp
     Local<Function> cb = env->timers_callback_function();  
     ret = cb->Call(env->context(), process, 1, &arg);  
 ```
 
 RunTimers会执行timers_callback_function。timers_callback_function是在Node.js初始化的时候设置的processTimers函数。现在我们知道了Node.js是如何设置超时的处理函数，也知道了什么时候会执行该回调。那我们就来看一下回调时具体处理逻辑。 
 
-```
+```cpp
     void Environment::RunTimers(uv_timer_t* handle) {  
       Local<Function> cb = env->timers_callback_function();  
       MaybeLocal<Value> ret;  
@@ -422,7 +422,7 @@ RunTimers会执行timers_callback_function。timers_callback_function是在Node.
 
 该函数主要是执行回调，然后如果还有没超时的节点，重新设置Libuv定时器的时间。看看JS层面。  
 
-```
+```js
      function processTimers(now) {  
         nextExpiry = Infinity;  
         let list;  
@@ -517,7 +517,7 @@ RunTimers会执行timers_callback_function。timers_callback_function是在Node.
 ## 10.6 ref和unref
 setTimeout返回的是一个Timeout对象，该提供了ref和unref接口，刚才提到了关于定时器影响事件循环退出的内容，我们看一下这个原理。刚才说到Node.js定时器模块在Libuv中只对应一个定时器节点。在Node.js初始化的时候，初始化了该节点。
 
-```
+```cpp
     void Environment::InitializeLibuv(bool start_profiler_idle_notifier) {  
       // 初始化定时器  
       CHECK_EQ(0, uv_timer_init(event_loop(), timer_handle()));  
@@ -528,7 +528,7 @@ setTimeout返回的是一个Timeout对象，该提供了ref和unref接口，刚�
 
 我们看到底层定时器节点默认是unref状态的，所以不会影响事件循环的退出。因为初始化时JS层没有定时节点。可以通过Node.js提供的接口修改该状态。Node.js支持ref状态的Timeout（setTimeout）和unref状态的Timeout（setUnrefTimeout）。
 
-```
+```js
     function Timeout(callback, after, args, isRepeat, isRefed) {  
       if (isRefed)  
         incRefCount();  
@@ -538,7 +538,7 @@ setTimeout返回的是一个Timeout对象，该提供了ref和unref接口，刚�
 
 最后一个参数就是控制ref还是unref的。我们继续看一下如果isRefed为true的时候的逻辑
 
-```
+```js
     function incRefCount() {  
       if (refCount++ === 0)  
         toggleTimerRef(true);  
@@ -547,7 +547,7 @@ setTimeout返回的是一个Timeout对象，该提供了ref和unref接口，刚�
 
 refCount初始化的时候是1，所以在新加第一个Timeout的时候，if成立。我们接着看toggleTimerRef，该函数对应的代码如下
 
-```
+```cpp
     void Environment::ToggleTimerRef(bool ref) {  
       // 打上ref标记，  
       if (ref) {  
@@ -560,7 +560,7 @@ refCount初始化的时候是1，所以在新加第一个Timeout的时候，if�
 
 该函数正是给定时器对应的handle设置状态的。setTimeout的时候，isRefed的值是true的，Node.js还提供了另外一个函数setUnrefTimeout。
 
-```
+```js
     function setUnrefTimeout(callback, after) {  
       const timer = new Timeout(callback, after, undefined, false, false);  
       insert(timer, timer._idleTimeout);  
@@ -571,7 +571,7 @@ refCount初始化的时候是1，所以在新加第一个Timeout的时候，if�
 该函数和setTimeout最主要的区别是new Timeout的时候，最后一个参数是false（isRefed变量的值），所以setUnrefTimeout设置的定时器是不会影响Libuv事件循环退出的。另外除了Node.js直接提供的api后。我们还可以通过Timeout对象提供的ref和unref手动控制这个状态。
 现在通过一个例子具体来看一下。
 
-```
+```js
     const timeout = setTimeout(() => {  
         console.log(1)  
     }, 10000);  
