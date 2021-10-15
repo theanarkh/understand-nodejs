@@ -126,4 +126,5 @@ nav:
     - 24-拓展Node.js:  chapter20-拓展Node.js.md
     - 25-Node.js子线程调试和诊断指南:  chapter25-Node.js子线程调试和诊断指南
     - 26-vscode调试Node.js:  chapter26-vscode调试Node.js.md
+    - 27-深入理解 Node.js 的 Buffer:  chapter27-深入理解 Node.js 的 Buffer.md
   
