@@ -494,7 +494,7 @@ a.buffer
 console.log(process.memoryUsage().arrayBuffers)
 console.log(new Uint8Array(a.buffer))
 ```
-我们看到输出的内存增加了一个字节，输出的 a.buffer 是 [ 65 ]。
+我们看到输出的内存增加了一个字节，输出的 a.buffer 是 [ 65 ]（申请内存大于 64 字节会在堆外内存分配）。
 # 3 堆外内存的管理
 从之前的分析中我们看到，Node.js Buffer 是基于堆外内存实现的（自己申请进程堆内存或者使用 V8 默认的内存分配器），我们知道，平时使用的变量都是由 V8 负责管理内存的，那么 Buffer 所代表的堆外内存是怎么管理的呢？Buffer 的内存释放也是由 V8 跟踪的，不过释放的逻辑和堆内内存不太一样。我们通过一些例子来分析一下。
 ```c
