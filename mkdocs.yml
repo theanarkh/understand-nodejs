@@ -127,4 +127,6 @@ nav:
     - 24-拓展Node.js:  chapter20-拓展Node.js.md
     - 25-Node.js子线程调试和诊断指南:  chapter25-Node.js子线程调试和诊断指南
     - 26-vscode调试Node.js:  chapter26-vscode调试Node.js.md
+    - 28-Node.js底层原理（架构篇）:  chapter28-Node.js底层原理（架构篇）.md
+    - 29-Node.js底层原理（实现篇）:  chapter29-Node.js底层原理（实现篇）.md
   
