@@ -124,7 +124,7 @@ Node.js中的进程是使用fork+exec模式创建的，fork就是复制主进程
 
 1 异步方式  
 异步方式就是创建一个人子进程后，主进程和子进程独立执行，互不干扰。在主进程的数据结构中如图所示，主进程会记录子进程的信息，子进程退出的时候会用到
-![](https://img-blog.csdnimg.cn/202105260334330.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
+![](https://img-blog.csdnimg.cn/202105260334330.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 2 同步方式  
 ![](https://img-blog.csdnimg.cn/2021052603345684.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 同步创建子进程会导致主进程阻塞，具体的实现是  
@@ -182,7 +182,7 @@ Node.js是单线程的，为了方便用户处理耗时的操作，Node.js在支
 ![](https://img-blog.csdnimg.cn/20210526034038349.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 我们看一下Cluster模块是如何使用的。
 ![](https://img-blog.csdnimg.cn/20210526034125900.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-这个是Cluster模块的使用例子
+这个是Cluster模块的使用例子  
 1 主进程调用fork创建子进程。  
 2 子进程启动一个服务器。  
 通常来说，多个进程监听同一个端口会报错，我们看看Node.js里是怎么处理这个问题的。  
@@ -197,7 +197,7 @@ Node.js是单线程的，为了方便用户处理耗时的操作，Node.js在支
 5 当连接到来的时候，主进程负责接收连接，然后然后通过文件描述符传递的方式分发给子进程处理。  
 ## 子进程accept
 ![](https://img-blog.csdnimg.cn/20210526034212740.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-我们再看一下子进程accept这种模式。
+我们再看一下子进程accept这种模式。  
 1 首先主进程fork多个子进程处理。  
 2 然后在每个子进程里调用listen。  
 3 调用listen函数的时候，子进程会给主进程发送一个消息。  
@@ -207,8 +207,7 @@ Node.js是单线程的，为了方便用户处理耗时的操作，Node.js在支
 为什么需要使用线程池？文件IO、DNS、CPU密集型不适合在Node.js主线程处理，需要把这些任务放到子线程处理。
 ![](https://img-blog.csdnimg.cn/20210526034232881.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
 了解线程池实现之前我们先看看Libuv的异步通信机制，异步通信指的是Libuv主线程和其他子线程之间的通信机制。比如Libuv主线程正在执行回调，子线程同时完成了一个任务，那么如何通知主线程，这就需要用到异步通信机制。
-![](https://img-blog.csdnimg.cn/20210526034309919.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)
-
+![](https://img-blog.csdnimg.cn/20210526034309919.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70)  
 1 Libuv内部维护了一个异步通信的队列，需要异步通信的时候，就往里面插入一个async节点。  
 2 同时Libuv还维护了一个异步通信相关的io观察者。  
 3 当有异步任务完成的时候，就会设置对应async节点的pending字段为1，说明任务完成了。并且通知主线程。  
