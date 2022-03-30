@@ -123,6 +123,8 @@ nav:
     - 22-Async hooks:  chapter23-Async hooks.md
     - 23-Inspector:  chapter24-Inspector.md
     - 27-深入理解 Node.js 的 Buffer:  chapter27-深入理解 Node.js 的 Buffer.md
+    - 30-Node.js 的 trace events 架构:  chapter30-Node.js 的 trace events 架构.md
+    - 31-Node.js 的 perf_hooks:  chapter31-Node.js 的 perf_hooks.md
   - 其他:
     - 24-拓展Node.js:  chapter20-拓展Node.js.md
     - 25-Node.js子线程调试和诊断指南:  chapter25-Node.js子线程调试和诊断指南
