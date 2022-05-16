@@ -650,7 +650,7 @@ BootstrapNode负责初始化执行上下文，代码如下
         this, "internal/bootstrap/node", &node_params, &node_args);
 ```
 
-在全局对象上设置一个global属性，这就是我们在Node.js中使用的global对象。接着执行internal/bootstrap/node.js设置一些变量（具体可以参考nternal/bootstrap/node.js）。
+在全局对象上设置一个global属性，这就是我们在Node.js中使用的global对象。接着执行internal/bootstrap/node.js设置一些变量（具体可以参考internal/bootstrap/node.js）。
 
 ```cpp
     process.cpuUsage = wrapped.cpuUsage;  
