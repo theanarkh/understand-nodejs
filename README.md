@@ -9,4 +9,5 @@
 * [Node.js V10.x 源码注释](https://github.com/theanarkh/read-nodejs-code)<br/>
 * [Libuv 源码注释](https://github.com/theanarkh/read-libuv-code)<br/>
 
-<img title="Thanks" alt="Thanks" width="150" height="150" src="https://user-images.githubusercontent.com/21155906/226823317-fadaf5fa-8f32-423f-90a1-dee8aa5c889f.png">
+<img align='left' title="Thanks" alt="Thanks" width="200" height="200" src="https://user-images.githubusercontent.com/21155906/226823317-fadaf5fa-8f32-423f-90a1-dee8aa5c889f.png">
+<img title="Thanks" alt="Thanks" width="300" height="500" src="https://github.com/theanarkh/understand-nodejs/assets/21155906/ee2413c8-d86c-45f4-b43f-eda949e3bcb6">
