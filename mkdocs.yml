@@ -132,3 +132,6 @@ nav:
     - 28-Node.js底层原理（架构篇）:  chapter28-Node.js底层原理（架构篇）.md
     - 29-Node.js底层原理（实现篇）:  chapter29-Node.js底层原理（实现篇）.md
   
+extra_javascript:
+  - path: extra/image.js
+    defer: true
