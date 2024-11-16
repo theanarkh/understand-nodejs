@@ -1,0 +1,967 @@
+<!doctype html><html lang=zh class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="通过源码分析 Node.js 原理"><meta name=author content=theanarkh><link href=https://github.com/theanarkh/understand-nodejs/chapter19-%E6%A8%A1%E5%9D%97%E5%8A%A0%E8%BD%BD/ rel=canonical><link href=../chapter18-HTTP/ rel=prev><link href=../chapter21-JS%20Stream/ rel=next><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.5.44"><title>19-模块加载 - Node.js 源码剖析</title><link rel=stylesheet href=../assets/stylesheets/main.0253249f.min.css><link rel=stylesheet href=../assets/stylesheets/palette.06af60db.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#191 class=md-skip> 跳转至 </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=页眉> <a href=.. title="Node.js 源码剖析" class="md-header__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> Node.js 源码剖析 </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> 19-模块加载 </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=blue data-md-color-accent=blue aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=搜索 placeholder=搜索 autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=查找> <a href=javascript:void(0) class="md-search__icon md-icon" title=分享 aria-label=分享 data-clipboard data-clipboard-text data-md-component=search-share tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg> </a> <button type=reset class="md-search__icon md-icon" title=清空当前内容 aria-label=清空当前内容 tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> 正在初始化搜索引擎 </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> </nav> <nav class=md-tabs aria-label=标签 data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-tabs__link> 前言 </a> </li> <li class=md-tabs__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-tabs__link> Node.js基础和架构 </a> </li> <li class="md-tabs__item md-tabs__item--active"> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-tabs__link> Node.js核心模块的实现 </a> </li> <li class=md-tabs__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-tabs__link> 其他 </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=导航栏 data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title="Node.js 源码剖析" class="md-nav__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> Node.js 源码剖析 </label> <div class=md-nav__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class=md-nav__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-nav__link> <span class=md-ellipsis> 前言 </span> </a> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_3> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex=0> <span class=md-ellipsis> Node.js基础和架构 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=false> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Node.js基础和架构 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 01-Node.js组成和原理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ class=md-nav__link> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </a> </li> <li class=md-nav__item> <a href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ class=md-nav__link> <span class=md-ellipsis> 03-事件循环 </span> </a> </li> <li class=md-nav__item> <a href=../chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ class=md-nav__link> <span class=md-ellipsis> 04-线程池 </span> </a> </li> <li class=md-nav__item> <a href=../chapter05-Libuv%E6%B5%81/ class=md-nav__link> <span class=md-ellipsis> 05-Libuv流 </span> </a> </li> <li class=md-nav__item> <a href=../chapter06-C%2B%2B%E5%B1%82/ class=md-nav__link> <span class=md-ellipsis> 06-C++层 </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_4 checked> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex> <span class=md-ellipsis> Node.js核心模块的实现 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=true> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Node.js核心模块的实现 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 07-信号处理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter08-DNS/ class=md-nav__link> <span class=md-ellipsis> 08-DNS </span> </a> </li> <li class=md-nav__item> <a href=../chapter09-Unix%E5%9F%9F/ class=md-nav__link> <span class=md-ellipsis> 09-Unix域 </span> </a> </li> <li class=md-nav__item> <a href=../chapter10-%E5%AE%9A%E6%97%B6%E5%99%A8/ class=md-nav__link> <span class=md-ellipsis> 10-定时器 </span> </a> </li> <li class=md-nav__item> <a href=../chapter11-setImmediate%E5%92%8CnextTick/ class=md-nav__link> <span class=md-ellipsis> 11-setImmediate和nextTick </span> </a> </li> <li class=md-nav__item> <a href=../chapter12-%E6%96%87%E4%BB%B6/ class=md-nav__link> <span class=md-ellipsis> 12-文件 </span> </a> </li> <li class=md-nav__item> <a href=../chapter13-%E8%BF%9B%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 13-进程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter14-%E7%BA%BF%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 14-线程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter15-Cluster/ class=md-nav__link> <span class=md-ellipsis> 15-Cluster </span> </a> </li> <li class=md-nav__item> <a href=../chapter16-UDP/ class=md-nav__link> <span class=md-ellipsis> 16-UDP </span> </a> </li> <li class=md-nav__item> <a href=../chapter17-TCP/ class=md-nav__link> <span class=md-ellipsis> 17-TCP </span> </a> </li> <li class=md-nav__item> <a href=../chapter18-HTTP/ class=md-nav__link> <span class=md-ellipsis> 18-HTTP </span> </a> </li> <li class="md-nav__item md-nav__item--active"> <input class="md-nav__toggle md-toggle" type=checkbox id=__toc> <label class="md-nav__link md-nav__link--active" for=__toc> <span class=md-ellipsis> 19-模块加载 </span> <span class="md-nav__icon md-icon"></span> </label> <a href=./ class="md-nav__link md-nav__link--active"> <span class=md-ellipsis> 19-模块加载 </span> </a> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#191 class=md-nav__link> <span class=md-ellipsis> 19.1 加载用户模块 </span> </a> <nav class=md-nav aria-label="19.1 加载用户模块"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#1911-json class=md-nav__link> <span class=md-ellipsis> 19.1.1 加载JSON模块 </span> </a> </li> <li class=md-nav__item> <a href=#1912-js class=md-nav__link> <span class=md-ellipsis> 19.1.2 加载JS模块 </span> </a> </li> <li class=md-nav__item> <a href=#1913-node class=md-nav__link> <span class=md-ellipsis> 19.1.3 加载node模块 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#192-js class=md-nav__link> <span class=md-ellipsis> 19.2 加载原生JS模块 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../chapter21-JS%20Stream/ class=md-nav__link> <span class=md-ellipsis> 20-JS Stream </span> </a> </li> <li class=md-nav__item> <a href=../chapter22-events%E6%A8%A1%E5%9D%97/ class=md-nav__link> <span class=md-ellipsis> 21-events模块 </span> </a> </li> <li class=md-nav__item> <a href=../chapter23-Async%20hooks/ class=md-nav__link> <span class=md-ellipsis> 22-Async hooks </span> </a> </li> <li class=md-nav__item> <a href=../chapter24-Inspector/ class=md-nav__link> <span class=md-ellipsis> 23-Inspector </span> </a> </li> <li class=md-nav__item> <a href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ class=md-nav__link> <span class=md-ellipsis> 27-深入理解 Node.js 的 Buffer </span> </a> </li> <li class=md-nav__item> <a href=../chapter30-Node.js%20%E7%9A%84%20trace%20events%20%E6%9E%B6%E6%9E%84/ class=md-nav__link> <span class=md-ellipsis> 30-Node.js 的 trace events 架构 </span> </a> </li> <li class=md-nav__item> <a href=../chapter31-Node.js%20%E7%9A%84%20perf_hooks/ class=md-nav__link> <span class=md-ellipsis> 31-Node.js 的 perf_hooks </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> 其他 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> 其他 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 24-拓展Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter25-Node.js子线程调试和诊断指南 class=md-nav__link> <span class=md-ellipsis> 25-Node.js子线程调试和诊断指南 </span> </a> </li> <li class=md-nav__item> <a href=../chapter26-vscode%E8%B0%83%E8%AF%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 26-vscode调试Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter28-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E6%9E%B6%E6%9E%84%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 28-Node.js底层原理（架构篇） </span> </a> </li> <li class=md-nav__item> <a href=../chapter29-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E5%AE%9E%E7%8E%B0%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 29-Node.js底层原理（实现篇） </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#191 class=md-nav__link> <span class=md-ellipsis> 19.1 加载用户模块 </span> </a> <nav class=md-nav aria-label="19.1 加载用户模块"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#1911-json class=md-nav__link> <span class=md-ellipsis> 19.1.1 加载JSON模块 </span> </a> </li> <li class=md-nav__item> <a href=#1912-js class=md-nav__link> <span class=md-ellipsis> 19.1.2 加载JS模块 </span> </a> </li> <li class=md-nav__item> <a href=#1913-node class=md-nav__link> <span class=md-ellipsis> 19.1.3 加载node模块 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#192-js class=md-nav__link> <span class=md-ellipsis> 19.2 加载原生JS模块 </span> </a> </li> </ul> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <h1>19-模块加载</h1> <p>Node.js的模块分为用户JS模块、Node.js原生JS模块、Node.js内置C++模块。本章介绍这些模块加载的原理以及Node.js中模块加载器的类型和原理。 下面我们以一个例子为开始，分析Node.js中模块加载的原理。假设我们有一个文件demo.js，代码如下</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>myjs</span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=err>‘</span><span class=nx>myjs</span><span class=p>);</span><span class=w> </span>
+<span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>net</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=err>‘</span><span class=nx>net</span><span class=err>’</span><span class=p>);</span><span class=w> </span>
+</code></pre></div></td></tr></table></div> <p>其中myjs的代码如下</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>exports</span><span class=p>.</span><span class=nx>hello</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=err>‘</span><span class=nx>world</span><span class=err>’</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <p>我们看一下执行node demo.js的时候，过程是怎样的。在Node.js启动章节我们分析过，Node.js启动的时候，会执行以下代码。 require('internal/modules/cjs/loader').Module.runMain(process.argv[1]) 其中runMain函数在pre_execution.js的initializeCJSLoader中挂载</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>initializeCJSLoader</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>CJSLoader</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=s1>&#39;internal/modules/cjs/loader&#39;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>CJSLoader</span><span class=p>.</span><span class=nx>Module</span><span class=p>.</span><span class=nx>_initPaths</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>CJSLoader</span><span class=p>.</span><span class=nx>Module</span><span class=p>.</span><span class=nx>runMain</span><span class=w> </span><span class=o>=</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>require</span><span class=p>(</span><span class=s1>&#39;internal/modules/run_main&#39;</span><span class=p>).</span><span class=nx>executeUserEntryPoint</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到runMain是run_main.js导出的函数。继续往下看</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>CJSLoader</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=s1>&#39;internal/modules/cjs/loader&#39;</span><span class=p>);</span>
+<span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=nx>Module</span><span class=w> </span><span class=p>}</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>CJSLoader</span><span class=p>;</span>
+<span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>executeUserEntryPoint</span><span class=p>(</span><span class=nx>main</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>process</span><span class=p>.</span><span class=nx>argv</span><span class=p>[</span><span class=mf>1</span><span class=p>])</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>resolvedMain</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>resolveMainPath</span><span class=p>(</span><span class=nx>main</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>useESMLoader</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>shouldUseESMLoader</span><span class=p>(</span><span class=nx>resolvedMain</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>useESMLoader</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>runMainESM</span><span class=p>(</span><span class=nx>resolvedMain</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=nx>main</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_load</span><span class=p>(</span><span class=nx>main</span><span class=p>,</span><span class=w> </span><span class=kc>null</span><span class=p>,</span><span class=w> </span><span class=kc>true</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=nx>module</span><span class=p>.</span><span class=nx>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>executeUserEntryPoint</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>process.argv[1]就是我们要执行的JS文件。最后通过cjs/loader.js的Module._load加载了我们的JS。下面我们看一下具体的处理逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_load</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>request</span><span class=p>,</span><span class=w> </span><span class=nx>parent</span><span class=p>,</span><span class=w> </span><span class=nx>isMain</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>filename</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_resolveFilename</span><span class=p>(</span><span class=nx>request</span><span class=p>,</span><span class=w> </span><span class=nx>parent</span><span class=p>,</span><span class=w> </span><span class=nx>isMain</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>cachedModule</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_cache</span><span class=p>[</span><span class=nx>filename</span><span class=p>];</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 有缓存则直接返回  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>cachedModule</span><span class=w> </span><span class=o>!==</span><span class=w> </span><span class=kc>undefined</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>updateChildren</span><span class=p>(</span><span class=nx>parent</span><span class=p>,</span><span class=w> </span><span class=nx>cachedModule</span><span class=p>,</span><span class=w> </span><span class=kc>true</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=nx>cachedModule</span><span class=p>.</span><span class=nx>loaded</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=w> </span><span class=nx>getExportsForCircularRequire</span><span class=p>(</span><span class=nx>cachedModule</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nx>cachedModule</span><span class=p>.</span><span class=nx>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 是否是可访问的原生JS模块，是则返回  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>mod</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>loadNativeModule</span><span class=p>(</span><span class=nx>filename</span><span class=p>,</span><span class=w> </span><span class=nx>request</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>mod</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=nx>mod</span><span class=p>.</span><span class=nx>canBeRequiredByUsers</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=nx>mod</span><span class=p>.</span><span class=nx>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 非原生JS模块，则新建一个Module表示加载的模块  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>Module</span><span class=p>(</span><span class=nx>filename</span><span class=p>,</span><span class=w> </span><span class=nx>parent</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 缓存  </span>
+<span class=w>      </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_cache</span><span class=p>[</span><span class=nx>filename</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>module</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 加载</span>
+<span class=w>      </span><span class=nx>module</span><span class=p>.</span><span class=nx>load</span><span class=p>(</span><span class=nx>filename</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 调用方拿到的是module.exports的值</span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nx>module</span><span class=p>.</span><span class=nx>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>_load函数主要是三个逻辑<br> 1 判断是否有缓存，有则返回。<br> 2 没有缓存，则判断是否是原生JS模块，是则交给原生模块处理。<br> 1 不是原生模块，则新建一个Module表示用户的JS模块，然后执行load函数加载。<br> 这里我们只需要关注3的逻辑，在Node.js中，用户定义的模块使用Module表示。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>Module</span><span class=p>(</span><span class=nx>id</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=s1>&#39;&#39;</span><span class=p>,</span><span class=w> </span><span class=nx>parent</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 模块对应的文件路径  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>id</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>id</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>path</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>path</span><span class=p>.</span><span class=nx>dirname</span><span class=p>(</span><span class=nx>id</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 在模块里使用的exports变量  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>{};</span><span class=w>  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>parent</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>parent</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 加入父模块的children队列  </span>
+<span class=w>      </span><span class=nx>updateChildren</span><span class=p>(</span><span class=nx>parent</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=kc>false</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>filename</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>null</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 是否已经加载  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>loaded</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>false</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>children</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>[];</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>接着看一下load函数的逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>prototype</span><span class=p>.</span><span class=nx>load</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>filename</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>filename</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>filename</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 拓展名  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>extension</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>findLongestRegisteredExtension</span><span class=p>(</span><span class=nx>filename</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 根据拓展名使用不同的加载方式  </span>
+<span class=w>      </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_extensions</span><span class=p>[</span><span class=nx>extension</span><span class=p>](</span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=nx>filename</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>this</span><span class=p>.</span><span class=nx>loaded</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>true</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Node.js会根据不同的文件拓展名使用不同的函数处理。</p> <h2 id=191>19.1 加载用户模块<a class=headerlink href=#191 title="Permanent link">&para;</a></h2> <p>在Node.js中_extensions有三种，分别是js、json、node。</p> <h3 id=1911-json>19.1.1 加载JSON模块<a class=headerlink href=#1911-json title="Permanent link">&para;</a></h3> <p>加载JSON模块是比较简单的</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_extensions</span><span class=p>[</span><span class=s1>&#39;.json&#39;</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>module</span><span class=p>,</span><span class=w> </span><span class=nx>filename</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>content</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>fs</span><span class=p>.</span><span class=nx>readFileSync</span><span class=p>(</span><span class=nx>filename</span><span class=p>,</span><span class=w> </span><span class=s1>&#39;utf8&#39;</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>try</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>module</span><span class=p>.</span><span class=nx>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>JSONParse</span><span class=p>(</span><span class=nx>stripBOM</span><span class=p>(</span><span class=nx>content</span><span class=p>));</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>catch</span><span class=w> </span><span class=p>(</span><span class=nx>err</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>err</span><span class=p>.</span><span class=nx>message</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>filename</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s1>&#39;: &#39;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=nx>err</span><span class=p>.</span><span class=nx>message</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>throw</span><span class=w> </span><span class=nx>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>直接读取JSON文件的内容，然后解析成对象就行。</p> <h3 id=1912-js>19.1.2 加载JS模块<a class=headerlink href=#1912-js title="Permanent link">&para;</a></h3> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_extensions</span><span class=p>[</span><span class=s1>&#39;.js&#39;</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>module</span><span class=p>,</span><span class=w> </span><span class=nx>filename</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>content</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>fs</span><span class=p>.</span><span class=nx>readFileSync</span><span class=p>(</span><span class=nx>filename</span><span class=p>,</span><span class=w> </span><span class=s1>&#39;utf8&#39;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>module</span><span class=p>.</span><span class=nx>_compile</span><span class=p>(</span><span class=nx>content</span><span class=p>,</span><span class=w> </span><span class=nx>filename</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>读完文件的内容，然后执行_compile</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>prototype</span><span class=p>.</span><span class=nx>_compile</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>content</span><span class=p>,</span><span class=w> </span><span class=nx>filename</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 生成一个函数  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>compiledWrapper</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>wrapSafe</span><span class=p>(</span><span class=nx>filename</span><span class=p>,</span><span class=w> </span><span class=nx>content</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>dirname</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>path</span><span class=p>.</span><span class=nx>dirname</span><span class=p>(</span><span class=nx>filename</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// require是对_load函数的封装 </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>require</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=nx>path</span><span class=p>)</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span>
+<span class=w>          </span><span class=k>return</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>require</span><span class=p>(</span><span class=nx>path</span><span class=p>);</span>
+<span class=w>        </span><span class=p>};</span>
+<span class=w>      </span><span class=kd>let</span><span class=w> </span><span class=nx>result</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 我们平时使用的exports变量</span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>thisValue</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>exports</span><span class=p>;</span><span class=w> </span>
+<span class=w>        </span><span class=c1>// 我们平时使用的module变量 </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>this</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 执行函数  </span>
+<span class=w>      </span><span class=nx>result</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>compiledWrapper</span><span class=p>.</span><span class=nx>call</span><span class=p>(</span><span class=nx>thisValue</span><span class=p>,</span>
+<span class=w>                                        </span><span class=nx>exports</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                        </span><span class=nx>require</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                        </span><span class=nx>module</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                        </span><span class=nx>filename</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                        </span><span class=nx>dirname</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nx>result</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>_compile里面包括了几个重要的逻辑 1 wrapSafe：包裹我们的代码并生成一个函数 2 require：支持在模块内加载其他模块 3 执行模块代码 我们看一下这三个逻辑。 1 wrapSafe</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>wrapSafe</span><span class=p>(</span><span class=nx>filename</span><span class=p>,</span><span class=w> </span><span class=nx>content</span><span class=p>,</span><span class=w> </span><span class=nx>cjsModuleInstance</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>    </span>
+<span class=w>        </span><span class=kd>const</span><span class=w> </span><span class=nx>wrapper</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>Module</span><span class=p>.</span><span class=nx>wrap</span><span class=p>(</span><span class=nx>content</span><span class=p>);</span><span class=w>    </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nx>vm</span><span class=p>.</span><span class=nx>runInThisContext</span><span class=p>(</span><span class=nx>wrapper</span><span class=p>,</span><span class=w> </span><span class=p>{</span><span class=w>    </span>
+<span class=w>          </span><span class=nx>filename</span><span class=p>,</span><span class=w>    </span>
+<span class=w>          </span><span class=nx>lineOffset</span><span class=o>:</span><span class=w> </span><span class=mf>0</span><span class=p>,</span><span class=w>    </span>
+<span class=w>          </span><span class=p>...</span><span class=w>    </span>
+<span class=w>        </span><span class=p>});</span><span class=w>    </span>
+<span class=w>    </span><span class=p>}</span><span class=w>    </span>
+
+<span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>wrapper</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>[</span><span class=w>    </span>
+<span class=w>      </span><span class=s1>&#39;(function (exports, require, module, __filename, __dirname) { &#39;</span><span class=p>,</span><span class=w>    </span>
+<span class=w>      </span><span class=s1>&#39;\n});&#39;</span><span class=w>    </span>
+<span class=w>    </span><span class=p>];</span><span class=w>    </span>
+
+<span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>script</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>    </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nx>Module</span><span class=p>.</span><span class=nx>wrapper</span><span class=p>[</span><span class=mf>0</span><span class=p>]</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=nx>script</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=nx>Module</span><span class=p>.</span><span class=nx>wrapper</span><span class=p>[</span><span class=mf>1</span><span class=p>];</span><span class=w>    </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>vm.runInThisContext的第一个参数是”(function() {})”的时候，会返回一个函数。所以执行Module.wrap后会返回一个字符串，内容如下</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=p>(</span><span class=kd>function</span><span class=w> </span><span class=p>(</span><span class=nx>exports</span><span class=p>,</span><span class=w> </span><span class=nx>require</span><span class=p>,</span><span class=w> </span><span class=nx>module</span><span class=p>,</span><span class=w> </span><span class=nx>__filename</span><span class=p>,</span><span class=w> </span><span class=nx>__dirname</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span>
+<span class=w>      </span><span class=c1>// </span>
+<span class=w>    </span><span class=p>});</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>接着我们看一下require函数，即我们平时在代码中使用的require。 2 require</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>prototype</span><span class=p>.</span><span class=nx>require</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>id</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>requireDepth</span><span class=o>++</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>try</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_load</span><span class=p>(</span><span class=nx>id</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=cm>/* isMain */</span><span class=w> </span><span class=kc>false</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>finally</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>requireDepth</span><span class=o>--</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>require是对Module._load的封装，Module._load会把模块导出的变量通过module.exports属性返回给require调用方。因为Module._load只会从原生JS模块和用户JS模块中查找用户需要加载的模块，所以是无法访问C++模块的，访问C++模块可用process.bindng或internalBinding。 3 执行代码 我们回到_compile函数。看一下执行vm.runInThisContext返回的函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=nx>compiledWrapper</span><span class=p>.</span><span class=nx>call</span><span class=p>(</span><span class=nx>exports</span><span class=p>,</span>
+<span class=w>                     </span><span class=nx>exports</span><span class=p>,</span>
+<span class=w>                     </span><span class=nx>require</span><span class=p>,</span>
+<span class=w>                     </span><span class=nx>module</span><span class=p>,</span>
+<span class=w>                     </span><span class=nx>filename</span><span class=p>,</span>
+<span class=w>                     </span><span class=nx>dirname</span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>相当于执行以下代码</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=p>(</span><span class=kd>function</span><span class=w> </span><span class=p>(</span><span class=nx>exports</span><span class=p>,</span><span class=w> </span><span class=nx>require</span><span class=p>,</span><span class=w> </span><span class=nx>module</span><span class=p>,</span><span class=w> </span><span class=nx>__filename</span><span class=p>,</span><span class=w> </span><span class=nx>__dirname</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>myjs</span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=err>‘</span><span class=nx>myjs</span><span class=p>);</span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>net</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=err>‘</span><span class=nx>net</span><span class=err>’</span><span class=p>);</span>
+<span class=w>    </span><span class=p>});</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>至此，Node.js开始执行用户的JS代码。刚才我们我们已经分析过require是对Module._load的封装，当执行require加载用户模块时，又回到了我们正在分析的这个过程。</p> <h3 id=1913-node>19.1.3 加载node模块<a class=headerlink href=#1913-node title="Permanent link">&para;</a></h3> <p>Node拓展的模块本质上是动态链接库，我们看require一个.node模块的时候的过程。我们从加载.node模块的源码开始。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Module</span><span class=p>.</span><span class=nx>_extensions</span><span class=p>[</span><span class=s1>&#39;.node&#39;</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>module</span><span class=p>,</span><span class=w> </span><span class=nx>filename</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// ...  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nx>process</span><span class=p>.</span><span class=nx>dlopen</span><span class=p>(</span><span class=nx>module</span><span class=p>,</span><span class=w> </span><span class=nx>path</span><span class=p>.</span><span class=nx>toNamespacedPath</span><span class=p>(</span><span class=nx>filename</span><span class=p>));</span><span class=w> </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>直接调了process.dlopen，该函数在node.js里定义。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>rawMethods</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>(</span><span class=s1>&#39;process_methods&#39;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>process</span><span class=p>.</span><span class=nx>dlopen</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>rawMethods</span><span class=p>.</span><span class=nx>dlopen</span><span class=p>;</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>找到process_methods模块对应的是node_process_methods.cc。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>env</span><span class=o>-&gt;</span><span class=n>SetMethod</span><span class=p>(</span><span class=n>target</span><span class=p>,</span><span class=w> </span><span class=s>&quot;dlopen&quot;</span><span class=p>,</span><span class=w> </span><span class=n>binding</span><span class=o>::</span><span class=n>DLOpen</span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>之前说过，Node.js的拓展模块其实是动态链接库，那么我们先看看一个动态链接库我们是如何使用的。以下是示例代码。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=cp>#include</span><span class=w> </span><span class=cpf>&lt;stdio.h&gt;</span><span class=c1>  </span>
+<span class=w>    </span><span class=cp>#include</span><span class=w> </span><span class=cpf>&lt;stdlib.h&gt;</span><span class=c1>  </span>
+<span class=w>    </span><span class=cp>#include</span><span class=w> </span><span class=cpf>&lt;dlfcn.h&gt;</span><span class=c1>  </span>
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>main</span><span class=p>(){</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 打开一个动态链接库，拿到一个handler  </span>
+<span class=w>        </span><span class=n>handler</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>dlopen</span><span class=p>(</span><span class=err>&#39;</span><span class=n>xxx</span><span class=p>.</span><span class=n>so</span><span class=err>&#39;</span><span class=p>,</span><span class=n>RTLD_LAZY</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 取出动态链接库里的函数add  </span>
+<span class=w>        </span><span class=n>add</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>dlsym</span><span class=p>(</span><span class=n>handler</span><span class=p>,</span><span class=s>&quot;add&quot;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 执行  </span>
+<span class=w>        </span><span class=n>printf</span><span class=p>(</span><span class=s>&quot;%d&quot;</span><span class=p>,</span><span class=n>add</span><span class=p>(</span><span class=mi>1</span><span class=p>,</span><span class=mi>1</span><span class=p>));</span><span class=w>  </span>
+<span class=w>        </span><span class=n>dlclose</span><span class=p>(</span><span class=n>handler</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>了解动态链接库的使用，我们继续分析刚才看到的DLOpen函数。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>DLOpen</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>FunctionCallbackInfo</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+
+<span class=w>      </span><span class=kt>int32_t</span><span class=w> </span><span class=n>flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>DLib</span><span class=o>::</span><span class=n>kDefaultFlags</span><span class=p>;</span>
+<span class=w>      </span><span class=n>node</span><span class=o>::</span><span class=n>Utf8Value</span><span class=w> </span><span class=n>filename</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>(),</span><span class=w> </span><span class=n>args</span><span class=p>[</span><span class=mi>1</span><span class=p>]);</span><span class=w>  </span><span class=c1>// Cast  </span>
+<span class=w>      </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>TryLoadAddon</span><span class=p>(</span><span class=o>*</span><span class=n>filename</span><span class=p>,</span><span class=w> </span><span class=n>flags</span><span class=p>,</span><span class=w> </span><span class=p>[</span><span class=o>&amp;</span><span class=p>](</span><span class=n>DLib</span><span class=o>*</span><span class=w> </span><span class=n>dlib</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>const</span><span class=w> </span><span class=kt>bool</span><span class=w> </span><span class=n>is_opened</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>dlib</span><span class=o>-&gt;</span><span class=n>Open</span><span class=p>();</span><span class=w> </span>
+<span class=w>        </span><span class=n>node_module</span><span class=o>*</span><span class=w> </span><span class=n>mp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>thread_local_modpending</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>thread_local_modpending</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>nullptr</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 省略部分代码  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_context_register_func</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_context_register_func</span><span class=p>(</span><span class=n>exports</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                             </span><span class=k>module</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                             </span><span class=n>context</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                             </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_priv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_register_func</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_register_func</span><span class=p>(</span><span class=n>exports</span><span class=p>,</span><span class=w> </span><span class=k>module</span><span class=p>,</span><span class=w> </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_priv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>   </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nb>true</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>});</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到重点是TryLoadAddon函数，该函数的逻辑就是执行它的第三个参数。我们发现第三个参数是一个函数，入参是DLib对象。所以我们先看看这个类。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>class</span><span class=w> </span><span class=nc>DLib</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>     </span><span class=k>public</span><span class=o>:</span><span class=w>  </span>
+<span class=w>      </span><span class=k>static</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>kDefaultFlags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>RTLD_LAZY</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>DLib</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>filename</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>flags</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=kt>bool</span><span class=w> </span><span class=nf>Open</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>void</span><span class=w> </span><span class=nf>Close</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=w> </span><span class=n>filename_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>const</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>flags_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=w> </span><span class=n>errmsg_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>handle_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_lib_t</span><span class=w> </span><span class=n>lib_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>再看一下实现。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>bool</span><span class=w> </span><span class=nf>DLib::Open</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>dlopen</span><span class=p>(</span><span class=n>filename_</span><span class=p>.</span><span class=n>c_str</span><span class=p>(),</span><span class=w> </span><span class=n>flags_</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle_</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=nb>true</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>errmsg_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>dlerror</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nb>false</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>DLib就是对动态链接库的一个封装，它封装了动态链接库的文件名和操作。TryLoadAddon函数首先根据require传入的文件名，构造一个DLib，然后执行 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=k>const</span><span class=w> </span><span class=kt>bool</span><span class=w> </span><span class=n>is_opened</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>dlib</span><span class=o>-&gt;</span><span class=n>Open</span><span class=p>();</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Open函数打开了一个动态链接库，这时候我们要先了解一下打开一个动态链接库究竟发生了什么。首先我们一般C++插件最后一句代码的定义。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>NAPI_MODULE</span><span class=p>(</span><span class=n>NODE_GYP_MODULE_NAME</span><span class=p>,</span><span class=w> </span><span class=n>init</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>这是个宏定义。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=cp>#define NAPI_MODULE(modname, regfunc) \    </span>
+<span class=w>      </span><span class=n>NAPI_MODULE_X</span><span class=p>(</span><span class=n>modname</span><span class=p>,</span><span class=w> </span><span class=n>regfunc</span><span class=p>,</span><span class=w> </span><span class=nb>NULL</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>    </span>
+<span class=w>     </span><span class=cp>#define NAPI_MODULE_X(modname, regfunc, priv, flags)                  \    </span>
+<span class=w>        </span><span class=k>static</span><span class=w> </span><span class=n>napi_module</span><span class=w> </span><span class=n>_module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=err>\</span><span class=w>    </span>
+<span class=w>        </span><span class=p>{</span><span class=w>                  </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=n>NAPI_MODULE_VERSION</span><span class=p>,</span><span class=w> </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=n>flags</span><span class=p>,</span><span class=w>          </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=n>__FILE__</span><span class=p>,</span><span class=w>        </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=n>regfunc</span><span class=p>,</span><span class=w>        </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=cp>#modname,        \    </span>
+<span class=w>          </span><span class=n>priv</span><span class=p>,</span><span class=w>            </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=p>{</span><span class=mi>0</span><span class=p>},</span><span class=w>            </span><span class=err>\</span><span class=w>    </span>
+<span class=w>        </span><span class=p>};</span><span class=w>                </span><span class=err>\</span><span class=w>    </span>
+<span class=w>        </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=n>_register_modname</span><span class=p>(</span><span class=kt>void</span><span class=p>)</span><span class=w> </span><span class=n>__attribute__</span><span class=p>((</span><span class=n>constructor</span><span class=p>));</span><span class=w> </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=n>_register_modname</span><span class=p>(</span><span class=kt>void</span><span class=p>)</span><span class=w>      </span><span class=p>{</span><span class=w>    </span><span class=err>\</span><span class=w>    </span>
+<span class=w>          </span><span class=n>napi_module_register</span><span class=p>(</span><span class=o>&amp;</span><span class=n>_module</span><span class=p>);</span><span class=w>  </span><span class=err>\</span><span class=w>    </span>
+<span class=w>        </span><span class=p>}</span><span class=w>      </span>
+</code></pre></div></td></tr></table></div> <p>所以一个node扩展就是定义了一个napi_module模块和一个register_modname（modname是我们定义的）函数。__attribute((constructor))是代表该函数会先执行的意思，具体可以查阅文档。看到这里我们知道，当我们打开一个动态链接库的时候，会执行_register_modname函数，该函数执行的是 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>napi_module_register</span><span class=p>(</span><span class=o>&amp;</span><span class=n>_module</span><span class=p>);</span><span class=w>    </span>
+</code></pre></div></td></tr></table></div> <p>我们继续展开。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// Registers a NAPI module.  </span>
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>napi_module_register</span><span class=p>(</span><span class=n>napi_module</span><span class=o>*</span><span class=w> </span><span class=n>mod</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>node</span><span class=o>::</span><span class=n>node_module</span><span class=o>*</span><span class=w> </span><span class=n>nm</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>node</span><span class=o>::</span><span class=n>node_module</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=mi>-1</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>mod</span><span class=o>-&gt;</span><span class=n>nm_flags</span><span class=w> </span><span class=o>|</span><span class=w> </span><span class=n>NM_F_DELETEME</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=k>nullptr</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>mod</span><span class=o>-&gt;</span><span class=n>nm_filename</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=k>nullptr</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>napi_module_register_cb</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>mod</span><span class=o>-&gt;</span><span class=n>nm_modname</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>mod</span><span class=p>,</span><span class=w>  </span><span class=c1>// priv  </span>
+<span class=w>        </span><span class=k>nullptr</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=p>};</span><span class=w>  </span>
+<span class=w>      </span><span class=n>node</span><span class=o>::</span><span class=n>node_module_register</span><span class=p>(</span><span class=n>nm</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Node.js把napi模块转成node_module。最后调用node_module_register。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>extern</span><span class=w> </span><span class=s>&quot;C&quot;</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=n>node_module_register</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>m</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>node_module</span><span class=o>*</span><span class=w> </span><span class=n>mp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=k>struct</span><span class=w> </span><span class=nc>node_module</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>m</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>NM_F_INTERNAL</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_link</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>modlist_internal</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>modlist_internal</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>mp</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>node_is_initialized</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>NM_F_LINKED</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_link</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>modlist_linked</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>modlist_linked</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>mp</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>thread_local_modpending</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>mp</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>napi模块不是NM_F_INTERNAL模块，node_is_initialized是在Node.js初始化时设置的变量，这时候已经是true。所以注册napi模块时，会执行thread_local_modpending = mp。thread_local_modpending 类似一个全局变量，保存当前加载的模块。分析到这，我们回到DLOpen函数。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>node_module</span><span class=o>*</span><span class=w> </span><span class=n>mp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>thread_local_modpending</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=n>thread_local_modpending</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>nullptr</span><span class=p>;</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>这时候我们就知道刚才那个变量thread_local_modpending的作用了。node_module* mp = thread_local_modpending后我们拿到了我们刚才定义的napi模块的信息。接着执行node_module的函数nm_register_func。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_context_register_func</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_context_register_func</span><span class=p>(</span><span class=n>exports</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                     </span><span class=k>module</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                     </span><span class=n>context</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                     </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_priv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>     </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_register_func</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>       </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_register_func</span><span class=p>(</span><span class=n>exports</span><span class=p>,</span><span class=w> </span><span class=k>module</span><span class=p>,</span><span class=w> </span><span class=n>mp</span><span class=o>-&gt;</span><span class=n>nm_priv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>     </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>从刚才的node_module定义中我们看到函数是napi_module_register_cb。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>napi_module_register_cb</span><span class=p>(</span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>exports</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                      </span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=k>module</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                      </span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=n>context</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                      </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>priv</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>napi_module_register_by_symbol</span><span class=p>(</span><span class=n>exports</span><span class=p>,</span><span class=w> </span><span class=k>module</span><span class=p>,</span><span class=w> </span><span class=n>context</span><span class=p>,</span><span class=w>  </span>
+<span class=w>          </span><span class=k>static_cast</span><span class=o>&lt;</span><span class=n>napi_module</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>priv</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>nm_register_func</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>该函数调用napi_module_register_by_symbol函数，并传入napi_module的nm_register_func函数。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>napi_module_register_by_symbol</span><span class=p>(</span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>exports</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                      </span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=k>module</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                      </span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=n>context</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                      </span><span class=n>napi_addon_register_func</span><span class=w> </span><span class=n>init</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// Create a new napi_env for this specific module.  </span>
+<span class=w>      </span><span class=n>napi_env</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>v8impl</span><span class=o>::</span><span class=n>NewEnv</span><span class=p>(</span><span class=n>context</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>napi_value</span><span class=w> </span><span class=n>_exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>CallIntoModuleThrow</span><span class=p>([</span><span class=o>&amp;</span><span class=p>](</span><span class=n>napi_env</span><span class=w> </span><span class=n>env</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>_exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>init</span><span class=p>(</span><span class=n>env</span><span class=p>,</span><span class=w> </span><span class=n>v8impl</span><span class=o>::</span><span class=n>JsValueFromV8LocalValue</span><span class=p>(</span><span class=n>exports</span><span class=p>));</span><span class=w>  </span>
+<span class=w>      </span><span class=p>});</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>_exports</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w>  </span>
+<span class=w>          </span><span class=n>_exports</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=n>v8impl</span><span class=o>::</span><span class=n>JsValueFromV8LocalValue</span><span class=p>(</span><span class=n>exports</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w> </span>
+<span class=w>        </span><span class=n>napi_value</span><span class=w> </span><span class=n>_module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>v8impl</span><span class=o>::</span><span class=n>JsValueFromV8LocalValue</span><span class=p>(</span><span class=k>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>napi_set_named_property</span><span class=p>(</span><span class=n>env</span><span class=p>,</span><span class=w> </span><span class=n>_module</span><span class=p>,</span><span class=w> </span><span class=s>&quot;exports&quot;</span><span class=p>,</span><span class=w> </span><span class=n>_exports</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>init就是我们定义的函数。入参是env和exports，可以对比我们定义的函数的入参。最后我们修改exports变量。即设置导出的内容。最后在JS里，我们就拿到了C++层定义的内容。 </p> <h2 id=192-js>19.2 加载原生JS模块<a class=headerlink href=#192-js title="Permanent link">&para;</a></h2> <p>上一节我们了解了Node.js执行node demo.js的过程，其中我们在demo.js中使用require加载net模块。net是原生JS模块。这时候就会进入原生模块的处理逻辑。 原生模块是Node.js内部实现的JS模块。使用NativeModule来表示。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>class</span><span class=w> </span><span class=nx>NativeModule</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 原生JS模块的map  </span>
+<span class=w>      </span><span class=k>static</span><span class=w> </span><span class=nx>map</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nb>Map</span><span class=p>(</span><span class=nx>moduleIds</span><span class=p>.</span><span class=nx>map</span><span class=p>((</span><span class=nx>id</span><span class=p>)</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>[</span><span class=nx>id</span><span class=p>,</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>NativeModule</span><span class=p>(</span><span class=nx>id</span><span class=p>)]));</span><span class=w>  </span>
+
+<span class=w>      </span><span class=kr>constructor</span><span class=p>(</span><span class=nx>id</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>filename</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=sb>`</span><span class=si>${</span><span class=nx>id</span><span class=si>}</span><span class=sb>.js`</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>id</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>id</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>canBeRequiredByUsers</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>!</span><span class=nx>id</span><span class=p>.</span><span class=nx>startsWith</span><span class=p>(</span><span class=s1>&#39;internal/&#39;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>{};</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>loaded</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>false</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>loading</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>false</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>undefined</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>exportKeys</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>undefined</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w> </span>
+</code></pre></div></td></tr></table></div> <p>当我们执行require(‘net’)时，就会进入_load函数。_load函数判断要加载的模块是原生JS模块后，会通过loadNativeModule函数加载原生JS模块。我们看这个函数的定义。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>loadNativeModule</span><span class=p>(</span><span class=nx>filename</span><span class=p>,</span><span class=w> </span><span class=nx>request</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>mod</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>NativeModule</span><span class=p>.</span><span class=nx>map</span><span class=p>.</span><span class=nx>get</span><span class=p>(</span><span class=nx>filename</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>mod</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>mod</span><span class=p>.</span><span class=nx>compileForPublicLoader</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nx>mod</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>在Node.js启动过程中我们分析过，mod是一个NativeModule对象，接着看compileForPublicLoader。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>compileForPublicLoader</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>compileForInternalLoader</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=nx>compileForInternalLoader</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=k>this</span><span class=p>.</span><span class=nx>loaded</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>loading</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// id就是我们要加载的模块，比如net </span>
+<span class=w>        </span><span class=kd>const</span><span class=w> </span><span class=nx>id</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>id</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>loading</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>true</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>try</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=kd>const</span><span class=w> </span><span class=nx>fn</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>compileFunction</span><span class=p>(</span><span class=nx>id</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=nx>fn</span><span class=p>(</span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=p>,</span><span class=w> </span>
+<span class=w>                   </span><span class=c1>// 加载原生JS模块的加载器</span>
+<span class=w>                   </span><span class=nx>nativeModuleRequire</span><span class=p>,</span><span class=w> </span>
+<span class=w>                   </span><span class=k>this</span><span class=p>,</span><span class=w> </span>
+<span class=w>                   </span><span class=nx>process</span><span class=p>,</span><span class=w> </span>
+<span class=w>                   </span><span class=c1>// 加载C++模块的加载器</span>
+<span class=w>                   </span><span class=nx>internalBinding</span><span class=p>,</span><span class=w> </span>
+<span class=w>                   </span><span class=nx>primordials</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>this</span><span class=p>.</span><span class=nx>loaded</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>true</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w> </span><span class=k>finally</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=k>this</span><span class=p>.</span><span class=nx>loading</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>false</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们重点看compileFunction这里的逻辑。该函数是node_native_module_env.cc模块导出的函数。具体的代码就不贴了，通过层层查找，最后到node_native_module.cc 的NativeModuleLoader::CompileAsModule</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>MaybeLocal</span><span class=o>&lt;</span><span class=n>Function</span><span class=o>&gt;</span><span class=w> </span><span class=n>NativeModuleLoader</span><span class=o>::</span><span class=n>CompileAsModule</span><span class=p>(</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=n>context</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>id</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>NativeModuleLoader</span><span class=o>::</span><span class=n>Result</span><span class=o>*</span><span class=w> </span><span class=n>result</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>Isolate</span><span class=o>*</span><span class=w> </span><span class=n>isolate</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>context</span><span class=o>-&gt;</span><span class=n>GetIsolate</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 函数的形参  </span>
+<span class=w>      </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;&gt;</span><span class=w> </span><span class=n>parameters</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=s>&quot;exports&quot;</span><span class=p>),</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=s>&quot;require&quot;</span><span class=p>),</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=s>&quot;module&quot;</span><span class=p>),</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=s>&quot;process&quot;</span><span class=p>),</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=s>&quot;internalBinding&quot;</span><span class=p>),</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=s>&quot;primordials&quot;</span><span class=p>)};</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 编译出一个函数  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=n>LookupAndCompile</span><span class=p>(</span><span class=n>context</span><span class=p>,</span><span class=w> </span><span class=n>id</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>parameters</span><span class=p>,</span><span class=w> </span><span class=n>result</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们继续看LookupAndCompile。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>MaybeLocal</span><span class=o>&lt;</span><span class=n>Function</span><span class=o>&gt;</span><span class=w> </span><span class=n>NativeModuleLoader</span><span class=o>::</span><span class=n>LookupAndCompile</span><span class=p>(</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=n>context</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>id</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;&gt;*</span><span class=w> </span><span class=n>parameters</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>NativeModuleLoader</span><span class=o>::</span><span class=n>Result</span><span class=o>*</span><span class=w> </span><span class=n>result</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>Isolate</span><span class=o>*</span><span class=w> </span><span class=n>isolate</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>context</span><span class=o>-&gt;</span><span class=n>GetIsolate</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=n>EscapableHandleScope</span><span class=w> </span><span class=nf>scope</span><span class=p>(</span><span class=n>isolate</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>source</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 找到原生JS模块内容所在的内存地址  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>LoadBuiltinModuleSource</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=n>id</span><span class=p>).</span><span class=n>ToLocal</span><span class=p>(</span><span class=o>&amp;</span><span class=n>source</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=p>{};</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// ‘net’ + ‘.js’</span>
+<span class=w>      </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=w> </span><span class=n>filename_s</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>id</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=p>(</span><span class=s>&quot;.js&quot;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>filename</span><span class=w> </span><span class=o>=</span><span class=w>  </span>
+<span class=w>          </span><span class=n>OneByteString</span><span class=p>(</span><span class=n>isolate</span><span class=p>,</span><span class=w> </span>
+<span class=w>                </span><span class=n>filename_s</span><span class=p>.</span><span class=n>c_str</span><span class=p>(),</span><span class=w> </span>
+<span class=w>                </span><span class=n>filename_s</span><span class=p>.</span><span class=n>size</span><span class=p>());</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 省略一些参数处理  </span>
+<span class=w>      </span><span class=c1>// 脚本源码  </span>
+<span class=w>      </span><span class=n>ScriptCompiler</span><span class=o>::</span><span class=n>Source</span><span class=w> </span><span class=nf>script_source</span><span class=p>(</span><span class=n>source</span><span class=p>,</span><span class=w> </span><span class=n>origin</span><span class=p>,</span><span class=w> </span><span class=n>cached_data</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 编译出一个函数  </span>
+<span class=w>      </span><span class=n>MaybeLocal</span><span class=o>&lt;</span><span class=n>Function</span><span class=o>&gt;</span><span class=w> </span><span class=n>maybe_fun</span><span class=w> </span><span class=o>=</span><span class=w>  </span>
+<span class=w>          </span><span class=n>ScriptCompiler</span><span class=o>::</span><span class=n>CompileFunctionInContext</span><span class=p>(</span><span class=n>context</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                                      </span><span class=o>&amp;</span><span class=n>script_source</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                               </span><span class=n>parameters</span><span class=o>-&gt;</span><span class=n>size</span><span class=p>(),</span>
+<span class=w>                               </span><span class=n>parameters</span><span class=o>-&gt;</span><span class=n>data</span><span class=p>(),</span>
+<span class=w>                               </span><span class=mi>0</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                               </span><span class=k>nullptr</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                               </span><span class=n>options</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Function</span><span class=o>&gt;</span><span class=w> </span><span class=n>fun</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>maybe_fun</span><span class=p>.</span><span class=n>ToLocalChecked</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=n>scope</span><span class=p>.</span><span class=n>Escape</span><span class=p>(</span><span class=n>fun</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>LookupAndCompile函数首先找到加载模块的源码，然后编译出一个函数。我们看一下LoadBuiltinModuleSource如何查找模块源码的。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>MaybeLocal</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>NativeModuleLoader</span><span class=o>::</span><span class=n>LoadBuiltinModuleSource</span><span class=p>(</span><span class=n>Isolate</span><span class=o>*</span><span class=w> </span><span class=n>isolate</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>id</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>const</span><span class=w> </span><span class=k>auto</span><span class=w> </span><span class=n>source_it</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>source_</span><span class=p>.</span><span class=n>find</span><span class=p>(</span><span class=n>id</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=n>source_it</span><span class=o>-&gt;</span><span class=n>second</span><span class=p>.</span><span class=n>ToStringChecked</span><span class=p>(</span><span class=n>isolate</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>这里是id是net，通过该id从_source中找到对应的数据，那么_source是什么呢？因为Node.js为了提高效率，把原生JS模块的源码字符串直接转成ASCII码存到内存里。这样加载这些模块的时候，就不需要硬盘IO了。直接从内存读取就行。我们看一下_source的定义（在编译Node.js源码或者执行js2c.py生成的node_javascript.cc中）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>source_</span><span class=p>.</span><span class=n>emplace</span><span class=p>(</span><span class=s>&quot;net&quot;</span><span class=p>,</span><span class=w> </span><span class=n>UnionBytes</span><span class=p>{</span><span class=n>net_raw</span><span class=p>,</span><span class=w> </span><span class=mi>46682</span><span class=p>});</span><span class=w>  </span>
+<span class=w>    </span><span class=n>source_</span><span class=p>.</span><span class=n>emplace</span><span class=p>(</span><span class=s>&quot;cyb&quot;</span><span class=p>,</span><span class=w> </span><span class=n>UnionBytes</span><span class=p>{</span><span class=n>cyb_raw</span><span class=p>,</span><span class=w> </span><span class=mi>63</span><span class=p>});</span><span class=w>  </span>
+<span class=w>    </span><span class=n>source_</span><span class=p>.</span><span class=n>emplace</span><span class=p>(</span><span class=s>&quot;os&quot;</span><span class=p>,</span><span class=w> </span><span class=n>UnionBytes</span><span class=p>{</span><span class=n>os_raw</span><span class=p>,</span><span class=w> </span><span class=mi>7548</span><span class=p>});</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>cyb是我增加的测试模块。我们可以看一下该模块的内容。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=kt>uint8_t</span><span class=w> </span><span class=n>cyb_raw</span><span class=p>[]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>     </span><span class=mi>99</span><span class=p>,</span><span class=mi>111</span><span class=p>,</span><span class=mi>110</span><span class=p>,</span><span class=mi>115</span><span class=p>,</span><span class=mi>116</span><span class=p>,</span><span class=w> </span><span class=mi>32</span><span class=p>,</span><span class=w> </span><span class=mi>99</span><span class=p>,</span><span class=mi>121</span><span class=p>,</span><span class=w> </span><span class=mi>98</span><span class=p>,</span><span class=w> </span><span class=mi>32</span><span class=p>,</span><span class=w> </span><span class=mi>61</span><span class=p>,</span><span class=w> </span><span class=mi>32</span><span class=p>,</span><span class=mi>105</span><span class=p>,</span><span class=mi>110</span><span class=p>,</span><span class=mi>116</span><span class=p>,</span><span class=mi>101</span><span class=p>,</span><span class=mi>114</span><span class=p>,</span><span class=mi>110</span><span class=p>,</span><span class=w> </span><span class=mi>97</span><span class=p>,</span><span class=mi>108</span><span class=p>,</span><span class=w> </span><span class=mi>66</span><span class=p>,</span><span class=mi>105</span><span class=p>,</span><span class=mi>110</span><span class=p>,</span><span class=mi>100</span><span class=p>,</span><span class=mi>105</span><span class=p>,</span><span class=mi>110</span><span class=p>,</span><span class=mi>103</span><span class=p>,</span><span class=w> </span><span class=mi>40</span><span class=p>,</span><span class=w> </span><span class=mi>39</span><span class=p>,</span><span class=w> </span><span class=mi>99</span><span class=p>,</span><span class=w>  </span>
+<span class=w>    </span><span class=mi>121</span><span class=p>,</span><span class=w> </span><span class=mi>98</span><span class=p>,</span><span class=w> </span><span class=mi>95</span><span class=p>,</span><span class=mi>119</span><span class=p>,</span><span class=mi>114</span><span class=p>,</span><span class=w> </span><span class=mi>97</span><span class=p>,</span><span class=mi>112</span><span class=p>,</span><span class=w> </span><span class=mi>39</span><span class=p>,</span><span class=w> </span><span class=mi>41</span><span class=p>,</span><span class=w> </span><span class=mi>59</span><span class=p>,</span><span class=w> </span><span class=mi>32</span><span class=p>,</span><span class=w> </span><span class=mi>10</span><span class=p>,</span><span class=mi>109</span><span class=p>,</span><span class=mi>111</span><span class=p>,</span><span class=mi>100</span><span class=p>,</span><span class=mi>117</span><span class=p>,</span><span class=mi>108</span><span class=p>,</span><span class=mi>101</span><span class=p>,</span><span class=w> </span><span class=mi>46</span><span class=p>,</span><span class=mi>101</span><span class=p>,</span><span class=mi>120</span><span class=p>,</span><span class=mi>112</span><span class=p>,</span><span class=mi>111</span><span class=p>,</span><span class=mi>114</span><span class=p>,</span><span class=mi>116</span><span class=p>,</span><span class=mi>115</span><span class=p>,</span><span class=w> </span><span class=mi>32</span><span class=p>,</span><span class=w> </span><span class=mi>61</span><span class=p>,</span><span class=w> </span><span class=mi>32</span><span class=p>,</span><span class=w> </span><span class=mi>99</span><span class=p>,</span><span class=w>  </span>
+<span class=w>    </span><span class=mi>121</span><span class=p>,</span><span class=w> </span><span class=mi>98</span><span class=p>,</span><span class=w> </span><span class=mi>59</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们转成字符串看一下是什么</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>Buffer</span><span class=p>.</span><span class=kr>from</span><span class=p>([</span><span class=mf>99</span><span class=p>,</span><span class=mf>111</span><span class=p>,</span><span class=mf>110</span><span class=p>,</span><span class=mf>115</span><span class=p>,</span><span class=mf>116</span><span class=p>,</span><span class=w> </span><span class=mf>32</span><span class=p>,</span><span class=w> </span><span class=mf>99</span><span class=p>,</span><span class=mf>121</span><span class=p>,</span><span class=w> </span><span class=mf>98</span><span class=p>,</span><span class=w> </span><span class=mf>32</span><span class=p>,</span><span class=w> </span><span class=mf>61</span><span class=p>,</span><span class=w> </span><span class=mf>32</span><span class=p>,</span><span class=mf>105</span><span class=p>,</span><span class=mf>110</span><span class=p>,</span><span class=mf>116</span><span class=p>,</span><span class=mf>101</span><span class=p>,</span><span class=mf>114</span><span class=p>,</span><span class=mf>110</span><span class=p>,</span><span class=w> </span><span class=mf>97</span><span class=p>,</span><span class=mf>108</span><span class=p>,</span><span class=w> </span><span class=mf>66</span><span class=p>,</span><span class=mf>105</span><span class=p>,</span><span class=mf>110</span><span class=p>,</span><span class=mf>100</span><span class=p>,</span><span class=mf>105</span><span class=p>,</span><span class=mf>110</span><span class=p>,</span><span class=mf>103</span><span class=p>,</span><span class=w> </span><span class=mf>40</span><span class=p>,</span><span class=w> </span><span class=mf>39</span><span class=p>,</span><span class=w> </span><span class=mf>99</span><span class=p>,</span>
+<span class=w>    </span><span class=mf>121</span><span class=p>,</span><span class=w> </span><span class=mf>98</span><span class=p>,</span><span class=w> </span><span class=mf>95</span><span class=p>,</span><span class=mf>119</span><span class=p>,</span><span class=mf>114</span><span class=p>,</span><span class=w> </span><span class=mf>97</span><span class=p>,</span><span class=mf>112</span><span class=p>,</span><span class=w> </span><span class=mf>39</span><span class=p>,</span><span class=w> </span><span class=mf>41</span><span class=p>,</span><span class=w> </span><span class=mf>59</span><span class=p>,</span><span class=w> </span><span class=mf>32</span><span class=p>,</span><span class=w> </span><span class=mf>10</span><span class=p>,</span><span class=mf>109</span><span class=p>,</span><span class=mf>111</span><span class=p>,</span><span class=mf>100</span><span class=p>,</span><span class=mf>117</span><span class=p>,</span><span class=mf>108</span><span class=p>,</span><span class=mf>101</span><span class=p>,</span><span class=w> </span><span class=mf>46</span><span class=p>,</span><span class=mf>101</span><span class=p>,</span><span class=mf>120</span><span class=p>,</span><span class=mf>112</span><span class=p>,</span><span class=mf>111</span><span class=p>,</span><span class=mf>114</span><span class=p>,</span><span class=mf>116</span><span class=p>,</span><span class=mf>115</span><span class=p>,</span><span class=w> </span><span class=mf>32</span><span class=p>,</span><span class=w> </span><span class=mf>61</span><span class=p>,</span><span class=w> </span><span class=mf>32</span><span class=p>,</span><span class=w> </span><span class=mf>99</span><span class=p>,</span><span class=w>    </span>
+<span class=w>    </span><span class=mf>121</span><span class=p>,</span><span class=w> </span><span class=mf>98</span><span class=p>,</span><span class=w> </span><span class=mf>59</span><span class=p>].</span><span class=nx>join</span><span class=p>(</span><span class=s1>&#39;,&#39;</span><span class=p>).</span><span class=nx>split</span><span class=p>(</span><span class=s1>&#39;,&#39;</span><span class=p>)).</span><span class=nx>toString</span><span class=p>(</span><span class=s1>&#39;utf-8&#39;</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>输出</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>cyb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>(</span><span class=s1>&#39;cyb_wrap&#39;</span><span class=p>);</span><span class=w>   </span>
+<span class=w>    </span><span class=nx>module</span><span class=p>.</span><span class=nx>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>cyb</span><span class=p>;</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>所以我们执行require('net')时，通过NativeModule的compileForInternalLoader，最终会在_source中找到net模块对应的源码字符串，然后编译成一个函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>fn</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>compileFunction</span><span class=p>(</span><span class=nx>id</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>fn</span><span class=p>(</span><span class=k>this</span><span class=p>.</span><span class=nx>exports</span><span class=p>,</span><span class=w> </span>
+<span class=w>       </span><span class=c1>// 加载原生JS模块的加载器</span>
+<span class=w>       </span><span class=nx>nativeModuleRequire</span><span class=p>,</span><span class=w> </span>
+<span class=w>       </span><span class=k>this</span><span class=p>,</span><span class=w> </span>
+<span class=w>       </span><span class=nx>process</span><span class=p>,</span><span class=w> </span>
+<span class=w>       </span><span class=c1>// 加载C++模块的加载器</span>
+<span class=w>       </span><span class=nx>internalBinding</span><span class=p>,</span><span class=w> </span>
+<span class=w>       </span><span class=nx>primordials</span><span class=p>);</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>由fn的入参可以知道，我们在net（或其它原生JS模块中）只能加载原生JS模块和内置的C++模块。当fn执行完毕后，原生模块加载器就会把mod.exports的值返回给调用方。 19.3 加载内置C++模块 在原生JS模块中我们一般会加载一些内置的C++模块，这是Node.js拓展JS功能的关键之处。比如我们require(‘net’)的时候，net模块会加载tcp_wrap模块。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>TCP</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>TCPConnectWrap</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>constants</span><span class=o>:</span><span class=w> </span><span class=nx>TCPConstants</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>(</span><span class=s1>&#39;tcp_wrap&#39;</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>C++模块加载器也是在internal/bootstrap/loaders.js中定义的，分为三种。<br> 1 internalBinding：不暴露给用户的访问的接口，只能在Node.js代码中访问，比如原生JS模块（flag为NM_F_INTERNAL）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>let</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>bindingObj</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>ObjectCreate</span><span class=p>(</span><span class=kc>null</span><span class=p>);</span><span class=w>   </span>
+<span class=w>      </span><span class=nx>internalBinding</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>(</span><span class=nx>module</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=kd>let</span><span class=w> </span><span class=nx>mod</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>bindingObj</span><span class=p>[</span><span class=nx>module</span><span class=p>];</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=ow>typeof</span><span class=w> </span><span class=nx>mod</span><span class=w> </span><span class=o>!==</span><span class=w> </span><span class=s1>&#39;object&#39;</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=nx>mod</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>bindingObj</span><span class=p>[</span><span class=nx>module</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>getInternalBinding</span><span class=p>(</span><span class=nx>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=nx>moduleLoadList</span><span class=p>.</span><span class=nx>push</span><span class=p>(</span><span class=sb>`Internal Binding </span><span class=si>${</span><span class=nx>module</span><span class=si>}</span><span class=sb>`</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nx>mod</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>};</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>internalBinding是在getInternalBinding函数基础上加了缓存功能。getInternalBinding是C++层定义的函数对JS暴露的接口名。它的作用是从C++模块链表中找到对应的模块。<br> 2 process.binding：暴露给用户调用C++模块的接口，但是只能访问部分C++模块（flag为NM_F_BUILTIN的C++模块）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>process</span><span class=p>.</span><span class=nx>binding</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=w> </span><span class=nx>binding</span><span class=p>(</span><span class=nx>module</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>String</span><span class=p>(</span><span class=nx>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>internalBindingWhitelist</span><span class=p>.</span><span class=nx>has</span><span class=p>(</span><span class=nx>module</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>(</span><span class=nx>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=k>throw</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=ne>Error</span><span class=p>(</span><span class=sb>`No such module: </span><span class=si>${</span><span class=nx>module</span><span class=si>}</span><span class=sb>`</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>binding是在internalBinding的基础上加了白名单的逻辑，只对外暴露部分模块。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>internalBindingWhitelist</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>SafeSet</span><span class=p>([</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;async_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;buffer&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;cares_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;config&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;constants&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;contextify&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;crypto&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;fs&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;fs_event_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;http_parser&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;icu&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;inspector&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;js_stream&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;natives&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;os&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;pipe_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;process_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;signal_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;spawn_sync&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;stream_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;tcp_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;tls_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;tty_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;udp_wrap&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;url&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;util&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;uv&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;v8&#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=s1>&#39;zlib&#39;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>]);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>3 process._linkedBinding: 暴露给用户访问C++模块的接口，用于访问用户自己添加的但是没有加到内置模块的C++模块（flag为NM_F_LINKED）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>bindingObj</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>ObjectCreate</span><span class=p>(</span><span class=kc>null</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>process</span><span class=p>.</span><span class=nx>_linkedBinding</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kd>function</span><span class=w> </span><span class=nx>_linkedBinding</span><span class=p>(</span><span class=nx>module</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>String</span><span class=p>(</span><span class=nx>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>let</span><span class=w> </span><span class=nx>mod</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>bindingObj</span><span class=p>[</span><span class=nx>module</span><span class=p>];</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=ow>typeof</span><span class=w> </span><span class=nx>mod</span><span class=w> </span><span class=o>!==</span><span class=w> </span><span class=s1>&#39;object&#39;</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>mod</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>bindingObj</span><span class=p>[</span><span class=nx>module</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>getLinkedBinding</span><span class=p>(</span><span class=nx>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nx>mod</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>_linkedBinding是在getLinkedBinding函数基础上加了缓存功能，getLinkedBinding是C++层定义的函数对外暴露的名字。getLinkedBinding从另一个C++模块链表中查找对应的模块。 上一节已经分析过，internalBinding是加载原生JS模块时传入的实参。internalBinding是对getInternalBinding的封装。getInternalBinding对应的是binding::GetInternalBinding（node_binding.cc）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 根据模块名查找对应的模块  </span>
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>GetInternalBinding</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>FunctionCallbackInfo</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Environment</span><span class=o>::</span><span class=n>GetCurrent</span><span class=p>(</span><span class=n>args</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 模块名  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=k>module</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>args</span><span class=p>[</span><span class=mi>0</span><span class=p>].</span><span class=n>As</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=n>node</span><span class=o>::</span><span class=n>Utf8Value</span><span class=w> </span><span class=n>module_v</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>(),</span><span class=w> </span><span class=k>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 从C++内部模块找  </span>
+<span class=w>      </span><span class=n>node_module</span><span class=o>*</span><span class=w> </span><span class=n>mod</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>FindModule</span><span class=p>(</span><span class=n>modlist_internal</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                         </span><span class=o>*</span><span class=n>module_v</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                         </span><span class=n>NM_F_INTERNAL</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 找到则初始化  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mod</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>InitModule</span><span class=p>(</span><span class=n>env</span><span class=p>,</span><span class=w> </span><span class=n>mod</span><span class=p>,</span><span class=w> </span><span class=k>module</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 省略  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>args</span><span class=p>.</span><span class=n>GetReturnValue</span><span class=p>().</span><span class=n>Set</span><span class=p>(</span><span class=n>exports</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>modlist_internal是一条链表，在Node.js启动过程的时候，由各个C++模块连成的链表。通过模块名找到对应的C++模块后，执行InitModule初始化模块。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 初始化一个模块，即执行它里面的注册函数  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>InitModule</span><span class=p>(</span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                     </span><span class=n>node_module</span><span class=o>*</span><span class=w> </span><span class=n>mod</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                     </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=k>module</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>exports</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Object</span><span class=o>::</span><span class=n>New</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=n>unused</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Undefined</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>      </span><span class=n>mod</span><span class=o>-&gt;</span><span class=n>nm_context_register_func</span><span class=p>(</span><span class=n>exports</span><span class=p>,</span><span class=w> </span><span class=n>unused</span><span class=p>,</span><span class=w> </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>(),</span><span class=w> </span><span class=n>mod</span><span class=o>-&gt;</span><span class=n>nm_priv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=n>exports</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>执行C++模块的nm_context_register_func指向的函数。这个函数就是在C++模块最后一行定义的Initialize函数。Initialize会设置导出的对象。我们从JS可以访问Initialize导出的对象。V8中，JS调用C++函数的规则是函数入参const FunctionCallbackInfo<value>&amp; args（拿到JS传过来的内容）和设置返回值args.GetReturnValue().Set(给JS返回的内容), GetInternalBinding函数的逻辑就是执行对应模块的钩子函数，并传一个exports变量进去，然后钩子函数会修改exports的值，该exports的值就是JS层能拿到的值。</p> </article> </div> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> 回到页面顶部 </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; 2021 theanarkh </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/theanarkh target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> <a href=https://www.zhihu.com/people/theanarkh target=_blank rel=noopener title=www.zhihu.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 640 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M170.54 148.13v217.54l23.43.01 7.71 26.37 42.01-26.37h49.53V148.13zm97.75 193.93h-27.94l-27.9 17.51-5.08-17.47-11.9-.04V171.75h72.82zm-118.46-94.39H97.5c1.74-27.1 2.2-51.59 2.2-73.46h51.16s1.97-22.56-8.58-22.31h-88.5c3.49-13.12 7.87-26.66 13.12-40.67 0 0-24.07 0-32.27 21.57-3.39 8.9-13.21 43.14-30.7 78.12 5.89-.64 25.37-1.18 36.84-22.21 2.11-5.89 2.51-6.66 5.14-14.53h28.87c0 10.5-1.2 66.88-1.68 73.44H20.83c-11.74 0-15.56 23.62-15.56 23.62h65.58C66.45 321.1 42.83 363.12 0 396.34c20.49 5.85 40.91-.93 51-9.9 0 0 22.98-20.9 35.59-69.25l53.96 64.94s7.91-26.89-1.24-39.99c-7.58-8.92-28.06-33.06-36.79-41.81L87.9 311.95c4.36-13.98 6.99-27.55 7.87-40.67h61.65s-.09-23.62-7.59-23.62zm412.02-1.6c20.83-25.64 44.98-58.57 44.98-58.57s-18.65-14.8-27.38-4.06c-6 8.15-36.83 48.2-36.83 48.2zm-150.09-59.09c-9.01-8.25-25.91 2.13-25.91 2.13s39.52 55.04 41.12 57.45l19.46-13.73s-25.67-37.61-34.66-45.86h-.01zM640 258.35c-19.78 0-130.91.93-131.06.93v-101c4.81 0 12.42-.4 22.85-1.2 40.88-2.41 70.13-4 87.77-4.81 0 0 12.22-27.19-.59-33.44-3.07-1.18-23.17 4.58-23.17 4.58s-165.22 16.49-232.36 18.05c1.6 8.82 7.62 17.08 15.78 19.55 13.31 3.48 22.69 1.7 49.15.89 24.83-1.6 43.68-2.43 56.51-2.43v99.81H351.41s2.82 22.31 25.51 22.85h107.94v70.92c0 13.97-11.19 21.99-24.48 21.12-14.08.11-26.08-1.15-41.69-1.81 1.99 3.97 6.33 14.39 19.31 21.84 9.88 4.81 16.17 6.57 26.02 6.57 29.56 0 45.67-17.28 44.89-45.31v-73.32h122.36c9.68 0 8.7-23.78 8.7-23.78z"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"base": "..", "features": ["content.code.annotate", "navigation.indexes", "navigation.instant", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script> <script src=../assets/javascripts/bundle.83f73b43.min.js></script> <script src=../extra/image.js defer></script> </body> </html>

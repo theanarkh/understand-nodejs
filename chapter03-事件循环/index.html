@@ -1,0 +1,703 @@
+<!doctype html><html lang=zh class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="通过源码分析 Node.js 原理"><meta name=author content=theanarkh><link href=https://github.com/theanarkh/understand-nodejs/chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ rel=canonical><link href=../chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ rel=prev><link href=../chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ rel=next><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.5.44"><title>03-事件循环 - Node.js 源码剖析</title><link rel=stylesheet href=../assets/stylesheets/main.0253249f.min.css><link rel=stylesheet href=../assets/stylesheets/palette.06af60db.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#_1 class=md-skip> 跳转至 </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=页眉> <a href=.. title="Node.js 源码剖析" class="md-header__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> Node.js 源码剖析 </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> 03-事件循环 </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=blue data-md-color-accent=blue aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=搜索 placeholder=搜索 autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=查找> <a href=javascript:void(0) class="md-search__icon md-icon" title=分享 aria-label=分享 data-clipboard data-clipboard-text data-md-component=search-share tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg> </a> <button type=reset class="md-search__icon md-icon" title=清空当前内容 aria-label=清空当前内容 tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> 正在初始化搜索引擎 </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> </nav> <nav class=md-tabs aria-label=标签 data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-tabs__link> 前言 </a> </li> <li class="md-tabs__item md-tabs__item--active"> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-tabs__link> Node.js基础和架构 </a> </li> <li class=md-tabs__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-tabs__link> Node.js核心模块的实现 </a> </li> <li class=md-tabs__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-tabs__link> 其他 </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=导航栏 data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title="Node.js 源码剖析" class="md-nav__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> Node.js 源码剖析 </label> <div class=md-nav__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class=md-nav__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-nav__link> <span class=md-ellipsis> 前言 </span> </a> </li> <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_3 checked> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex> <span class=md-ellipsis> Node.js基础和架构 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=true> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Node.js基础和架构 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 01-Node.js组成和原理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ class=md-nav__link> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </a> </li> <li class="md-nav__item md-nav__item--active"> <input class="md-nav__toggle md-toggle" type=checkbox id=__toc> <label class="md-nav__link md-nav__link--active" for=__toc> <span class=md-ellipsis> 03-事件循环 </span> <span class="md-nav__icon md-icon"></span> </label> <a href=./ class="md-nav__link md-nav__link--active"> <span class=md-ellipsis> 03-事件循环 </span> </a> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#31 class=md-nav__link> <span class=md-ellipsis> 3.1 事件循环之定时器 </span> </a> </li> <li class=md-nav__item> <a href=#32-pending class=md-nav__link> <span class=md-ellipsis> 3.2 pending阶段 </span> </a> </li> <li class=md-nav__item> <a href=#33-preparecheckidle class=md-nav__link> <span class=md-ellipsis> 3.3 事件循环之prepare,check,idle </span> </a> </li> <li class=md-nav__item> <a href=#34-poll-io class=md-nav__link> <span class=md-ellipsis> 3.4 事件循环之Poll IO </span> </a> </li> <li class=md-nav__item> <a href=#35-close class=md-nav__link> <span class=md-ellipsis> 3.5 事件循环之close </span> </a> </li> <li class=md-nav__item> <a href=#36 class=md-nav__link> <span class=md-ellipsis> 3.6 控制事件循环 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ class=md-nav__link> <span class=md-ellipsis> 04-线程池 </span> </a> </li> <li class=md-nav__item> <a href=../chapter05-Libuv%E6%B5%81/ class=md-nav__link> <span class=md-ellipsis> 05-Libuv流 </span> </a> </li> <li class=md-nav__item> <a href=../chapter06-C%2B%2B%E5%B1%82/ class=md-nav__link> <span class=md-ellipsis> 06-C++层 </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_4> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex=0> <span class=md-ellipsis> Node.js核心模块的实现 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=false> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Node.js核心模块的实现 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 07-信号处理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter08-DNS/ class=md-nav__link> <span class=md-ellipsis> 08-DNS </span> </a> </li> <li class=md-nav__item> <a href=../chapter09-Unix%E5%9F%9F/ class=md-nav__link> <span class=md-ellipsis> 09-Unix域 </span> </a> </li> <li class=md-nav__item> <a href=../chapter10-%E5%AE%9A%E6%97%B6%E5%99%A8/ class=md-nav__link> <span class=md-ellipsis> 10-定时器 </span> </a> </li> <li class=md-nav__item> <a href=../chapter11-setImmediate%E5%92%8CnextTick/ class=md-nav__link> <span class=md-ellipsis> 11-setImmediate和nextTick </span> </a> </li> <li class=md-nav__item> <a href=../chapter12-%E6%96%87%E4%BB%B6/ class=md-nav__link> <span class=md-ellipsis> 12-文件 </span> </a> </li> <li class=md-nav__item> <a href=../chapter13-%E8%BF%9B%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 13-进程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter14-%E7%BA%BF%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 14-线程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter15-Cluster/ class=md-nav__link> <span class=md-ellipsis> 15-Cluster </span> </a> </li> <li class=md-nav__item> <a href=../chapter16-UDP/ class=md-nav__link> <span class=md-ellipsis> 16-UDP </span> </a> </li> <li class=md-nav__item> <a href=../chapter17-TCP/ class=md-nav__link> <span class=md-ellipsis> 17-TCP </span> </a> </li> <li class=md-nav__item> <a href=../chapter18-HTTP/ class=md-nav__link> <span class=md-ellipsis> 18-HTTP </span> </a> </li> <li class=md-nav__item> <a href=../chapter19-%E6%A8%A1%E5%9D%97%E5%8A%A0%E8%BD%BD/ class=md-nav__link> <span class=md-ellipsis> 19-模块加载 </span> </a> </li> <li class=md-nav__item> <a href=../chapter21-JS%20Stream/ class=md-nav__link> <span class=md-ellipsis> 20-JS Stream </span> </a> </li> <li class=md-nav__item> <a href=../chapter22-events%E6%A8%A1%E5%9D%97/ class=md-nav__link> <span class=md-ellipsis> 21-events模块 </span> </a> </li> <li class=md-nav__item> <a href=../chapter23-Async%20hooks/ class=md-nav__link> <span class=md-ellipsis> 22-Async hooks </span> </a> </li> <li class=md-nav__item> <a href=../chapter24-Inspector/ class=md-nav__link> <span class=md-ellipsis> 23-Inspector </span> </a> </li> <li class=md-nav__item> <a href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ class=md-nav__link> <span class=md-ellipsis> 27-深入理解 Node.js 的 Buffer </span> </a> </li> <li class=md-nav__item> <a href=../chapter30-Node.js%20%E7%9A%84%20trace%20events%20%E6%9E%B6%E6%9E%84/ class=md-nav__link> <span class=md-ellipsis> 30-Node.js 的 trace events 架构 </span> </a> </li> <li class=md-nav__item> <a href=../chapter31-Node.js%20%E7%9A%84%20perf_hooks/ class=md-nav__link> <span class=md-ellipsis> 31-Node.js 的 perf_hooks </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> 其他 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> 其他 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 24-拓展Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter25-Node.js子线程调试和诊断指南 class=md-nav__link> <span class=md-ellipsis> 25-Node.js子线程调试和诊断指南 </span> </a> </li> <li class=md-nav__item> <a href=../chapter26-vscode%E8%B0%83%E8%AF%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 26-vscode调试Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter28-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E6%9E%B6%E6%9E%84%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 28-Node.js底层原理（架构篇） </span> </a> </li> <li class=md-nav__item> <a href=../chapter29-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E5%AE%9E%E7%8E%B0%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 29-Node.js底层原理（实现篇） </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#31 class=md-nav__link> <span class=md-ellipsis> 3.1 事件循环之定时器 </span> </a> </li> <li class=md-nav__item> <a href=#32-pending class=md-nav__link> <span class=md-ellipsis> 3.2 pending阶段 </span> </a> </li> <li class=md-nav__item> <a href=#33-preparecheckidle class=md-nav__link> <span class=md-ellipsis> 3.3 事件循环之prepare,check,idle </span> </a> </li> <li class=md-nav__item> <a href=#34-poll-io class=md-nav__link> <span class=md-ellipsis> 3.4 事件循环之Poll IO </span> </a> </li> <li class=md-nav__item> <a href=#35-close class=md-nav__link> <span class=md-ellipsis> 3.5 事件循环之close </span> </a> </li> <li class=md-nav__item> <a href=#36 class=md-nav__link> <span class=md-ellipsis> 3.6 控制事件循环 </span> </a> </li> </ul> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <h1 id=_1>第三章 事件循环<a class=headerlink href=#_1 title="Permanent link">&para;</a></h1> <p>Node.js属于单线程事件循环架构，该事件循环由Libuv的uv_run函数实现，在该函数中执行while循环，然后不断地处理各个阶段（phase）的事件回调。事件循环的处理相当于一个消费者，消费由各种代码产生的任务。Node.js初始化完成后就开始陷入该事件循环中，事件循环的结束也就意味着Node.js的结束。下面看一下事件循环的核心代码。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span>
+<span class=normal>54</span>
+<span class=normal>55</span>
+<span class=normal>56</span>
+<span class=normal>57</span>
+<span class=normal>58</span>
+<span class=normal>59</span>
+<span class=normal>60</span>
+<span class=normal>61</span>
+<span class=normal>62</span>
+<span class=normal>63</span>
+<span class=normal>64</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_run</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv_run_mode</span><span class=w> </span><span class=n>mode</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>timeout</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>r</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>ran_pending</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 在uv_run之前要先提交任务到loop  </span>
+<span class=w>      </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__loop_alive</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 事件循环没有任务执行，即将退出，设置一下当前循环的时间  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>r</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__update_time</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 没有任务需要处理或者调用了uv_stop则退出事件循环   </span>
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>stop_flag</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 更新loop的time字段  </span>
+<span class=w>        </span><span class=n>uv__update_time</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 执行超时回调  </span>
+<span class=w>        </span><span class=n>uv__run_timers</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          执行pending回调，ran_pending代表pending队列是否为空，</span>
+<span class=cm>           即没有节点可以执行  </span>
+<span class=cm>         */</span>
+<span class=w>        </span><span class=n>ran_pending</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__run_pending</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 继续执行各种队列  </span>
+<span class=w>        </span><span class=n>uv__run_idle</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__run_prepare</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>timeout</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          执行模式是UV_RUN_ONCE时，如果没有pending节点，</span>
+<span class=cm>          才会阻塞式Poll IO，默认模式也是  </span>
+<span class=cm>        */</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>((</span><span class=n>mode</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV_RUN_ONCE</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=o>!</span><span class=n>ran_pending</span><span class=p>)</span><span class=w> </span><span class=o>||</span><span class=w> </span>
+<span class=w>              </span><span class=n>mode</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV_RUN_DEFAULT</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=n>timeout</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv_backend_timeout</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// Poll IO timeout是epoll_wait的超时时间  </span>
+<span class=w>        </span><span class=n>uv__io_poll</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>timeout</span><span class=p>);</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 处理check阶段</span>
+<span class=w>        </span><span class=n>uv__run_check</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 处理close阶段</span>
+<span class=w>        </span><span class=n>uv__run_closing_handles</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          还有一次执行超时回调的机会，因为uv__io_poll可能是因为</span>
+<span class=cm>          定时器超时返回的。  </span>
+<span class=cm>        */</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mode</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV_RUN_ONCE</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>uv__update_time</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>uv__run_timers</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__loop_alive</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          只执行一次，退出循环,UV_RUN_NOWAIT表示在Poll IO阶段</span>
+<span class=cm>           不会阻塞并且循环只执行一次  </span>
+<span class=cm>         */</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>mode</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV_RUN_ONCE</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=n>mode</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV_RUN_NOWAIT</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 是因为调用了uv_stop退出的，重置flag  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>stop_flag</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>stop_flag</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/*</span>
+<span class=cm>        返回是否还有活跃的任务（handle或request），</span>
+<span class=cm>        业务代表可以再次执行uv_run  </span>
+<span class=cm>      */</span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=n>r</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Libuv分为几个阶段，下面从先到后，分别分析各个阶段的相关代码。</p> <h2 id=31>3.1 事件循环之定时器<a class=headerlink href=#31 title="Permanent link">&para;</a></h2> <p>Libuv中，定时器阶段是第一个被处理的阶段。定时器是以最小堆实现的，最快过期的节点是根节点。Libuv在每次事件循环开始的时候都会缓存当前的时间，在每一轮的事件循环中，使用的都是这个缓存的时间，必要的时候Libuv会显式更新这个时间，因为获取时间需要调用操作系统提供的接口，而频繁调用系统调用会带来一定的耗时，缓存时间可以减少操作系统的调用，提高性能。Libuv缓存了当前最新的时间后，就执行uv__run_timers，该函数就是遍历最小堆，找出当前超时的节点。因为堆的性质是父节点肯定比孩子小。并且根节点是最小的，所以如果一个根节点，它没有超时，则后面的节点也不会超时。对于超时的节点就执行它的回调。我们看一下具体的逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__run_timers</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>heap_node</span><span class=o>*</span><span class=w> </span><span class=n>heap_node</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_timer_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 遍历二叉堆  </span>
+<span class=w>      </span><span class=k>for</span><span class=w> </span><span class=p>(;;)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 找出最小的节点  </span>
+<span class=w>        </span><span class=n>heap_node</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>heap_min</span><span class=p>(</span><span class=n>timer_heap</span><span class=p>(</span><span class=n>loop</span><span class=p>));</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 没有则退出  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>heap_node</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 通过结构体字段找到结构体首地址  </span>
+<span class=w>        </span><span class=n>handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>container_of</span><span class=p>(</span><span class=n>heap_node</span><span class=p>,</span><span class=w> </span><span class=n>uv_timer_t</span><span class=p>,</span><span class=w> </span><span class=n>heap_node</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 最小的节点都没有超市，则后面的节点也不会超时  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>timeout</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>time</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 删除该节点  </span>
+<span class=w>        </span><span class=n>uv_timer_stop</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          重试插入二叉堆，如果需要的话（设置了repeat，比如</span>
+<span class=cm>          setInterval） </span>
+<span class=cm>        */</span><span class=w> </span>
+<span class=w>        </span><span class=n>uv_timer_again</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 执行回调  </span>
+<span class=w>        </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>timer_cb</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>执行完回调后，还有两个关键的操作，第一就是stop，第二就是again。stop的逻辑很简单，就是把handle从二叉堆中删除，并且修改handle的状态。那么again又是什么呢？again是为了支持setInterval这种场景，如果handle设置了repeat标记，则该handle在超时后，每repeat的时间后，就会继续执行超时回调。对于setInterval，就是超时时间是x，每x的时间后，执行回调。这就是Node.js里定时器的底层原理。但Node.js不是每次调setTimeout/setInterval的时候都往最小堆插入一个节点，Node.js里，只有一个关于uv_timer_s的handle，它在JS层维护了一个数据结构，每次计算出最早到期的节点，然后修改handle的超时时间，具体在定时器章节讲解。 &nbsp;&nbsp;&nbsp;&nbsp;另外timer阶段和Poll IO阶段也有一些联系，因为Poll IO可能会导致主线程阻塞，为了保证主线程可以尽快执行定时器的回调，Poll IO不能一直阻塞，所以这时候，阻塞的时长就是最快到期的定时器节点的时长（具体可参考libuv core.c中的uv_backend_timeout函数）。</p> <h2 id=32-pending>3.2 pending阶段<a class=headerlink href=#32-pending title="Permanent link">&para;</a></h2> <p>官网对pending阶段的解释是在上一轮的Poll IO阶段没有执行的IO回调，会在下一轮循环的pending阶段被执行。从源码来看，Poll IO阶段处理任务时，在某些情况下，如果当前执行的操作失败需要执行回调通知调用方一些信息，该回调函数不会立刻执行，而是在下一轮事件循环的pending阶段执行（比如写入数据成功，或者TCP连接失败时回调C++层），我们先看pending阶段的处理。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__run_pending</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE</span><span class=o>*</span><span class=w> </span><span class=n>q</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE</span><span class=w> </span><span class=n>pq</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>pending_queue</span><span class=p>))</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 把pending_queue队列的节点移到pq，即清空了pending_queue  </span>
+<span class=w>      </span><span class=n>QUEUE_MOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>pending_queue</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>pq</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 遍历pq队列  </span>
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>pq</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 取出当前第一个需要处理的节点，即pq.next  </span>
+<span class=w>        </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>pq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 把当前需要处理的节点移出队列  </span>
+<span class=w>        </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          重置一下prev和next指针，因为这时候这两个指针是</span>
+<span class=cm>          指向队列中的两个节点  </span>
+<span class=cm>         */</span>
+<span class=w>        </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>w</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_DATA</span><span class=p>(</span><span class=n>q</span><span class=p>,</span><span class=w> </span><span class=n>uv__io_t</span><span class=p>,</span><span class=w> </span><span class=n>pending_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>cb</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=n>POLLOUT</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>pending阶段的处理逻辑就是把pending队列里的节点逐个执行。我们看一下pending队列的节点是如何生产出来的。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__io_feed</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pending_queue</span><span class=p>))</span><span class=w>  </span>
+<span class=w>        </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>pending_queue</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pending_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Libuv通过uv__io_feed函数生产pending任务，从Libuv的代码中我们看到IO错误的时候会调这个函数（如tcp.c的uv__tcp_connect函数）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>delayed_error</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__io_feed</span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>io_watcher</span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>在写入数据成功后（比如TCP、UDP），也会往pending队列插入一个节点，等待回调。比如发送数据成功后执行的代码（udp.c的uv__udp_sendmsg函数）</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 发送完移出写队列  </span>
+<span class=w>    </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// 加入写完成队列  </span>
+<span class=w>    </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>write_completed_queue</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=cm>/*</span>
+<span class=cm>      有节点数据写完了，把IO观察者插入pending队列，</span>
+<span class=cm>      pending阶段执行回调</span>
+<span class=cm>    */</span><span class=w>  </span>
+<span class=w>    </span><span class=n>uv__io_feed</span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>io_watcher</span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>最后关闭IO的时候（如关闭一个TCP连接）会从pending队列移除对应的节点，因为已经关闭了，自然就不需要执行回调。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__io_close</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__io_stop</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span>
+<span class=w>                    </span><span class=n>w</span><span class=p>,</span><span class=w> </span>
+<span class=w>                    </span><span class=n>POLLIN</span><span class=w> </span><span class=o>|</span><span class=w> </span><span class=n>POLLOUT</span><span class=w> </span><span class=o>|</span><span class=w> </span><span class=n>UV__POLLRDHUP</span><span class=w> </span><span class=o>|</span><span class=w> </span><span class=n>UV__POLLPRI</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pending_queue</span><span class=p>);</span><span class=w>   </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h2 id=33-preparecheckidle>3.3 事件循环之prepare,check,idle<a class=headerlink href=#33-preparecheckidle title="Permanent link">&para;</a></h2> <p>prepare,check,idle是Libuv事件循环中属于比较简单的一个阶段，它们的实现是一样的（见loop-watcher.c）。本节只讲解prepare阶段，我们知道Libuv中分为handle和request，而prepare阶段的任务是属于handle类型。这意味着除非我们显式移除，否则prepare阶段的节点在每次事件循环中都会被执行。下面我们先看看怎么使用它。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>prep_cb</span><span class=p>(</span><span class=n>uv_prepare_t</span><span class=w> </span><span class=o>*</span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>printf</span><span class=p>(</span><span class=s>&quot;Prep callback</span><span class=se>\n</span><span class=s>&quot;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>main</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv_prepare_t</span><span class=w> </span><span class=n>prep</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 初始化一个handle，uv_default_loop是事件循环的核心结构体  </span>
+<span class=w>        </span><span class=n>uv_prepare_init</span><span class=p>(</span><span class=n>uv_default_loop</span><span class=p>(),</span><span class=w> </span><span class=o>&amp;</span><span class=n>prep</span><span class=p>);</span><span class=w> </span>
+<span class=w>            </span><span class=c1>// 注册handle的回调 </span>
+<span class=w>        </span><span class=n>uv_prepare_start</span><span class=p>(</span><span class=o>&amp;</span><span class=n>prep</span><span class=p>,</span><span class=w> </span><span class=n>prep_cb</span><span class=p>);</span>
+<span class=w>            </span><span class=c1>// 开始事件循环  </span>
+<span class=w>        </span><span class=n>uv_run</span><span class=p>(</span><span class=n>uv_default_loop</span><span class=p>(),</span><span class=w> </span><span class=n>UV_RUN_DEFAULT</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>执行main函数，Libuv就会在prepare阶段执行回调prep_cb。我们分析一下这个过程。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_prepare_init</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv_prepare_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>        </span><span class=n>uv__handle_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=n>uv_handle_t</span><span class=o>*</span><span class=p>)</span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=n>UV_PREPARE</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>prepare_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>    </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>                   </span>
+<span class=w>    </span><span class=p>}</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>init函数主要是做一些初始化操作。我们继续要看start函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_prepare_start</span><span class=p>(</span><span class=n>uv_prepare_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=n>uv_prepare_cb</span><span class=w> </span><span class=n>cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span>
+<span class=w>       </span><span class=c1>// 如果已经执行过start函数则直接返回  </span>
+<span class=w>       </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>uv__is_active</span><span class=p>(</span><span class=n>handle</span><span class=p>))</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>       </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>cb</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=n>UV_EINVAL</span><span class=p>;</span>
+<span class=w>       </span><span class=n>QUEUE_INSERT_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>prepare_handles</span><span class=p>,</span><span class=w> </span>
+<span class=w>                            </span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>queue</span><span class=p>);</span><span class=w>           </span>
+<span class=w>       </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>prepare_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>cb</span><span class=p>;</span><span class=w>     </span>
+<span class=w>       </span><span class=n>uv__handle_start</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>    </span>
+<span class=w>       </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>    </span>
+<span class=w>     </span><span class=p>}</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>uv_prepare_start函数主要的逻辑主要是设置回调，把handle插入loop的prepare_handles队列，prepare_handles队列保存了prepare阶段的任务。在事件循环的prepare阶段会逐个执行里面的节点的回调。然后我们看看Libuv在事件循环的prepare阶段是如何处理的。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__run_prepare</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>           </span>
+<span class=w>        </span><span class=n>uv_prepare_t</span><span class=o>*</span><span class=w> </span><span class=n>h</span><span class=p>;</span><span class=w>               </span>
+<span class=w>        </span><span class=n>QUEUE</span><span class=w> </span><span class=n>queue</span><span class=p>;</span><span class=w>               </span>
+<span class=w>        </span><span class=n>QUEUE</span><span class=o>*</span><span class=w> </span><span class=n>q</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/* </span>
+<span class=cm>          把该类型对应的队列中所有节点摘下来挂载到queue变量， </span>
+<span class=cm>          相当于清空prepare_handles队列，因为如果直接遍历 </span>
+<span class=cm>          prepare_handles队列，在执行回调的时候一直往prepare_handles </span>
+<span class=cm>          队列加节点，会导致下面的while循环无法退出。 </span>
+<span class=cm>          先移除的话，新插入的节点在下一轮事件循环才会被处理。 </span>
+<span class=cm>        */</span><span class=w>                              </span>
+<span class=w>         </span><span class=n>QUEUE_MOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>prepare_handles</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>queue</span><span class=p>);</span><span class=w>      </span>
+<span class=w>        </span><span class=c1>// 遍历队列，执行每个节点里面的函数  </span>
+<span class=w>        </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>queue</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>             </span>
+<span class=w>          </span><span class=c1>// 取下当前待处理的节点，即队列的头  </span>
+<span class=w>          </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>queue</span><span class=p>);</span><span class=w>        </span>
+<span class=w>          </span><span class=cm>/* </span>
+<span class=cm>                  取得该节点对应的整个结构体的基地址， </span>
+<span class=cm>                  即通过结构体成员取得结构体首地址 </span>
+<span class=cm>                */</span><span class=w>  </span>
+<span class=w>          </span><span class=n>h</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_DATA</span><span class=p>(</span><span class=n>q</span><span class=p>,</span><span class=w> </span><span class=n>uv_prepare_t</span><span class=p>,</span><span class=w> </span><span class=n>queue</span><span class=p>);</span><span class=w> </span>
+<span class=w>          </span><span class=c1>// 把该节点移出当前队列  </span>
+<span class=w>          </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>          </span>
+<span class=w>           </span><span class=c1>// 重新插入原来的队列  </span>
+<span class=w>          </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>prepare_handles</span><span class=p>,</span><span class=w> </span><span class=n>q</span><span class=p>);</span>
+<span class=w>           </span><span class=c1>// 执行回调函数  </span>
+<span class=w>          </span><span class=n>h</span><span class=o>-&gt;</span><span class=n>prepare_cb</span><span class=p>(</span><span class=n>h</span><span class=p>);</span><span class=w>           </span>
+<span class=w>        </span><span class=p>}</span><span class=w>                           </span>
+<span class=w>      </span><span class=p>}</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>uv__run_prepare函数的逻辑很简单，但是有一个重点的地方就是执行完每一个节点，Libuv会把该节点重新插入队列中，所以prepare（包括idle、check）阶段的节点在每一轮事件循环中都会被执行。而像定时器、pending、closing阶段的节点是一次性的，被执行后就会从队列里删除。 &nbsp;&nbsp;&nbsp;&nbsp;我们回顾一开始的测试代码。因为它设置了Libuv的运行模式是默认模式。而prepare队列又一直有一个handle节点，所以它是不会退出的。它会一直执行回调。那如果我们要退出怎么办呢？或者说不要执行prepare队列的某个节点了。我们只需要stop一下就可以了。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>       </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_prepare_stop</span><span class=p>(</span><span class=n>uv_prepare_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>uv__is_active</span><span class=p>(</span><span class=n>handle</span><span class=p>))</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span>
+<span class=w>        </span><span class=c1>// 把handle从prepare队列中移除，但还挂载到handle_queue中  </span>
+<span class=w>        </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 清除active标记位并且减去loop中handle的active数  </span>
+<span class=w>        </span><span class=n>uv__handle_stop</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>     </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>                    </span>
+<span class=w>      </span><span class=p>}</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>stop函数和start函数是相反的作用，这就是Node.js中prepare、check、idle阶段的原理。</p> <h2 id=34-poll-io>3.4 事件循环之Poll IO<a class=headerlink href=#34-poll-io title="Permanent link">&para;</a></h2> <p>Poll IO是Libuv非常重要的一个阶段，文件IO、网络IO、信号处理等都在这个阶段处理，这也是最复杂的一个阶段。处理逻辑在core.c的uv__io_poll这个函数，这个函数比较复杂，我们分开分析。在开始分析Poll IO之前，先了解一下它相关的一些数据结构。 1 IO观察者uv__io_t。这个结构体是Poll IO阶段核心结构体。它主要是保存了IO相关的文件描述符、回 调、感兴趣的事件等信息。 2 watcher_queue观察者队列。所有需要Libuv处理的IO观察者都挂载在这个队列里，Libuv在Poll IO阶段会逐个处理。</p> <p>下面我们开始分析Poll IO阶段。先看第一段逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>     </span><span class=c1>// 没有IO观察者，则直接返回  </span>
+<span class=w>     </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>nfds</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>assert</span><span class=p>(</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>));</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 遍历IO观察者队列  </span>
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 取出当前头节点  </span>
+<span class=w>        </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 脱离队列  </span>
+<span class=w>        </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 初始化（重置）节点的前后指针  </span>
+<span class=w>        </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 通过结构体成功获取结构体首地址  </span>
+<span class=w>        </span><span class=n>w</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_DATA</span><span class=p>(</span><span class=n>q</span><span class=p>,</span><span class=w> </span><span class=n>uv__io_t</span><span class=p>,</span><span class=w> </span><span class=n>watcher_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 设置当前感兴趣的事件  </span>
+<span class=w>        </span><span class=n>e</span><span class=p>.</span><span class=n>events</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pevents</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/* </span>
+<span class=cm>              这里使用了fd字段，事件触发后再通过fd从watchs</span>
+<span class=cm>              字段里找到对应的IO观察者，没有使用ptr指向IO观察者的方案  </span>
+<span class=cm>            */</span>
+<span class=w>        </span><span class=n>e</span><span class=p>.</span><span class=n>data</span><span class=p>.</span><span class=n>fd</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 如果w-&gt;events初始化的时候为0，则新增，否则修改  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>events</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=n>op</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>EPOLL_CTL_ADD</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>else</span><span class=w>  </span>
+<span class=w>          </span><span class=n>op</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>EPOLL_CTL_MOD</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 修改epoll的数据  </span>
+<span class=w>        </span><span class=n>epoll_ctl</span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>backend_fd</span><span class=p>,</span><span class=w> </span><span class=n>op</span><span class=p>,</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>e</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 记录当前加到epoll时的状态   </span>
+<span class=w>        </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>events</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pevents</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>第一步首先遍历IO观察者，修改epoll的数据。然后准备进入等待。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>      </span><span class=n>psigset</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>     </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_LOOP_BLOCK_SIGPROF</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>       </span><span class=n>sigemptyset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>sigset</span><span class=p>);</span><span class=w>  </span>
+<span class=w>       </span><span class=n>sigaddset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>sigset</span><span class=p>,</span><span class=w> </span><span class=n>SIGPROF</span><span class=p>);</span><span class=w>  </span>
+<span class=w>       </span><span class=n>psigset</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>&amp;</span><span class=n>sigset</span><span class=p>;</span><span class=w>  </span>
+<span class=w>     </span><span class=p>}</span><span class=w>  </span>
+<span class=w>       </span><span class=cm>/* </span>
+<span class=cm>        http://man7.org/Linux/man-pages/man2/epoll_wait.2.html </span>
+<span class=cm>        pthread_sigmask(SIG_SETMASK, &amp;sigmask, &amp;origmask); </span>
+<span class=cm>        ready = epoll_wait(epfd, &amp;events, maxevents, timeout); </span>
+<span class=cm>        pthread_sigmask(SIG_SETMASK, &amp;origmask, NULL); </span>
+<span class=cm>        即屏蔽SIGPROF信号，避免SIGPROF信号唤醒epoll_wait，但是却没</span>
+<span class=cm>            有就绪的事件 </span>
+<span class=cm>       */</span><span class=w>  </span>
+<span class=w>       </span><span class=n>nfds</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>epoll_pwait</span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>backend_fd</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                          </span><span class=n>events</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                          </span><span class=n>ARRAY_SIZE</span><span class=p>(</span><span class=n>events</span><span class=p>),</span><span class=w>  </span>
+<span class=w>                          </span><span class=n>timeout</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                          </span><span class=n>psigset</span><span class=p>);</span><span class=w>  </span>
+<span class=w>       </span><span class=c1>// epoll可能阻塞，这里需要更新事件循环的时间  </span>
+<span class=w>       </span><span class=n>uv__update_time</span><span class=p>(</span><span class=n>loop</span><span class=p>)</span><span class=w>   </span><span class=err>```</span>
+</code></pre></div></td></tr></table></div> epoll_wait可能会引起主线程阻塞，所以wait返回后需要更新当前的时间，否则在使用的时候时间差会比较大，因为Libuv会在每轮时间循环开始的时候缓存当前时间这个值。其它地方直接使用，而不是每次都去获取。下面我们接着看epoll返回后的处理（假设有事件触发）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>       </span><span class=c1>// 保存epoll_wait返回的一些数据，maybe_resize申请空间的时候+2了</span>
+<span class=w>       </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>nwatchers</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=kt>void</span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=n>events</span><span class=p>;</span><span class=w>  </span>
+<span class=w>       </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>nwatchers</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=mi>1</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=kt>void</span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=p>(</span><span class=kt>uintptr_t</span><span class=p>)</span><span class=w> </span><span class=n>nfds</span><span class=p>;</span><span class=w>  </span>
+<span class=w>       </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>i</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>nfds</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=o>++</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 触发的事件和文件描述符  </span>
+<span class=w>         </span><span class=n>pe</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>events</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>i</span><span class=p>;</span><span class=w>  </span>
+<span class=w>         </span><span class=n>fd</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>pe</span><span class=o>-&gt;</span><span class=n>data</span><span class=p>.</span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 根据fd获取IO观察者，见上面的图  </span>
+<span class=w>         </span><span class=n>w</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>fd</span><span class=p>];</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 会其它回调里被删除了，则从epoll中删除  </span>
+<span class=w>         </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>           </span><span class=n>epoll_ctl</span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>backend_fd</span><span class=p>,</span><span class=w> </span><span class=n>EPOLL_CTL_DEL</span><span class=p>,</span><span class=w> </span><span class=n>fd</span><span class=p>,</span><span class=w> </span><span class=n>pe</span><span class=p>);</span><span class=w>  </span>
+<span class=w>           </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>         </span><span class=p>}</span><span class=w>  </span>
+<span class=w>         </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>pe</span><span class=o>-&gt;</span><span class=n>events</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>            </span><span class=cm>/*</span>
+<span class=cm>                用于信号处理的IO观察者感兴趣的事件触发了，</span>
+<span class=cm>                即有信号发生。  </span>
+<span class=cm>            */</span>
+<span class=w>           </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_io_watcher</span><span class=p>)</span><span class=w>  </span>
+<span class=w>             </span><span class=n>have_signals</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>           </span><span class=k>else</span><span class=w>  </span>
+<span class=w>             </span><span class=c1>// 一般的IO观察者则执行回调  </span>
+<span class=w>             </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>cb</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=n>pe</span><span class=o>-&gt;</span><span class=n>events</span><span class=p>);</span><span class=w>  </span>
+<span class=w>           </span><span class=n>nevents</span><span class=o>++</span><span class=p>;</span><span class=w>  </span>
+<span class=w>         </span><span class=p>}</span><span class=w>  </span>
+<span class=w>       </span><span class=p>}</span><span class=w>  </span>
+<span class=w>       </span><span class=c1>// 有信号发生，触发回调  </span>
+<span class=w>       </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>have_signals</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>         </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_io_watcher</span><span class=p>.</span><span class=n>cb</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                    </span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_io_watcher</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                    </span><span class=n>POLLIN</span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>上面的代码处理IO事件并执行IO观察者里的回调，但是有一个特殊的地方就是信号处理的IO观察者需要单独判断，它是一个全局的IO观察者，和一般动态申请和销毁的IO观察者不一样，它是存在于Libuv运行的整个生命周期。这就是Poll IO的整个过程。</p> <h2 id=35-close>3.5 事件循环之close<a class=headerlink href=#35-close title="Permanent link">&para;</a></h2> <p>close是Libuv每轮事件循环中最后的一个阶段。uv_close用于关闭一个handle，并且执行一个回调。uv_close产生的任务会插入到close阶段的队列，然后在close阶段被处理。我们看一下uv_close函数的实现。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv_close</span><span class=p>(</span><span class=n>uv_handle_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=n>uv_close_cb</span><span class=w> </span><span class=n>close_cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 正在关闭，但是还没执行回调等后置操作  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>|=</span><span class=w> </span><span class=n>UV_HANDLE_CLOSING</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>close_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>close_cb</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>switch</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>type</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span>
+<span class=w>      </span><span class=k>case</span><span class=w> </span><span class=no>UV_PREPARE</span><span class=p>:</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__prepare_close</span><span class=p>((</span><span class=n>uv_prepare_t</span><span class=o>*</span><span class=p>)</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>case</span><span class=w> </span><span class=no>UV_CHECK</span><span class=p>:</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__check_close</span><span class=p>((</span><span class=n>uv_check_t</span><span class=o>*</span><span class=p>)</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>...</span><span class=w>  </span>
+<span class=w>      </span><span class=k>default</span><span class=o>:</span><span class=w>  </span>
+<span class=w>        </span><span class=n>assert</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__make_close_pending</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv_close设置回调和状态，然后根据handle类型调对应的close函数，一般就是stop这个handle，解除IO观察者注册的事件，从事件循环的handle队列移除该handle等等，比如prepare的close函数只是把handle从队列中移除。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__prepare_close</span><span class=p>(</span><span class=n>uv_prepare_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>   </span>
+<span class=w>        </span><span class=n>uv_prepare_stop</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>       </span>
+<span class=w>    </span><span class=p>}</span>
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_prepare_stop</span><span class=p>(</span><span class=n>uv_prepare__t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>                                  </span>
+<span class=w>       </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>queue</span><span class=p>);</span><span class=w>                                             </span>
+<span class=w>       </span><span class=n>uv__handle_stop</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>                                                  </span>
+<span class=w>       </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>                                                                 </span>
+<span class=w>    </span><span class=p>}</span><span class=w>      </span>
+</code></pre></div></td></tr></table></div> <p>根据不同的handle做不同的处理后，接着执行uv__make_close_pending往close队列追加节点。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 头插法插入closing队列，在closing阶段被执行  </span>
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__make_close_pending</span><span class=p>(</span><span class=n>uv_handle_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>next_closing</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>closing_handles</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>closing_handles</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>然后在close阶段逐个处理。我们看一下close阶段的处理逻辑</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 执行closing阶段的的回调  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__run_closing_handles</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_handle_t</span><span class=o>*</span><span class=w> </span><span class=n>p</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_handle_t</span><span class=o>*</span><span class=w> </span><span class=n>q</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>p</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>closing_handles</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>closing_handles</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>p</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>p</span><span class=o>-&gt;</span><span class=n>next_closing</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__finish_close</span><span class=p>(</span><span class=n>p</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>p</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>q</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=c1>// 执行closing阶段的回调  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__finish_close</span><span class=p>(</span><span class=n>uv_handle_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>|=</span><span class=w> </span><span class=n>UV_HANDLE_CLOSED</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>...</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__handle_unref</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w> </span>
+<span class=w>        </span><span class=c1>// 从handle队列里移除 </span>
+<span class=w>      </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>handle_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>close_cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>close_cb</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__run_closing_handles会逐个执行每个任务节点的回调。</p> <h2 id=36>3.6 控制事件循环<a class=headerlink href=#36 title="Permanent link">&para;</a></h2> <p>Libuv通过uv__loop_alive函数判断事件循环是否还需要继续执行。我们看看这个函数的定义。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__loop_alive</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=n>uv__has_active_handles</span><span class=p>(</span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=o>||</span><span class=w>  </span>
+<span class=w>             </span><span class=n>uv__has_active_reqs</span><span class=p>(</span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=o>||</span><span class=w>  </span>
+<span class=w>             </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>closing_handles</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>为什么会有一个closing_handle的判断呢？从uv_run的代码来看，执行完close阶段后，会立刻执行uv__loop_alive，正常来说，close阶段的队列是空的，但是如果我们在close回调里又往close队列新增了一个节点，而该节点不会在本轮的close阶段被执行，这样会导致执行完close阶段，但是close队列依然有节点，如果直接退出，则无法执行对应的回调。 我们看到有三种情况，Libuv认为事件循环是存活的。如果我们控制这三种条件就可以控制事件循环的的退出。我们通过一个例子理解一下这个过程。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>timeout</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>setTimeout</span><span class=p>(()</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span><span class=s1>&#39;never console&#39;</span><span class=p>)</span><span class=w>  </span>
+<span class=w>    </span><span class=p>},</span><span class=w> </span><span class=mf>5000</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>timeout</span><span class=p>.</span><span class=nx>unref</span><span class=p>();</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>上面的代码中，setTimeout的回调是不会执行的。除非超时时间非常短，短到第一轮事件循环的时候就到期了，否则在第一轮事件循环之后，由于unref的影响，事件循环直接退出了。unref影响的就是handle这个条件。这时候事件循环代码如下。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>stop_flag</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__update_time</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__run_timers</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// ...  </span>
+<span class=w>        </span><span class=c1>// uv__loop_alive返回false，直接跳出while，从而退出事件循环  </span>
+<span class=w>        </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__loop_alive</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> </article> </div> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> 回到页面顶部 </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; 2021 theanarkh </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/theanarkh target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> <a href=https://www.zhihu.com/people/theanarkh target=_blank rel=noopener title=www.zhihu.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 640 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M170.54 148.13v217.54l23.43.01 7.71 26.37 42.01-26.37h49.53V148.13zm97.75 193.93h-27.94l-27.9 17.51-5.08-17.47-11.9-.04V171.75h72.82zm-118.46-94.39H97.5c1.74-27.1 2.2-51.59 2.2-73.46h51.16s1.97-22.56-8.58-22.31h-88.5c3.49-13.12 7.87-26.66 13.12-40.67 0 0-24.07 0-32.27 21.57-3.39 8.9-13.21 43.14-30.7 78.12 5.89-.64 25.37-1.18 36.84-22.21 2.11-5.89 2.51-6.66 5.14-14.53h28.87c0 10.5-1.2 66.88-1.68 73.44H20.83c-11.74 0-15.56 23.62-15.56 23.62h65.58C66.45 321.1 42.83 363.12 0 396.34c20.49 5.85 40.91-.93 51-9.9 0 0 22.98-20.9 35.59-69.25l53.96 64.94s7.91-26.89-1.24-39.99c-7.58-8.92-28.06-33.06-36.79-41.81L87.9 311.95c4.36-13.98 6.99-27.55 7.87-40.67h61.65s-.09-23.62-7.59-23.62zm412.02-1.6c20.83-25.64 44.98-58.57 44.98-58.57s-18.65-14.8-27.38-4.06c-6 8.15-36.83 48.2-36.83 48.2zm-150.09-59.09c-9.01-8.25-25.91 2.13-25.91 2.13s39.52 55.04 41.12 57.45l19.46-13.73s-25.67-37.61-34.66-45.86h-.01zM640 258.35c-19.78 0-130.91.93-131.06.93v-101c4.81 0 12.42-.4 22.85-1.2 40.88-2.41 70.13-4 87.77-4.81 0 0 12.22-27.19-.59-33.44-3.07-1.18-23.17 4.58-23.17 4.58s-165.22 16.49-232.36 18.05c1.6 8.82 7.62 17.08 15.78 19.55 13.31 3.48 22.69 1.7 49.15.89 24.83-1.6 43.68-2.43 56.51-2.43v99.81H351.41s2.82 22.31 25.51 22.85h107.94v70.92c0 13.97-11.19 21.99-24.48 21.12-14.08.11-26.08-1.15-41.69-1.81 1.99 3.97 6.33 14.39 19.31 21.84 9.88 4.81 16.17 6.57 26.02 6.57 29.56 0 45.67-17.28 44.89-45.31v-73.32h122.36c9.68 0 8.7-23.78 8.7-23.78z"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"base": "..", "features": ["content.code.annotate", "navigation.indexes", "navigation.instant", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script> <script src=../assets/javascripts/bundle.83f73b43.min.js></script> <script src=../extra/image.js defer></script> </body> </html>

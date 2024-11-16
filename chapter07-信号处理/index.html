@@ -1,0 +1,936 @@
+<!doctype html><html lang=zh class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="通过源码分析 Node.js 原理"><meta name=author content=theanarkh><link href=https://github.com/theanarkh/understand-nodejs/chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ rel=canonical><link href=../chapter06-C%2B%2B%E5%B1%82/ rel=prev><link href=../chapter08-DNS/ rel=next><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.5.44"><title>07-信号处理 - Node.js 源码剖析</title><link rel=stylesheet href=../assets/stylesheets/main.0253249f.min.css><link rel=stylesheet href=../assets/stylesheets/palette.06af60db.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#71 class=md-skip> 跳转至 </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=页眉> <a href=.. title="Node.js 源码剖析" class="md-header__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> Node.js 源码剖析 </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> 07-信号处理 </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=blue data-md-color-accent=blue aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=搜索 placeholder=搜索 autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=查找> <a href=javascript:void(0) class="md-search__icon md-icon" title=分享 aria-label=分享 data-clipboard data-clipboard-text data-md-component=search-share tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg> </a> <button type=reset class="md-search__icon md-icon" title=清空当前内容 aria-label=清空当前内容 tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> 正在初始化搜索引擎 </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> </nav> <nav class=md-tabs aria-label=标签 data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-tabs__link> 前言 </a> </li> <li class=md-tabs__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-tabs__link> Node.js基础和架构 </a> </li> <li class="md-tabs__item md-tabs__item--active"> <a href=./ class=md-tabs__link> Node.js核心模块的实现 </a> </li> <li class=md-tabs__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-tabs__link> 其他 </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=导航栏 data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title="Node.js 源码剖析" class="md-nav__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> Node.js 源码剖析 </label> <div class=md-nav__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class=md-nav__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-nav__link> <span class=md-ellipsis> 前言 </span> </a> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_3> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex=0> <span class=md-ellipsis> Node.js基础和架构 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=false> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Node.js基础和架构 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 01-Node.js组成和原理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ class=md-nav__link> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </a> </li> <li class=md-nav__item> <a href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ class=md-nav__link> <span class=md-ellipsis> 03-事件循环 </span> </a> </li> <li class=md-nav__item> <a href=../chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ class=md-nav__link> <span class=md-ellipsis> 04-线程池 </span> </a> </li> <li class=md-nav__item> <a href=../chapter05-Libuv%E6%B5%81/ class=md-nav__link> <span class=md-ellipsis> 05-Libuv流 </span> </a> </li> <li class=md-nav__item> <a href=../chapter06-C%2B%2B%E5%B1%82/ class=md-nav__link> <span class=md-ellipsis> 06-C++层 </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_4 checked> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex> <span class=md-ellipsis> Node.js核心模块的实现 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=true> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Node.js核心模块的实现 </label> <ul class=md-nav__list data-md-scrollfix> <li class="md-nav__item md-nav__item--active"> <input class="md-nav__toggle md-toggle" type=checkbox id=__toc> <label class="md-nav__link md-nav__link--active" for=__toc> <span class=md-ellipsis> 07-信号处理 </span> <span class="md-nav__icon md-icon"></span> </label> <a href=./ class="md-nav__link md-nav__link--active"> <span class=md-ellipsis> 07-信号处理 </span> </a> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#71 class=md-nav__link> <span class=md-ellipsis> 7.1 信号的概念和实现原理 </span> </a> </li> <li class=md-nav__item> <a href=#72-libuv class=md-nav__link> <span class=md-ellipsis> 7.2 Libuv信号处理的设计思想 </span> </a> </li> <li class=md-nav__item> <a href=#73 class=md-nav__link> <span class=md-ellipsis> 7.3 通信机制的实现 </span> </a> </li> <li class=md-nav__item> <a href=#74 class=md-nav__link> <span class=md-ellipsis> 7.4 信号结构体的初始化 </span> </a> </li> <li class=md-nav__item> <a href=#75 class=md-nav__link> <span class=md-ellipsis> 7.5 信号处理的注册 </span> </a> </li> <li class=md-nav__item> <a href=#76 class=md-nav__link> <span class=md-ellipsis> 7.6 信号的处理 </span> </a> </li> <li class=md-nav__item> <a href=#77 class=md-nav__link> <span class=md-ellipsis> 7.7 取消/关闭信号处理 </span> </a> </li> <li class=md-nav__item> <a href=#78-nodejs class=md-nav__link> <span class=md-ellipsis> 7.8 信号在Node.js中的使用 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../chapter08-DNS/ class=md-nav__link> <span class=md-ellipsis> 08-DNS </span> </a> </li> <li class=md-nav__item> <a href=../chapter09-Unix%E5%9F%9F/ class=md-nav__link> <span class=md-ellipsis> 09-Unix域 </span> </a> </li> <li class=md-nav__item> <a href=../chapter10-%E5%AE%9A%E6%97%B6%E5%99%A8/ class=md-nav__link> <span class=md-ellipsis> 10-定时器 </span> </a> </li> <li class=md-nav__item> <a href=../chapter11-setImmediate%E5%92%8CnextTick/ class=md-nav__link> <span class=md-ellipsis> 11-setImmediate和nextTick </span> </a> </li> <li class=md-nav__item> <a href=../chapter12-%E6%96%87%E4%BB%B6/ class=md-nav__link> <span class=md-ellipsis> 12-文件 </span> </a> </li> <li class=md-nav__item> <a href=../chapter13-%E8%BF%9B%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 13-进程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter14-%E7%BA%BF%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 14-线程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter15-Cluster/ class=md-nav__link> <span class=md-ellipsis> 15-Cluster </span> </a> </li> <li class=md-nav__item> <a href=../chapter16-UDP/ class=md-nav__link> <span class=md-ellipsis> 16-UDP </span> </a> </li> <li class=md-nav__item> <a href=../chapter17-TCP/ class=md-nav__link> <span class=md-ellipsis> 17-TCP </span> </a> </li> <li class=md-nav__item> <a href=../chapter18-HTTP/ class=md-nav__link> <span class=md-ellipsis> 18-HTTP </span> </a> </li> <li class=md-nav__item> <a href=../chapter19-%E6%A8%A1%E5%9D%97%E5%8A%A0%E8%BD%BD/ class=md-nav__link> <span class=md-ellipsis> 19-模块加载 </span> </a> </li> <li class=md-nav__item> <a href=../chapter21-JS%20Stream/ class=md-nav__link> <span class=md-ellipsis> 20-JS Stream </span> </a> </li> <li class=md-nav__item> <a href=../chapter22-events%E6%A8%A1%E5%9D%97/ class=md-nav__link> <span class=md-ellipsis> 21-events模块 </span> </a> </li> <li class=md-nav__item> <a href=../chapter23-Async%20hooks/ class=md-nav__link> <span class=md-ellipsis> 22-Async hooks </span> </a> </li> <li class=md-nav__item> <a href=../chapter24-Inspector/ class=md-nav__link> <span class=md-ellipsis> 23-Inspector </span> </a> </li> <li class=md-nav__item> <a href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ class=md-nav__link> <span class=md-ellipsis> 27-深入理解 Node.js 的 Buffer </span> </a> </li> <li class=md-nav__item> <a href=../chapter30-Node.js%20%E7%9A%84%20trace%20events%20%E6%9E%B6%E6%9E%84/ class=md-nav__link> <span class=md-ellipsis> 30-Node.js 的 trace events 架构 </span> </a> </li> <li class=md-nav__item> <a href=../chapter31-Node.js%20%E7%9A%84%20perf_hooks/ class=md-nav__link> <span class=md-ellipsis> 31-Node.js 的 perf_hooks </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> 其他 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> 其他 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 24-拓展Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter25-Node.js子线程调试和诊断指南 class=md-nav__link> <span class=md-ellipsis> 25-Node.js子线程调试和诊断指南 </span> </a> </li> <li class=md-nav__item> <a href=../chapter26-vscode%E8%B0%83%E8%AF%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 26-vscode调试Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter28-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E6%9E%B6%E6%9E%84%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 28-Node.js底层原理（架构篇） </span> </a> </li> <li class=md-nav__item> <a href=../chapter29-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E5%AE%9E%E7%8E%B0%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 29-Node.js底层原理（实现篇） </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#71 class=md-nav__link> <span class=md-ellipsis> 7.1 信号的概念和实现原理 </span> </a> </li> <li class=md-nav__item> <a href=#72-libuv class=md-nav__link> <span class=md-ellipsis> 7.2 Libuv信号处理的设计思想 </span> </a> </li> <li class=md-nav__item> <a href=#73 class=md-nav__link> <span class=md-ellipsis> 7.3 通信机制的实现 </span> </a> </li> <li class=md-nav__item> <a href=#74 class=md-nav__link> <span class=md-ellipsis> 7.4 信号结构体的初始化 </span> </a> </li> <li class=md-nav__item> <a href=#75 class=md-nav__link> <span class=md-ellipsis> 7.5 信号处理的注册 </span> </a> </li> <li class=md-nav__item> <a href=#76 class=md-nav__link> <span class=md-ellipsis> 7.6 信号的处理 </span> </a> </li> <li class=md-nav__item> <a href=#77 class=md-nav__link> <span class=md-ellipsis> 7.7 取消/关闭信号处理 </span> </a> </li> <li class=md-nav__item> <a href=#78-nodejs class=md-nav__link> <span class=md-ellipsis> 7.8 信号在Node.js中的使用 </span> </a> </li> </ul> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <h1>07-信号处理</h1> <h2 id=71>7.1 信号的概念和实现原理<a class=headerlink href=#71 title="Permanent link">&para;</a></h2> <p>信号是进程间通信的一种简单的方式，我们首先了解一下信号的概念和在操作系统中的实现原理。在操作系统内核的实现中，每个进程对应一个task_struct结构体（PCB），PCB中有一个字段记录了进程收到的信号（每一个比特代表一种信号）和信号对应的处理函数。这个和订阅者/发布者模式非常相似，我们看一下PCB中信号对应的数据结构。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>struct</span><span class=w> </span><span class=nc>task_struct</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 收到的信号  </span>
+<span class=w>        </span><span class=kt>long</span><span class=w> </span><span class=n>signal</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 处理信号过程中屏蔽的信息  </span>
+<span class=w>        </span><span class=kt>long</span><span class=w> </span><span class=n>blocked</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 信号对应的处理函数  </span>
+<span class=w>        </span><span class=k>struct</span><span class=w> </span><span class=nc>sigaction</span><span class=w> </span><span class=n>sigaction</span><span class=p>[</span><span class=mi>32</span><span class=p>];</span><span class=w>  </span>
+<span class=w>           </span><span class=p>...</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+
+<span class=w>    </span><span class=k>struct</span><span class=w> </span><span class=nc>sigaction</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 信号处理函数  </span>
+<span class=w>        </span><span class=kt>void</span><span class=w> </span><span class=p>(</span><span class=o>*</span><span class=n>sa_handler</span><span class=p>)(</span><span class=kt>int</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 处理信号时屏蔽哪些信息，和PCB的block字段对应  </span>
+<span class=w>        </span><span class=kt>sigset_t</span><span class=w> </span><span class=n>sa_mask</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 一些标记，比如处理函数只执行一次，类似events模块的once  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>sa_flags</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 清除调用栈信息，glibc使用  </span>
+<span class=w>        </span><span class=kt>void</span><span class=w> </span><span class=p>(</span><span class=o>*</span><span class=n>sa_restorer</span><span class=p>)(</span><span class=kt>void</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Linux下支持多种信号，进程收到信号时，操作系统提供了默认处理，我们也可以显式注册处理信号的函数，但是有些信号会导致进程退出，这是我们无法控制的。我们来看一下在Linux下信号使用的例子。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=cp>#include</span><span class=w> </span><span class=cpf>&lt;stdio.h&gt;</span><span class=c1>  </span>
+<span class=w>    </span><span class=cp>#include</span><span class=w> </span><span class=cpf>&lt;unistd.h&gt;</span><span class=c1>  </span>
+<span class=w>    </span><span class=cp>#include</span><span class=w> </span><span class=cpf>&lt;stdlib.h&gt;</span><span class=c1>  </span>
+<span class=w>    </span><span class=cp>#include</span><span class=w> </span><span class=cpf>&lt;signal.h&gt;</span><span class=c1>  </span>
+
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>handler</span><span class=p>(</span><span class=kt>int</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>main</span><span class=p>()</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>       </span><span class=n>signal</span><span class=p>(</span><span class=n>SIGINT</span><span class=p>,</span><span class=w> </span><span class=n>handler</span><span class=p>);</span><span class=w>  </span>
+<span class=w>       </span><span class=k>while</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span><span class=w>  </span>
+<span class=w>       </span><span class=k>return</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>sighandler</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>)</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>       </span><span class=n>printf</span><span class=p>(</span><span class=s>&quot;收到信号%d&quot;</span><span class=p>,</span><span class=w> </span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们注册了一个信号对应的处理函数，然后进入while循环保证进程不会退出，这时候，如果我们给这个进程发送一个SIGINT信号（ctrl+c或者kill -2 pid）。则进程会执行对应的回调，然后输出：收到信号2。了解了信号的基本原理后，我们看一下Libuv中关于信号的设计和实现。</p> <h2 id=72-libuv>7.2 Libuv信号处理的设计思想<a class=headerlink href=#72-libuv title="Permanent link">&para;</a></h2> <p>由于操作系统实现的限制，我们无法给一个信号注册多个处理函数，对于同一个信号，如果我们调用操作系统接口多次，后面的就会覆盖前面设置的值。想要实现一个信号被多个函数处理，我们只能在操作系统之上再封装一层，Libuv正是这样做的。Libuv中关于信号处理的封装和订阅者/发布者模式很相似。用户调用Libuv的接口注册信号处理函数，Libuv再向操作系统注册对应的处理函数，等待操作系统收到信号时，会触发Libuv的回调，Libuv的回调会通过管道通知事件循环收到的信号和对应的上下文，接着事件循环在Poll IO阶段就会处理收到所有信号以及对应的处理函数。整体架构如图7-1所示<br> <img alt src="https://img-blog.csdnimg.cn/0e16d34a94b24fa194ae755589eea7c6.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 图7-1</p> <p>下面我们具体分析Libuv中信号处理的实现。</p> <h2 id=73>7.3 通信机制的实现<a class=headerlink href=#73 title="Permanent link">&para;</a></h2> <p>当进程收到信号的时候，信号处理函数需要通知Libuv事件循环，从而在事件循环中执行对应的回调，实现函数是uv__signal_loop_once_init，我们看一下uv__signal_loop_once_init的逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__signal_loop_once_init</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span>
+<span class=w>      </span><span class=cm>/* </span>
+<span class=cm>            申请一个管道用于和事件循环通信，通知事件循环是否收到信号，</span>
+<span class=cm>            并设置非阻塞标记  </span>
+<span class=cm>        */</span>
+<span class=w>      </span><span class=n>uv__make_pipe</span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_pipefd</span><span class=p>,</span><span class=w> </span><span class=n>UV__F_NONBLOCK</span><span class=p>);</span><span class=w> </span>
+<span class=w>      </span><span class=cm>/* </span>
+<span class=cm>          设置信号IO观察者的处理函数和文件描述符， </span>
+<span class=cm>          Libuv在Poll IO时，发现管道读端loop-&gt;signal_pipefd[0]可读， </span>
+<span class=cm>          则执行uv__signal_event </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__io_init</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_io_watcher</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                  </span><span class=n>uv__signal_event</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                  </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_pipefd</span><span class=p>[</span><span class=mi>0</span><span class=p>]);</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/* </span>
+<span class=cm>          插入Libuv的IO观察者队列，并注册感兴趣的事件为可读</span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__io_start</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_io_watcher</span><span class=p>,</span><span class=w> </span><span class=n>POLLIN</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w> </span>
+<span class=w>    </span><span class=p>}</span><span class=w> </span>
+</code></pre></div></td></tr></table></div> <p>uv__signal_loop_once_init首先申请一个管道，用于通知事件循环是否收到信号。然后往Libuv的IO观察者队列注册一个观察者，Libuv在Poll IO阶段会把观察者加到epoll中。IO观察者里保存了管道读端的文件描述符loop-&gt;signal_pipefd[0]和回调函数uv__signal_event。uv__signal_event是收到任意信号时的回调，它会继续根据收到的信号进行逻辑分发。执行完的架构如图7-2所示。<br> <img alt src="https://img-blog.csdnimg.cn/a33d83e422374f489c235f81ff7baddf.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 图7-2</p> <h2 id=74>7.4 信号结构体的初始化<a class=headerlink href=#74 title="Permanent link">&para;</a></h2> <p>Libuv中信号使用uv_signal_t表示。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_signal_init</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span>
+<span class=w>      </span><span class=c1>// 申请和Libuv的通信管道并且注册IO观察者  </span>
+<span class=w>      </span><span class=n>uv__signal_loop_once_init</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__handle_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=n>uv_handle_t</span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=n>UV_SIGNAL</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>caught_signals</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>dispatched_signals</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <p>上面的代码的逻辑比较简单，只是初始化uv_signal_t结构体的一些字段。</p> <h2 id=75>7.5 信号处理的注册<a class=headerlink href=#75 title="Permanent link">&para;</a></h2> <p>我们可以通过uv_signal_start注册一个信号处理函数。我们看看这个函数的逻辑</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span>
+<span class=normal>54</span>
+<span class=normal>55</span>
+<span class=normal>56</span>
+<span class=normal>57</span>
+<span class=normal>58</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__signal_start</span><span class=p>(</span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                   </span><span class=n>uv_signal_cb</span><span class=w> </span><span class=n>signal_cb</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                   </span><span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                   </span><span class=kt>int</span><span class=w> </span><span class=n>oneshot</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>sigset_t</span><span class=w> </span><span class=n>saved_sigmask</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>first_handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 注册过了，重新设置处理函数就行  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>signum</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signal_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>signal_cb</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 这个handle之前已经设置了其它信号和处理函数，则先解除  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__signal_stop</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 屏蔽所有信号  </span>
+<span class=w>      </span><span class=n>uv__signal_block_and_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>saved_sigmask</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/* </span>
+<span class=cm>          查找注册了该信号的第一个handle， </span>
+<span class=cm>          优先返回设置了UV_SIGNAL_ONE_SHOT flag的， </span>
+<span class=cm>          见compare函数 </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>first_handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__signal_first_handle</span><span class=p>(</span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/*  </span>
+<span class=cm>          1 之前没有注册过该信号的处理函数则直接设置 </span>
+<span class=cm>          2 之前设置过，但是是one shot，但是现在需要 </span>
+<span class=cm>            设置的规则不是one shot，需要修改。否则第 </span>
+<span class=cm>            二次不会不会触发。因为一个信号只能对应一 </span>
+<span class=cm>            个信号处理函数，所以，以规则宽的为准，在回调 </span>
+<span class=cm>            里再根据flags判断是不是真的需要执行 </span>
+<span class=cm>          3 如果注册过信号和处理函数，则直接插入红黑树就行。 </span>
+<span class=cm>        */</span><span class=w>    </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=w>  </span>
+<span class=w>             </span><span class=n>first_handle</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=w> </span><span class=o>||</span><span class=w>  </span>
+<span class=w>         </span><span class=p>(</span><span class=o>!</span><span class=n>oneshot</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=p>(</span><span class=n>first_handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_SIGNAL_ONE_SHOT</span><span class=p>))</span><span class=w> </span>
+<span class=w>        </span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 注册信号和处理函数  </span>
+<span class=w>        </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__signal_register_handler</span><span class=p>(</span><span class=n>signum</span><span class=p>,</span><span class=w> </span><span class=n>oneshot</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>uv__signal_unlock_and_unblock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>saved_sigmask</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 记录感兴趣的信号  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>signum</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 只处理该信号一次  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>oneshot</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>|=</span><span class=w> </span><span class=n>UV_SIGNAL_ONE_SHOT</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 插入红黑树  </span>
+<span class=w>      </span><span class=n>RB_INSERT</span><span class=p>(</span><span class=n>uv__signal_tree_s</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>uv__signal_tree</span><span class=p>,</span><span class=w> </span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__signal_unlock_and_unblock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>saved_sigmask</span><span class=p>);</span><span class=w> </span>
+<span class=w>      </span><span class=c1>// 信号触发时的业务层回调  </span>
+<span class=w>        </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signal_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>signal_cb</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__handle_start</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w> </span>
+</code></pre></div></td></tr></table></div> <p>上面的代码比较多，大致的逻辑如下. 1 判断是否需要向操作系统注册一个信号的处理函数。主要是调用操作系统的函数来处理的，代码如下 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 给当前进程注册信号处理函数，会覆盖之前设置的signum的处理函数  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__signal_register_handler</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>oneshot</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>sigaction</span><span class=w> </span><span class=n>sa</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>memset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>sa</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>sa</span><span class=p>));</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 全置一，说明收到signum信号的时候，暂时屏蔽其它信号  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>sigfillset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>sa</span><span class=p>.</span><span class=n>sa_mask</span><span class=p>))</span><span class=w>  </span>
+<span class=w>          </span><span class=n>abort</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 所有信号都由该函数处理  </span>
+<span class=w>      </span><span class=n>sa</span><span class=p>.</span><span class=n>sa_handler</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__signal_handler</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>sa</span><span class=p>.</span><span class=n>sa_flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>SA_RESTART</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 设置了oneshot，说明信号处理函数只执行一次，然后被恢复为系统的默认处理函数  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>oneshot</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>sa</span><span class=p>.</span><span class=n>sa_flags</span><span class=w> </span><span class=o>|=</span><span class=w> </span><span class=n>SA_RESETHAND</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 注册  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>sigaction</span><span class=p>(</span><span class=n>signum</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>sa</span><span class=p>,</span><span class=w> </span><span class=nb>NULL</span><span class=p>))</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>UV__ERR</span><span class=p>(</span><span class=n>errno</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到所有信号的处理函数都是uv__signal_handler，我们一会会分析uv__signal_handler的实现。<br> 2进程注册的信号和回调是在一棵红黑树管理的，每次注册的时候会往红黑树插入一个节点。Libuv用黑红树维护信号的上下文，插入的规则是根据信号的大小和flags等信息。 RB_INSERT实现了往红黑树插入一个节点，红黑树中的节点是父节点的值比左孩子大，比右孩子小的。执行完RB_INSERT后的架构如图7-3所示。<br> <img alt src="https://img-blog.csdnimg.cn/f986e8efd698465e8a5fa7cd384d25e5.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 图7-3</p> <p>我们看到，当我们每次插入不同的信号的时候，Libuv会在操作系统和红黑树中修改对应的数据结构。那么如果我们插入重复的信号呢？刚才我们已经分析过，插入重复的信号时，如果在操作系统注册过，并且当前插入的信号flags是one shot，而之前是非one shot时，Libuv会调用操作系统的接口去修改配置。那么对于红黑树来说，插入重复信号会如何处理呢？从刚才RB_INSERT的代码中我们看到每次插入红黑树时，红黑树会先判断是否存在相同值的节点，如果是的话直接返回，不进行插入。这么看起来我们无法给一个信号注册多个处理函数，但其实是可以的，重点在比较大小的函数。我们看看该函数的实现。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__signal_compare</span><span class=p>(</span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>w1</span><span class=p>,</span><span class=w> </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>w2</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>f1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>f2</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 返回信号值大的  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w1</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>w2</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>-1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w1</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>w2</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 设置了UV_SIGNAL_ONE_SHOT的大  </span>
+<span class=w>      </span><span class=n>f1</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>w1</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_SIGNAL_ONE_SHOT</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>f2</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>w2</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_SIGNAL_ONE_SHOT</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>f1</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>f2</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>-1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>f1</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>f2</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 地址大的值就大  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w1</span><span class=o>-&gt;</span><span class=n>loop</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>w2</span><span class=o>-&gt;</span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>-1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w1</span><span class=o>-&gt;</span><span class=n>loop</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>w2</span><span class=o>-&gt;</span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w1</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>w2</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>-1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w1</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>w2</span><span class=p>)</span><span class=w> </span><span class=k>return</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到Libuv比较的不仅是信号的大小，在信号一样的情况下，Libuv还会比较其它的因子，除非两个uv_signal_t指针指向的是同一个uv_signal_t结构体，否则它们是不会被认为重复的，所以红黑树中会存着信号一样的节点。假设我们按照1（flags为one shot），2（flags为非one shot）,3（flags为one shot）的顺序插入红黑树，并且节点3比节点1的地址大。所形成的结构如图7-4所示。<br> <img alt src="https://img-blog.csdnimg.cn/e33fe52207444c97a7b2c950d6f5cb6f.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 图7-4</p> <h2 id=76>7.6 信号的处理<a class=headerlink href=#76 title="Permanent link">&para;</a></h2> <p>我们上一节已经分析过，不管注册什么信号，它的处理函数都是这个uv__signal_handler函数。我们自己的业务回调函数，是保存在handle里的。而Libuv维护了一棵红黑树，记录了每个handle注册的信号和回调函数，那么当任意信号到来的时候。uv__signal_handler就会被调用。下面我们看看uv__signal_handler函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=cm>/* </span>
+<span class=cm>      信号处理函数，signum为收到的信号， </span>
+<span class=cm>      每个子进程收到信号的时候都由该函数处理， </span>
+<span class=cm>      然后通过管道通知Libuv </span>
+<span class=cm>    */</span><span class=w>  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__signal_handler</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__signal_msg_t</span><span class=w> </span><span class=n>msg</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>saved_errno</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 保持上一个系统调用的错误码  </span>
+<span class=w>      </span><span class=n>saved_errno</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>errno</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>memset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>msg</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=w> </span><span class=n>msg</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>uv__signal_lock</span><span class=p>())</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>errno</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>saved_errno</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 找到该信号对应的所有handle</span>
+<span class=w>      </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__signal_first_handle</span><span class=p>(</span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>           </span><span class=n>handle</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=nb>NULL</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>signum</span><span class=p>;</span><span class=w>  </span>
+<span class=w>           </span><span class=n>handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>RB_NEXT</span><span class=p>(</span><span class=n>uv__signal_tree_s</span><span class=p>,</span>
+<span class=w>                                     </span><span class=o>&amp;</span><span class=n>uv__signal_tree</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                     </span><span class=n>handle</span><span class=p>))</span><span class=w> </span>
+<span class=w>       </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>r</span><span class=p>;</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 记录上下文</span>
+<span class=w>        </span><span class=n>msg</span><span class=p>.</span><span class=n>signum</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>signum</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>msg</span><span class=p>.</span><span class=n>handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 通知Libuv，哪些handle需要处理该信号，</span>
+<span class=w>                 </span><span class=n>在Poll</span><span class=w> </span><span class=n>IO阶段处理</span><span class=w>  </span>
+<span class=w>          </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>write</span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_pipefd</span><span class=p>[</span><span class=mi>1</span><span class=p>],</span><span class=w> </span>
+<span class=w>                            </span><span class=o>&amp;</span><span class=n>msg</span><span class=p>,</span><span class=w> </span>
+<span class=w>                            </span><span class=k>sizeof</span><span class=w> </span><span class=n>msg</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w> </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EINTR</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 该handle收到信号的次数  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>caught_signals</span><span class=o>++</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>uv__signal_unlock</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=n>errno</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>saved_errno</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__signal_handler函数会调用uv__signal_first_handle遍历红黑树，找到注册了该信号的所有handle，我们看一下uv__signal_first_handle的实现。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=nf>uv__signal_first_handle</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_signal_t</span><span class=w> </span><span class=n>lookup</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>lookup</span><span class=p>.</span><span class=n>signum</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>signum</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>lookup</span><span class=p>.</span><span class=n>flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>lookup</span><span class=p>.</span><span class=n>loop</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>RB_NFIND</span><span class=p>(</span><span class=n>uv__signal_tree_s</span><span class=p>,</span><span class=w> </span>
+<span class=w>                         </span><span class=o>&amp;</span><span class=n>uv__signal_tree</span><span class=p>,</span><span class=w> </span>
+<span class=w>                         </span><span class=o>&amp;</span><span class=n>lookup</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=nb>NULL</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>signum</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__signal_first_handle函数通过RB_NFIND实现红黑树的查找，RB_NFIND是一个宏。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=cp>#define RB_NFIND(name, x, y)    name##_RB_NFIND(x, y)  </span>
+</code></pre></div></td></tr></table></div> <p>我们看看name##_RB_NFIND即uv__signal_tree_s_RB_NFIND的实现</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>uv_signal_t</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=n>uv__signal_tree_s_RB_NFIND</span><span class=p>(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__signal_tree_s</span><span class=w> </span><span class=o>*</span><span class=n>head</span><span class=p>,</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>uv_signal_t</span><span class=w> </span><span class=o>*</span><span class=n>elm</span><span class=p>)</span><span class=w>                            </span>
+<span class=w>    </span><span class=p>{</span><span class=w>                                    </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>uv_signal_t</span><span class=w> </span><span class=o>*</span><span class=n>tmp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>RB_ROOT</span><span class=p>(</span><span class=n>head</span><span class=p>);</span><span class=w>    </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>uv_signal_t</span><span class=w> </span><span class=o>*</span><span class=n>res</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>    </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>comp</span><span class=p>;</span><span class=w>              </span>
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>tmp</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>    </span>
+<span class=w>        </span><span class=n>comp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>cmp</span><span class=p>(</span><span class=n>elm</span><span class=p>,</span><span class=w> </span><span class=n>tmp</span><span class=p>);</span><span class=w>     </span>
+<span class=w>         </span><span class=cm>/* </span>
+<span class=cm>           elm小于当前节点则往左子树找，大于则往右子树找，</span>
+<span class=cm>          等于则返回           </span>
+<span class=cm>         */</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>comp</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>            </span>
+<span class=w>          </span><span class=c1>// 记录父节点</span>
+<span class=w>          </span><span class=n>res</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>tmp</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=n>tmp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>RB_LEFT</span><span class=p>(</span><span class=n>tmp</span><span class=p>,</span><span class=w> </span><span class=n>field</span><span class=p>);</span><span class=w>    </span>
+<span class=w>        </span><span class=p>}</span><span class=w>           </span>
+<span class=w>        </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>comp</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>    </span>
+<span class=w>          </span><span class=n>tmp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>RB_RIGHT</span><span class=p>(</span><span class=n>tmp</span><span class=p>,</span><span class=w> </span><span class=n>field</span><span class=p>);</span><span class=w> </span>
+<span class=w>        </span><span class=k>else</span><span class=w>         </span>
+<span class=w>          </span><span class=k>return</span><span class=w> </span><span class=p>(</span><span class=n>tmp</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>             </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=p>(</span><span class=n>res</span><span class=p>);</span><span class=w> </span>
+<span class=w>    </span><span class=p>}</span><span class=w>     </span>
+</code></pre></div></td></tr></table></div> <p>uv__signal_tree_s_RB_NFIND的逻辑就是根据红黑树的特点进行搜索，这里的重点是cmp函数。刚才我们已经分析过cmp的逻辑。这里会首先查找没有设置one shot标记的handle（因为它的值小），然后再查找设置了one shot的handle，一旦遇到设置了one shot的handle，则说明后面被匹配的handle也是设置了one shot标记的。每次找到一个handle，就会封装一个msg写入管道（即和Libuv通信的管道）。信号的处理就完成了。接下来在Libuv的Poll IO阶段才做真正的处理。我们知道在Poll IO阶段。epoll会检测到管道loop-&gt;signal_pipefd[0]可读，然后会执行uv__signal_event函数。我们看看这个函数的代码。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span>
+<span class=normal>54</span>
+<span class=normal>55</span>
+<span class=normal>56</span>
+<span class=normal>57</span>
+<span class=normal>58</span>
+<span class=normal>59</span>
+<span class=normal>60</span>
+<span class=normal>61</span>
+<span class=normal>62</span>
+<span class=normal>63</span>
+<span class=normal>64</span>
+<span class=normal>65</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 如果收到信号,Libuv Poll IO阶段,会执行该函数  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__signal_event</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span>
+<span class=w>    </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>events</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__signal_msg_t</span><span class=o>*</span><span class=w> </span><span class=n>msg</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>char</span><span class=w> </span><span class=n>buf</span><span class=p>[</span><span class=k>sizeof</span><span class=p>(</span><span class=n>uv__signal_msg_t</span><span class=p>)</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=mi>32</span><span class=p>];</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>size_t</span><span class=w> </span><span class=n>bytes</span><span class=p>,</span><span class=w> </span><span class=n>end</span><span class=p>,</span><span class=w> </span><span class=n>i</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>r</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>bytes</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>end</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 计算出数据的大小</span>
+<span class=w>      </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 读出所有的uv__signal_msg_t  </span>
+<span class=w>        </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>read</span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>signal_pipefd</span><span class=p>[</span><span class=mi>0</span><span class=p>],</span><span class=w> </span>
+<span class=w>                       </span><span class=n>buf</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>bytes</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=k>sizeof</span><span class=p>(</span><span class=n>buf</span><span class=p>)</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=n>bytes</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EINTR</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span>
+<span class=w>                </span><span class=p>(</span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EAGAIN</span><span class=w> </span><span class=o>||</span><span class=w> </span>
+<span class=w>                 </span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EWOULDBLOCK</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>bytes</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>            </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=n>abort</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=n>bytes</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=n>r</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>              根据收到的字节数算出有多少个uv__signal_msg_t结构体，</span>
+<span class=cm>              从而算出结束位置</span>
+<span class=cm>            */</span><span class=w> </span>
+<span class=w>        </span><span class=n>end</span><span class=o>=</span><span class=p>(</span><span class=n>bytes</span><span class=o>/</span><span class=k>sizeof</span><span class=p>(</span><span class=n>uv__signal_msg_t</span><span class=p>))</span><span class=o>*</span><span class=k>sizeof</span><span class=p>(</span><span class=n>uv__signal_msg_t</span><span class=p>);</span>
+<span class=w>          </span><span class=c1>// 循环处理每一个msg</span>
+<span class=w>        </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>i</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>end</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>uv__signal_msg_t</span><span class=p>))</span><span class=w> </span><span class=p>{</span>
+<span class=w>          </span><span class=n>msg</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=n>uv__signal_msg_t</span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=p>(</span><span class=n>buf</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>i</span><span class=p>);</span><span class=w> </span>
+<span class=w>                </span><span class=c1>// 取出上下文 </span>
+<span class=w>          </span><span class=n>handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>msg</span><span class=o>-&gt;</span><span class=n>handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 收到的信号和handle感兴趣的信号一致，执行回调  </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>msg</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>    </span>
+<span class=w>            </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signal_cb</span><span class=p>(</span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=p>}</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 处理信号个数，和收到的个数对应  </span>
+<span class=w>          </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>dispatched_signals</span><span class=o>++</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 只执行一次，恢复系统默认的处理函数  </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_SIGNAL_ONE_SHOT</span><span class=p>)</span><span class=w>  </span>
+<span class=w>            </span><span class=n>uv__signal_stop</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=cm>/* </span>
+<span class=cm>                  处理完所有收到的信号才能关闭uv_signal_t，</span>
+<span class=cm>                  见uv_close或uv__signal_close </span>
+<span class=cm>                */</span><span class=w> </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>((</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_CLOSING</span><span class=p>)</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w>  </span>
+<span class=w>            </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>caught_signals</span><span class=o>==</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>dispatched_signals</span><span class=p>))</span><span class=w>          </span>
+<span class=w>               </span><span class=p>{</span><span class=w>  </span>
+<span class=w>            </span><span class=n>uv__make_close_pending</span><span class=p>((</span><span class=n>uv_handle_t</span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=n>bytes</span><span class=w> </span><span class=o>-=</span><span class=w> </span><span class=n>end</span><span class=p>;</span><span class=w> </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>bytes</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>memmove</span><span class=p>(</span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=n>buf</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>end</span><span class=p>,</span><span class=w> </span><span class=n>bytes</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>end</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=k>sizeof</span><span class=w> </span><span class=n>buf</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__signal_event函数的逻辑如下<br> 1 读出管道里的数据，计算出msg的个数。<br> 2 遍历收到的数据，解析出一个个msg。<br> 3 从msg中取出上下文（handle和信号），执行上层回调。<br> 4 如果handle设置了one shot则需要执行uv__signal_stop（我们接下来分析）。<br> 5 如果handle设置了closing标记，则判断所有收到的信号是否已经处理完。即收到的个数和处理的个数是否一致。需要处理完所有收到的信号才能关闭uv_signal_t。</p> <h2 id=77>7.7 取消/关闭信号处理<a class=headerlink href=#77 title="Permanent link">&para;</a></h2> <p>当一个信号对应的handle设置了one shot标记，在收到信号并且执行完回调后，Libuv会调用uv__signal_stop关闭该handle并且从红黑树中移除该handle。另外我们也可以显式地调用uv_close（会调用uv__signal_stop）关闭或取消信号的处理。下面我们看看uv__signal_stop的实现。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__signal_stop</span><span class=p>(</span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>removed_handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>sigset_t</span><span class=w> </span><span class=n>saved_sigmask</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>first_handle</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>rem_oneshot</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>first_oneshot</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>ret</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=cm>/* If the watcher wasn&#39;t started, this is a no-op. */</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 没有注册过信号，则不需要处理  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 屏蔽所有信号  </span>
+<span class=w>      </span><span class=n>uv__signal_block_and_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>saved_sigmask</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 移出红黑树  </span>
+<span class=w>      </span><span class=n>removed_handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>RB_REMOVE</span><span class=p>(</span><span class=n>uv__signal_tree_s</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>uv__signal_tree</span><span class=p>,</span><span class=w> </span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 判断该信号是否还有对应的handle  </span>
+<span class=w>      </span><span class=n>first_handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__signal_first_handle</span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 为空说明没有handle会处理该信号了，解除该信号的设置  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>first_handle</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__signal_unregister_handler</span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 被处理的handle是否设置了one shot  </span>
+<span class=w>        </span><span class=n>rem_oneshot</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_SIGNAL_ONE_SHOT</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          剩下的第一个handle是否设置了one shot，</span>
+<span class=cm>          如果是则说明该信号对应的所有剩下的handle都是one shot  </span>
+<span class=cm>        */</span><span class=w> </span>
+<span class=w>        </span><span class=n>first_oneshot</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>first_handle</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_SIGNAL_ONE_SHOT</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/* </span>
+<span class=cm>          被移除的handle没有设置oneshot但是当前的第一个handle设置了</span>
+<span class=cm>           one shot，则需要修改该信号处理函数为one shot，防止收到多次信</span>
+<span class=cm>           号，执行多次回调 </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>first_oneshot</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=o>!</span><span class=n>rem_oneshot</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>ret</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__signal_register_handler</span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=p>,</span><span class=w> </span><span class=mi>1</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>assert</span><span class=p>(</span><span class=n>ret</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>uv__signal_unlock_and_unblock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>saved_sigmask</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>signum</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__handle_stop</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h2 id=78-nodejs>7.8 信号在Node.js中的使用<a class=headerlink href=#78-nodejs title="Permanent link">&para;</a></h2> <p>分析完Libuv的实现后，我们看看Node.js上层是如何使用信号的，首先我们看一下C++层关于信号模块的实现。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>Initialize</span><span class=p>(</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>target</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                             </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=n>unused</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                             </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=n>context</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                             </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>priv</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Environment</span><span class=o>::</span><span class=n>GetCurrent</span><span class=p>(</span><span class=n>context</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>FunctionTemplate</span><span class=o>&gt;</span><span class=w> </span><span class=n>constructor</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>NewFunctionTemplate</span><span class=p>(</span><span class=n>New</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>constructor</span><span class=o>-&gt;</span><span class=n>InstanceTemplate</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>SetInternalFieldCount</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 导出的类名  </span>
+<span class=w>        </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>signalString</span><span class=w> </span><span class=o>=</span><span class=w>  </span>
+<span class=w>            </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>(),</span><span class=w> </span><span class=s>&quot;Signal&quot;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>constructor</span><span class=o>-&gt;</span><span class=n>SetClassName</span><span class=p>(</span><span class=n>signalString</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>constructor</span><span class=o>-&gt;</span><span class=n>Inherit</span><span class=p>(</span><span class=n>HandleWrap</span><span class=o>::</span><span class=n>GetConstructorTemplate</span><span class=p>(</span><span class=n>env</span><span class=p>));</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 给Signal创建的对象注入两个函数  </span>
+<span class=w>        </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>SetProtoMethod</span><span class=p>(</span><span class=n>constructor</span><span class=p>,</span><span class=w> </span><span class=s>&quot;start&quot;</span><span class=p>,</span><span class=w> </span><span class=n>Start</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>SetProtoMethod</span><span class=p>(</span><span class=n>constructor</span><span class=p>,</span><span class=w> </span><span class=s>&quot;stop&quot;</span><span class=p>,</span><span class=w> </span><span class=n>Stop</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>target</span><span class=o>-&gt;</span><span class=n>Set</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>(),</span><span class=w> </span><span class=n>signalString</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                    </span><span class=n>constructor</span><span class=o>-&gt;</span><span class=n>GetFunction</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>()).</span><span class=n>ToLocalChecked</span><span class=p>()).</span><span class=n>Check</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>当我们在JS中new Signal的时候，首先会创建一个C++对象，然后作为入参执行New函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>New</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>FunctionCallbackInfo</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>CHECK</span><span class=p>(</span><span class=n>args</span><span class=p>.</span><span class=n>IsConstructCall</span><span class=p>());</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Environment</span><span class=o>::</span><span class=n>GetCurrent</span><span class=p>(</span><span class=n>args</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>new</span><span class=w> </span><span class=n>SignalWrap</span><span class=p>(</span><span class=n>env</span><span class=p>,</span><span class=w> </span><span class=n>args</span><span class=p>.</span><span class=n>This</span><span class=p>());</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>当我们在JS层操作Signal实例的时候，就会执行C++层对应的方法。主要的方法是注册和删除信号。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>Start</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>FunctionCallbackInfo</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>SignalWrap</span><span class=o>*</span><span class=w> </span><span class=n>wrap</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>ASSIGN_OR_RETURN_UNWRAP</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wrap</span><span class=p>,</span><span class=w> </span><span class=n>args</span><span class=p>.</span><span class=n>Holder</span><span class=p>());</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>env</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>args</span><span class=p>[</span><span class=mi>0</span><span class=p>]</span><span class=o>-&gt;</span><span class=n>Int32Value</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>()).</span><span class=n>To</span><span class=p>(</span><span class=o>&amp;</span><span class=n>signum</span><span class=p>))</span><span class=w> </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv_signal_start</span><span class=p>(</span><span class=w>  </span>
+<span class=w>            </span><span class=o>&amp;</span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>handle_</span><span class=p>,</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 信号产生时执行的回调  </span>
+<span class=w>            </span><span class=p>[](</span><span class=n>uv_signal_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>              </span><span class=n>SignalWrap</span><span class=o>*</span><span class=w> </span><span class=n>wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ContainerOf</span><span class=p>(</span><span class=o>&amp;</span><span class=n>SignalWrap</span><span class=o>::</span><span class=n>handle_</span><span class=p>,</span><span class=w> </span>
+<span class=w>                                                 </span><span class=n>handle</span><span class=p>);</span><span class=w>  </span>
+<span class=w>              </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>env</span><span class=p>();</span><span class=w>  </span>
+<span class=w>              </span><span class=n>HandleScope</span><span class=w> </span><span class=n>handle_scope</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>              </span><span class=n>Context</span><span class=o>::</span><span class=n>Scope</span><span class=w> </span><span class=n>context_scope</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>());</span><span class=w>  </span>
+<span class=w>              </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=n>arg</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Integer</span><span class=o>::</span><span class=n>New</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>(),</span><span class=w> </span>
+<span class=w>                                                  </span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>              </span><span class=c1>// 触发JS层onsignal函数  </span>
+<span class=w>              </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>MakeCallback</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>onsignal_string</span><span class=p>(),</span><span class=w> </span><span class=mi>1</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>arg</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=p>},</span><span class=w>  </span>
+<span class=w>            </span><span class=n>signum</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>CHECK</span><span class=p>(</span><span class=o>!</span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>active_</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>active_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>true</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=n>Mutex</span><span class=o>::</span><span class=n>ScopedLock</span><span class=w> </span><span class=n>lock</span><span class=p>(</span><span class=n>handled_signals_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>handled_signals</span><span class=p>[</span><span class=n>signum</span><span class=p>]</span><span class=o>++</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>args</span><span class=p>.</span><span class=n>GetReturnValue</span><span class=p>().</span><span class=n>Set</span><span class=p>(</span><span class=n>err</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>Stop</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>FunctionCallbackInfo</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>        </span><span class=n>SignalWrap</span><span class=o>*</span><span class=w> </span><span class=n>wrap</span><span class=p>;</span>
+<span class=w>        </span><span class=n>ASSIGN_OR_RETURN_UNWRAP</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wrap</span><span class=p>,</span><span class=w> </span><span class=n>args</span><span class=p>.</span><span class=n>Holder</span><span class=p>());</span>
+
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>active_</span><span class=p>)</span><span class=w>  </span><span class=p>{</span>
+<span class=w>          </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>active_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>false</span><span class=p>;</span>
+<span class=w>          </span><span class=n>DecreaseSignalHandlerCount</span><span class=p>(</span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>handle_</span><span class=p>.</span><span class=n>signum</span><span class=p>);</span>
+<span class=w>        </span><span class=p>}</span>
+
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv_signal_stop</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>handle_</span><span class=p>);</span>
+<span class=w>        </span><span class=n>args</span><span class=p>.</span><span class=n>GetReturnValue</span><span class=p>().</span><span class=n>Set</span><span class=p>(</span><span class=n>err</span><span class=p>);</span>
+<span class=w>      </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> <p>接着我们看在JS层如何使用。Node.js在初始化的时候，在is_main_thread.js中执行了。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>process</span><span class=p>.</span><span class=nx>on</span><span class=p>(</span><span class=s1>&#39;newListener&#39;</span><span class=p>,</span><span class=w> </span><span class=nx>startListeningIfSignal</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>process</span><span class=p>.</span><span class=nx>on</span><span class=p>(</span><span class=s1>&#39;removeListener&#39;</span><span class=p>,</span><span class=w> </span><span class=nx>stopListeningIfSignal</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>newListener和removeListener事件在注册和删除事件的时候都会被触发。我们看一下这两个函数的实现</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=cm>/* </span>
+<span class=cm>     { </span>
+<span class=cm>      SIGINT: 2, </span>
+<span class=cm>      ... </span>
+<span class=cm>     } </span>
+<span class=cm>    */</span><span class=w>  </span>
+<span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=nx>signals</span><span class=w> </span><span class=p>}</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>(</span><span class=s1>&#39;constants&#39;</span><span class=p>).</span><span class=nx>os</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kd>let</span><span class=w> </span><span class=nx>Signal</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>signalWraps</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nb>Map</span><span class=p>();</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>isSignal</span><span class=p>(</span><span class=nx>event</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=ow>typeof</span><span class=w> </span><span class=nx>event</span><span class=w> </span><span class=o>===</span><span class=w> </span><span class=s1>&#39;string&#39;</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=nx>signals</span><span class=p>[</span><span class=nx>event</span><span class=p>]</span><span class=w> </span><span class=o>!==</span><span class=w> </span><span class=kc>undefined</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>startListeningIfSignal</span><span class=p>(</span><span class=nx>type</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>isSignal</span><span class=p>(</span><span class=nx>type</span><span class=p>)</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=o>!</span><span class=nx>signalWraps</span><span class=p>.</span><span class=nx>has</span><span class=p>(</span><span class=nx>type</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>Signal</span><span class=w> </span><span class=o>===</span><span class=w> </span><span class=kc>undefined</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=nx>Signal</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>internalBinding</span><span class=p>(</span><span class=s1>&#39;signal_wrap&#39;</span><span class=p>).</span><span class=nx>Signal</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=kd>const</span><span class=w> </span><span class=nx>wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>Signal</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 不影响事件循环的退出  </span>
+<span class=w>        </span><span class=nx>wrap</span><span class=p>.</span><span class=nx>unref</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 挂载信号处理函数  </span>
+<span class=w>        </span><span class=nx>wrap</span><span class=p>.</span><span class=nx>onsignal</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>process</span><span class=p>.</span><span class=nx>emit</span><span class=p>.</span><span class=nx>bind</span><span class=p>(</span><span class=nx>process</span><span class=p>,</span><span class=w> </span><span class=nx>type</span><span class=p>,</span><span class=w> </span><span class=nx>type</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 通过字符拿到数字  </span>
+<span class=w>        </span><span class=kd>const</span><span class=w> </span><span class=nx>signum</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>signals</span><span class=p>[</span><span class=nx>type</span><span class=p>];</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 注册信号  </span>
+<span class=w>        </span><span class=kd>const</span><span class=w> </span><span class=nx>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>wrap</span><span class=p>.</span><span class=nx>start</span><span class=p>(</span><span class=nx>signum</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>err</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=nx>wrap</span><span class=p>.</span><span class=nx>close</span><span class=p>();</span><span class=w>  </span>
+<span class=w>          </span><span class=k>throw</span><span class=w> </span><span class=nx>errnoException</span><span class=p>(</span><span class=nx>err</span><span class=p>,</span><span class=w> </span><span class=s1>&#39;uv_signal_start&#39;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 该信号已经注册，不需要往底层再注册了  </span>
+<span class=w>        </span><span class=nx>signalWraps</span><span class=p>.</span><span class=nx>set</span><span class=p>(</span><span class=nx>type</span><span class=p>,</span><span class=w> </span><span class=nx>wrap</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>startListeningIfSignal函数的逻辑分为一下几个 1 判断该信号是否注册过了，如果注册过了则不需要再注册。Libuv本身支持在同一个信号上注册多个处理函数，Node.js的JS层也做了这个处理。 2 调用unref，信号的注册不应该影响事件循环的退出 3 挂载事件处理函数，当信号触发的时候，执行对应的处理函数（一个或多个）。 4 往底层注册信号并设置该信号已经注册的标记 我们再来看一下stopListeningIfSignal。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>stopListeningIfSignal</span><span class=p>(</span><span class=nx>type</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>const</span><span class=w> </span><span class=nx>wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>signalWraps</span><span class=p>.</span><span class=nx>get</span><span class=p>(</span><span class=nx>type</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>wrap</span><span class=w> </span><span class=o>!==</span><span class=w> </span><span class=kc>undefined</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=nx>process</span><span class=p>.</span><span class=nx>listenerCount</span><span class=p>(</span><span class=nx>type</span><span class=p>)</span><span class=w> </span><span class=o>===</span><span class=w> </span><span class=mf>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span>
+<span class=w>        </span><span class=nx>wrap</span><span class=p>.</span><span class=nx>close</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>signalWraps</span><span class=p>.</span><span class=ow>delete</span><span class=p>(</span><span class=nx>type</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>只有当信号被注册过并且事件处理函数个数为0，才做真正的删除。</p> </article> </div> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> 回到页面顶部 </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; 2021 theanarkh </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/theanarkh target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> <a href=https://www.zhihu.com/people/theanarkh target=_blank rel=noopener title=www.zhihu.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 640 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M170.54 148.13v217.54l23.43.01 7.71 26.37 42.01-26.37h49.53V148.13zm97.75 193.93h-27.94l-27.9 17.51-5.08-17.47-11.9-.04V171.75h72.82zm-118.46-94.39H97.5c1.74-27.1 2.2-51.59 2.2-73.46h51.16s1.97-22.56-8.58-22.31h-88.5c3.49-13.12 7.87-26.66 13.12-40.67 0 0-24.07 0-32.27 21.57-3.39 8.9-13.21 43.14-30.7 78.12 5.89-.64 25.37-1.18 36.84-22.21 2.11-5.89 2.51-6.66 5.14-14.53h28.87c0 10.5-1.2 66.88-1.68 73.44H20.83c-11.74 0-15.56 23.62-15.56 23.62h65.58C66.45 321.1 42.83 363.12 0 396.34c20.49 5.85 40.91-.93 51-9.9 0 0 22.98-20.9 35.59-69.25l53.96 64.94s7.91-26.89-1.24-39.99c-7.58-8.92-28.06-33.06-36.79-41.81L87.9 311.95c4.36-13.98 6.99-27.55 7.87-40.67h61.65s-.09-23.62-7.59-23.62zm412.02-1.6c20.83-25.64 44.98-58.57 44.98-58.57s-18.65-14.8-27.38-4.06c-6 8.15-36.83 48.2-36.83 48.2zm-150.09-59.09c-9.01-8.25-25.91 2.13-25.91 2.13s39.52 55.04 41.12 57.45l19.46-13.73s-25.67-37.61-34.66-45.86h-.01zM640 258.35c-19.78 0-130.91.93-131.06.93v-101c4.81 0 12.42-.4 22.85-1.2 40.88-2.41 70.13-4 87.77-4.81 0 0 12.22-27.19-.59-33.44-3.07-1.18-23.17 4.58-23.17 4.58s-165.22 16.49-232.36 18.05c1.6 8.82 7.62 17.08 15.78 19.55 13.31 3.48 22.69 1.7 49.15.89 24.83-1.6 43.68-2.43 56.51-2.43v99.81H351.41s2.82 22.31 25.51 22.85h107.94v70.92c0 13.97-11.19 21.99-24.48 21.12-14.08.11-26.08-1.15-41.69-1.81 1.99 3.97 6.33 14.39 19.31 21.84 9.88 4.81 16.17 6.57 26.02 6.57 29.56 0 45.67-17.28 44.89-45.31v-73.32h122.36c9.68 0 8.7-23.78 8.7-23.78z"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"base": "..", "features": ["content.code.annotate", "navigation.indexes", "navigation.instant", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script> <script src=../assets/javascripts/bundle.83f73b43.min.js></script> <script src=../extra/image.js defer></script> </body> </html>

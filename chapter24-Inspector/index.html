@@ -1,0 +1,985 @@
+<!doctype html><html lang=zh class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="通过源码分析 Node.js 原理"><meta name=author content=theanarkh><link href=https://github.com/theanarkh/understand-nodejs/chapter24-Inspector/ rel=canonical><link href=../chapter23-Async%20hooks/ rel=prev><link href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ rel=next><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.5.44"><title>23-Inspector - Node.js 源码剖析</title><link rel=stylesheet href=../assets/stylesheets/main.0253249f.min.css><link rel=stylesheet href=../assets/stylesheets/palette.06af60db.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#1-inspector class=md-skip> 跳转至 </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=页眉> <a href=.. title="Node.js 源码剖析" class="md-header__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> Node.js 源码剖析 </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> 23-Inspector </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=blue data-md-color-accent=blue aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=搜索 placeholder=搜索 autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=查找> <a href=javascript:void(0) class="md-search__icon md-icon" title=分享 aria-label=分享 data-clipboard data-clipboard-text data-md-component=search-share tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg> </a> <button type=reset class="md-search__icon md-icon" title=清空当前内容 aria-label=清空当前内容 tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> 正在初始化搜索引擎 </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> </nav> <nav class=md-tabs aria-label=标签 data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-tabs__link> 前言 </a> </li> <li class=md-tabs__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-tabs__link> Node.js基础和架构 </a> </li> <li class="md-tabs__item md-tabs__item--active"> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-tabs__link> Node.js核心模块的实现 </a> </li> <li class=md-tabs__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-tabs__link> 其他 </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=导航栏 data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title="Node.js 源码剖析" class="md-nav__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> Node.js 源码剖析 </label> <div class=md-nav__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class=md-nav__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-nav__link> <span class=md-ellipsis> 前言 </span> </a> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_3> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex=0> <span class=md-ellipsis> Node.js基础和架构 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=false> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Node.js基础和架构 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 01-Node.js组成和原理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ class=md-nav__link> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </a> </li> <li class=md-nav__item> <a href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ class=md-nav__link> <span class=md-ellipsis> 03-事件循环 </span> </a> </li> <li class=md-nav__item> <a href=../chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ class=md-nav__link> <span class=md-ellipsis> 04-线程池 </span> </a> </li> <li class=md-nav__item> <a href=../chapter05-Libuv%E6%B5%81/ class=md-nav__link> <span class=md-ellipsis> 05-Libuv流 </span> </a> </li> <li class=md-nav__item> <a href=../chapter06-C%2B%2B%E5%B1%82/ class=md-nav__link> <span class=md-ellipsis> 06-C++层 </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_4 checked> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex> <span class=md-ellipsis> Node.js核心模块的实现 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=true> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Node.js核心模块的实现 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 07-信号处理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter08-DNS/ class=md-nav__link> <span class=md-ellipsis> 08-DNS </span> </a> </li> <li class=md-nav__item> <a href=../chapter09-Unix%E5%9F%9F/ class=md-nav__link> <span class=md-ellipsis> 09-Unix域 </span> </a> </li> <li class=md-nav__item> <a href=../chapter10-%E5%AE%9A%E6%97%B6%E5%99%A8/ class=md-nav__link> <span class=md-ellipsis> 10-定时器 </span> </a> </li> <li class=md-nav__item> <a href=../chapter11-setImmediate%E5%92%8CnextTick/ class=md-nav__link> <span class=md-ellipsis> 11-setImmediate和nextTick </span> </a> </li> <li class=md-nav__item> <a href=../chapter12-%E6%96%87%E4%BB%B6/ class=md-nav__link> <span class=md-ellipsis> 12-文件 </span> </a> </li> <li class=md-nav__item> <a href=../chapter13-%E8%BF%9B%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 13-进程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter14-%E7%BA%BF%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 14-线程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter15-Cluster/ class=md-nav__link> <span class=md-ellipsis> 15-Cluster </span> </a> </li> <li class=md-nav__item> <a href=../chapter16-UDP/ class=md-nav__link> <span class=md-ellipsis> 16-UDP </span> </a> </li> <li class=md-nav__item> <a href=../chapter17-TCP/ class=md-nav__link> <span class=md-ellipsis> 17-TCP </span> </a> </li> <li class=md-nav__item> <a href=../chapter18-HTTP/ class=md-nav__link> <span class=md-ellipsis> 18-HTTP </span> </a> </li> <li class=md-nav__item> <a href=../chapter19-%E6%A8%A1%E5%9D%97%E5%8A%A0%E8%BD%BD/ class=md-nav__link> <span class=md-ellipsis> 19-模块加载 </span> </a> </li> <li class=md-nav__item> <a href=../chapter21-JS%20Stream/ class=md-nav__link> <span class=md-ellipsis> 20-JS Stream </span> </a> </li> <li class=md-nav__item> <a href=../chapter22-events%E6%A8%A1%E5%9D%97/ class=md-nav__link> <span class=md-ellipsis> 21-events模块 </span> </a> </li> <li class=md-nav__item> <a href=../chapter23-Async%20hooks/ class=md-nav__link> <span class=md-ellipsis> 22-Async hooks </span> </a> </li> <li class="md-nav__item md-nav__item--active"> <input class="md-nav__toggle md-toggle" type=checkbox id=__toc> <label class="md-nav__link md-nav__link--active" for=__toc> <span class=md-ellipsis> 23-Inspector </span> <span class="md-nav__icon md-icon"></span> </label> <a href=./ class="md-nav__link md-nav__link--active"> <span class=md-ellipsis> 23-Inspector </span> </a> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#11 class=md-nav__link> <span class=md-ellipsis> 1.1 本地调试 </span> </a> </li> <li class=md-nav__item> <a href=#12 class=md-nav__link> <span class=md-ellipsis> 1.2 远程调试 </span> </a> </li> <li class=md-nav__item> <a href=#13 class=md-nav__link> <span class=md-ellipsis> 1.3 自动探测 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ class=md-nav__link> <span class=md-ellipsis> 27-深入理解 Node.js 的 Buffer </span> </a> </li> <li class=md-nav__item> <a href=../chapter30-Node.js%20%E7%9A%84%20trace%20events%20%E6%9E%B6%E6%9E%84/ class=md-nav__link> <span class=md-ellipsis> 30-Node.js 的 trace events 架构 </span> </a> </li> <li class=md-nav__item> <a href=../chapter31-Node.js%20%E7%9A%84%20perf_hooks/ class=md-nav__link> <span class=md-ellipsis> 31-Node.js 的 perf_hooks </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> 其他 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> 其他 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 24-拓展Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter25-Node.js子线程调试和诊断指南 class=md-nav__link> <span class=md-ellipsis> 25-Node.js子线程调试和诊断指南 </span> </a> </li> <li class=md-nav__item> <a href=../chapter26-vscode%E8%B0%83%E8%AF%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 26-vscode调试Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter28-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E6%9E%B6%E6%9E%84%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 28-Node.js底层原理（架构篇） </span> </a> </li> <li class=md-nav__item> <a href=../chapter29-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E5%AE%9E%E7%8E%B0%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 29-Node.js底层原理（实现篇） </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#11 class=md-nav__link> <span class=md-ellipsis> 1.1 本地调试 </span> </a> </li> <li class=md-nav__item> <a href=#12 class=md-nav__link> <span class=md-ellipsis> 1.2 远程调试 </span> </a> </li> <li class=md-nav__item> <a href=#13 class=md-nav__link> <span class=md-ellipsis> 1.3 自动探测 </span> </a> </li> </ul> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <p><strong>前言：Node.js提供的Inspector不仅可以用来调试Node.js代码，还可以实时收集Node.js进程的内存，CPU等数据，同时支持静态、动态开启，是一个非常强大的工具，本文从使用和原理详细讲解Inspector</strong></p> <p>Node.js的文档中对inspector的描述很少，但是如果深入探索，其实里面的内容还是挺多的。我们先看一下Inspector的使用。</p> <h1 id=1-inspector>1 Inspector的使用<a class=headerlink href=#1-inspector title="Permanent link">&para;</a></h1> <h2 id=11>1.1 本地调试<a class=headerlink href=#11 title="Permanent link">&para;</a></h2> <p>我们先从一个例子开始。下面是一个http服务器。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kd>const</span><span class=w> </span><span class=nx>http</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=s1>&#39;http&#39;</span><span class=p>);</span>
+<span class=nx>http</span><span class=p>.</span><span class=nx>createServer</span><span class=p>((</span><span class=nx>req</span><span class=p>,</span><span class=w> </span><span class=nx>res</span><span class=p>)</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=nx>res</span><span class=p>.</span><span class=nx>end</span><span class=p>(</span><span class=s1>&#39;ok&#39;</span><span class=p>);</span>
+<span class=p>}).</span><span class=nx>listen</span><span class=p>(</span><span class=mf>80</span><span class=p>);</span>
+</code></pre></div></td></tr></table></div> 然后我们以node --inspect httpServer.js的方式启动。我们可以看到以下输出。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code>Debugger listening on ws://127.0.0.1:9229/fbbd9d8f-e088-48cc-b1e0-e16bfe58db44
+For help, see: https://nodejs.org/en/docs/inspector
+</code></pre></div></td></tr></table></div> 9229端口是Node.js默认选择的端口，当然我们也可以自定义，具体可参考文档。这时候我们去浏览器打开开发者工具，菜单栏多了一个调试Node.js的按钮。<br> <img alt src=https://img-blog.csdnimg.cn/a3aa0f6cf82948d78fe879132f356541.png><br> 点击这个按钮。我们可以看到以下界面。<br> <img alt src="https://img-blog.csdnimg.cn/ee5c29e6a5214a6baef45978971c98cc.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 我们可以选择某一行代码打断点，比如我在第三行，这时候我们访问80端口，开发者工具就会停留在断点处。这时候我们可以看到一些执行上下文。<br> <img alt src="https://img-blog.csdnimg.cn/4fcb62b0906346ddbc507f97478ad54e.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"></p> <h2 id=12>1.2 远程调试<a class=headerlink href=#12 title="Permanent link">&para;</a></h2> <p>但很多时候我们可能需要远程调试。比如我在一台云服务器上部署以上服务器代码。然后执行 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code>node --inspect=0.0.0.0:8888 httpServer.js 
+</code></pre></div></td></tr></table></div> 不过这时候我们打开开发者工具就会发现按钮置灰或者找不到我们远程服务器的信息。这时候我们需要用另一种方式。通过在浏览器url输入框输入devtools://devtools/bundled/js_app.html?experiments=true&amp;v8only=true&amp;ws={host}:{port}/{path}的方式（替换{}里面的内容为你执行Node.js时输出的信息），浏览器就会去连接你输入的地址，比如1.1.1.1:9229/abc。这种比较适合于对于通用的场景。</p> <h2 id=13>1.3 自动探测<a class=headerlink href=#13 title="Permanent link">&para;</a></h2> <p>如果是我们自己调试的话，这种方式看起来就有点麻烦，我们可以使用浏览器提供的自动探测功能。<br> 1 url输入框输入chrome://inspect/#devices我们会看到以下界面<br> <img alt src="https://img-blog.csdnimg.cn/c28b13111617457ab607fac072ae5764.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 2 点击configure按钮，在弹出的弹框里输入你远程服务器的地址<br> <img alt src="https://img-blog.csdnimg.cn/cd4fa92ba2b149f6a3bdfecd8178e9d9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 3 配置完毕后，我们会看到界面变成这样了，或者打开新的tab，我们看到开发者工具的调试按钮也变亮了。<br> <img alt src="https://img-blog.csdnimg.cn/d5a4588a38804398ab5fc2d4dce631b7.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 4 这时候我们点击inspect按钮、Open dedicated DevTools for Node按钮或者打开新tab的开发者工具，就可以开始调试。而且还可以调试Node.js的原生js模块。<br> <img alt src="https://img-blog.csdnimg.cn/5e53c295f9cc43629c68fa8f085c8533.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> <img alt src="https://img-blog.csdnimg.cn/6eaf33a029f44965a14d735b5829cb01.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"> </p> <h1 id=2-inspector>2 Inspector调试的原理<a class=headerlink href=#2-inspector title="Permanent link">&para;</a></h1> <p>下面以通过url的方式调试（可以看到network），来看看调试的时候都发生了什么，浏览器和远程服务器建立连接后，是通过websocket协议通信的。<br> <img alt src=https://img-blog.csdnimg.cn/11a497acf12446dbb0e10207601e6156.png><br> 我们看一下这命令是什么意思，首先看Debugger.scriptParsed。</p> <blockquote> <p>Debugger.scriptParsed # Fired when virtual machine parses script. This event is also fired for all known and uncollected scripts upon enabling debugger.</p> </blockquote> <p>从说明中我们看到，当V8解析脚本的时候就会触发这个事件，那就会告诉浏览器这个信息。<br> <img alt src="https://img-blog.csdnimg.cn/efa33802109846adba1979453cd4c7af.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 我们发现返回的都是一些元数据，没有脚本的具体代码内容，这时候浏览器会再次发起请求，<br> <img alt src=https://img-blog.csdnimg.cn/6bc75a477f744831a9f5a2f0d4711164.png><br> 我们看到这个脚本的scriptId是103。所以请求里带了这个scriptId。对应的请求id是11。接着看一下响应。<br> <img alt src=https://img-blog.csdnimg.cn/a37cb981f27b4b4ba80146bf11fb993c.png><br> 至此，我们了解了获取脚本内容的过程，然后我们看看调试的时候是怎样的过程。当我们在浏览器上点击某一行设置断点的时候，浏览器就会发送一个请求。<br> <img alt src="https://img-blog.csdnimg.cn/be2f40f975a14e1db47095d462ec4f48.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 这个命令的意义顾名思义，我们看一下具体定义。</p> <blockquote> <p>Debugger.setBreakpointByUrl # Sets JavaScript breakpoint at given location specified either by URL or URL regex. Once this command is issued, all existing parsed scripts will have breakpoints resolved and returned in locations property. Further matching script parsing will result in subsequent breakpointResolved events issued. This logical breakpoint will survive page reloads.</p> </blockquote> <p>接着服务返回响应。<br> <img alt src="https://img-blog.csdnimg.cn/194ff0ee9e0d42f69058bc3a280f67f9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 这时候我们从另外一个tab访问80端口。服务器就会在我们设置的断点处停留，并且通知浏览器。<br> <img alt src="https://img-blog.csdnimg.cn/2723627cae1c407e93d57f800f21c2e9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 我们看一下这个命令的意思。<br> <img alt src="https://img-blog.csdnimg.cn/ba3558f0d6bb4ee6aa03252bfa4c5065.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 这个命令就是当服务器执行到断点时通知浏览器，并且返回执行的一些上下文，比如是哪个执行到哪个断点停留了。这时候浏览器侧也会停留在对应的地方，当我们hover某个变量时，就会看到对应的上下文。这些都是通过具体的命令获取的数据。就不一一分析了，可以参考具体文档。<br> <img alt src="https://img-blog.csdnimg.cn/9272c43a84c940bd862f9c8279af6026.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"> </p> <h1 id=3-inspector>3 Inspector的实现<a class=headerlink href=#3-inspector title="Permanent link">&para;</a></h1> <p>大致了解了浏览器和服务器的交互过程和协议后，我们再来深入了解一下关于inspector的一些实现。当然这里不是分析V8中Inspector的实现，而是分析如何使用V8的Inspector以及Node.js中关于Inspector的实现部分。</p> <h2 id=31>3.1 开源实现<a class=headerlink href=#31 title="Permanent link">&para;</a></h2> <p>因为Node.js的实现比较复杂，这里先以一个简单版的调试工具源码来分析inspector的原理。我们先看一下初始化代码。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>inspector</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>Inspector</span><span class=o>&gt;</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>Inspector</span><span class=p>(</span><span class=n>v8Platform</span><span class=p>,</span><span class=w> </span><span class=n>context</span><span class=p>,</span><span class=w> </span><span class=n>port</span><span class=p>));</span>
+<span class=n>inspector</span><span class=o>-&gt;</span><span class=n>startAgent</span><span class=p>();</span>
+</code></pre></div></td></tr></table></div> 首先新建一个Inspector。然后启动它。接下来看看Inspector里的逻辑。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>Inspector</span><span class=o>::</span><span class=n>Inspector</span><span class=p>(</span>
+<span class=w>        </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Platform</span><span class=o>&gt;</span><span class=w> </span><span class=o>&amp;</span><span class=n>platform</span><span class=p>,</span>
+<span class=w>        </span><span class=k>const</span><span class=w> </span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=o>&amp;</span><span class=n>context</span><span class=p>,</span>
+<span class=w>        </span><span class=k>const</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>webSocketPort</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>    </span><span class=n>context_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>context</span><span class=p>;</span>
+<span class=w>    </span><span class=c1>// 新建一个websocket server用于和客户端通信</span>
+<span class=w>    </span><span class=n>websocket_server_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>WebSocketServer</span><span class=o>&gt;</span><span class=p>(</span>
+<span class=w>            </span><span class=k>new</span><span class=w> </span><span class=n>WebSocketServer</span><span class=p>(</span>
+<span class=w>                    </span><span class=n>webSocketPort</span><span class=p>,</span>
+<span class=w>                    </span><span class=c1>// 收到客户的的消息后执行onMessage回调</span>
+<span class=w>                    </span><span class=n>std</span><span class=o>::</span><span class=n>bind</span><span class=p>(</span><span class=o>&amp;</span><span class=n>Inspector</span><span class=o>::</span><span class=n>onMessage</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>placeholders</span><span class=o>::</span><span class=n>_1</span><span class=p>)</span>
+<span class=w>                </span><span class=p>)</span>
+<span class=w>            </span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// 新建一个inspector client和V8通信</span>
+<span class=w>    </span><span class=n>inspector_client_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>V8InspectorClientImpl</span><span class=o>&gt;</span><span class=p>(</span>
+<span class=w>            </span><span class=k>new</span><span class=w> </span><span class=n>V8InspectorClientImpl</span><span class=p>(</span>
+<span class=w>                    </span><span class=n>platform</span><span class=p>,</span>
+<span class=w>                    </span><span class=n>context_</span><span class=p>,</span>
+<span class=w>                    </span><span class=c1>// 收到V8的消息后调用sendMessage回复给客户的</span>
+<span class=w>                    </span><span class=n>std</span><span class=o>::</span><span class=n>bind</span><span class=p>(</span><span class=o>&amp;</span><span class=n>Inspector</span><span class=o>::</span><span class=n>sendMessage</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>placeholders</span><span class=o>::</span><span class=n>_1</span><span class=p>),</span>
+<span class=w>                    </span><span class=n>std</span><span class=o>::</span><span class=n>bind</span><span class=p>(</span><span class=o>&amp;</span><span class=n>Inspector</span><span class=o>::</span><span class=n>waitForFrontendMessage</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>)</span>
+<span class=w>                </span><span class=p>)</span>
+<span class=w>            </span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 代码看起来很复杂，不过我们不需要深究。主要是两个部分，一个是新建一个websocket服务器，一个是新建一个inspector客户端（用于和V8 Inspector通信），整体架构如下。<br> <img alt src="https://img-blog.csdnimg.cn/32d794aae6754010a953223530043d8e.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 接下来分别看一下websocket服务器和inspector客户端的实现。首先看一下websocket服务器的构造函数。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>WebSocketServer</span><span class=o>::</span><span class=n>WebSocketServer</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>port</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>function</span><span class=o>&lt;</span><span class=kt>void</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=p>)</span><span class=o>&gt;</span><span class=w> </span><span class=n>onMessage</span><span class=p>)</span>
+<span class=p>{</span>
+<span class=w>    </span><span class=n>port_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>port</span><span class=p>;</span>
+<span class=w>    </span><span class=n>onMessage_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>onMessage</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> WebSocketServer构造函数的实现很简单，只是初始化一些字段。接着看inspector客户端的实现。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>V8InspectorClientImpl</span><span class=o>::</span><span class=w> </span><span class=nf>V8InspectorClientImpl</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Platform</span><span class=o>&gt;</span><span class=w> </span><span class=o>&amp;</span><span class=n>platform</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=n>v8</span><span class=o>::</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>v8</span><span class=o>::</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=o>&amp;</span><span class=n>context</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>function</span><span class=o>&lt;</span><span class=kt>void</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=p>)</span><span class=o>&gt;</span><span class=w> </span><span class=o>&amp;</span><span class=n>onResponse</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>function</span><span class=o>&lt;</span><span class=kt>int</span><span class=p>(</span><span class=kt>void</span><span class=p>)</span><span class=o>&gt;</span><span class=w> </span><span class=o>&amp;</span><span class=n>onWaitFrontendMessageOnPause</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>    </span><span class=n>platform_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>platform</span><span class=p>.</span><span class=n>get</span><span class=p>();</span>
+<span class=w>    </span><span class=n>context_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>context</span><span class=p>;</span>
+<span class=w>    </span><span class=n>onWaitFrontendMessageOnPause_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>onWaitFrontendMessageOnPause</span><span class=p>;</span>
+<span class=w>    </span><span class=n>isolate_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>context_</span><span class=o>-&gt;</span><span class=n>GetIsolate</span><span class=p>();</span>
+<span class=w>    </span><span class=c1>// 创建一个channel和inspector通信，收到V8消息时会执行onResponse</span>
+<span class=w>    </span><span class=n>channel_</span><span class=p>.</span><span class=n>reset</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>V8InspectorChannelImp</span><span class=p>(</span><span class=n>isolate_</span><span class=p>,</span><span class=w> </span><span class=n>onResponse</span><span class=p>));</span>
+<span class=w>    </span><span class=c1>// 新建一个V8提供的inspector</span>
+<span class=w>    </span><span class=n>inspector_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>V8Inspector</span><span class=o>::</span><span class=n>create</span><span class=p>(</span><span class=n>isolate_</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// 创建一个和inspector通信的session。</span>
+<span class=w>    </span><span class=n>session_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>inspector_</span><span class=o>-&gt;</span><span class=n>connect</span><span class=p>(</span><span class=n>kContextGroupId</span><span class=p>,</span><span class=w> </span><span class=n>channel_</span><span class=p>.</span><span class=n>get</span><span class=p>(),</span><span class=w> </span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>StringView</span><span class=p>());</span>
+<span class=w>    </span><span class=n>context_</span><span class=o>-&gt;</span><span class=n>SetAlignedPointerInEmbedderData</span><span class=p>(</span><span class=mi>1</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>);</span>
+<span class=w>    </span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>StringView</span><span class=w> </span><span class=n>contextName</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>convertToStringView</span><span class=p>(</span><span class=s>&quot;inspector&quot;</span><span class=p>);</span>
+<span class=w>    </span><span class=n>inspector_</span><span class=o>-&gt;</span><span class=n>contextCreated</span><span class=p>(</span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>V8ContextInfo</span><span class=p>(</span><span class=n>context</span><span class=p>,</span><span class=w> </span><span class=n>kContextGroupId</span><span class=p>,</span><span class=w> </span><span class=n>contextName</span><span class=p>));</span>
+<span class=w>    </span><span class=n>terminated_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>true</span><span class=p>;</span>
+<span class=w>    </span><span class=n>run_nested_loop_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>false</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 上面代码很多，主要是根据V8提供的API来就行。这里主要有三个概念<br> 1 V8Inspector是V8提供的类。<br> 2 session表示和V8 inspector通信的会话。<br> 3 channel用于和V8 inspector通信，从API来看，channel只能从V8获取数据，写入数据是另外的API。<br> 这时候的架构如下<br> <img alt src="https://img-blog.csdnimg.cn/f33f37f845c744d8bf0b4a86d245c3be.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 至此，websocket服务器和inspector客户端就分析完毕了，回到最开始的代码，初始化完毕后会执行startAgent。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>Inspector::startAgent</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>websocket_server_</span><span class=o>-&gt;</span><span class=n>run</span><span class=p>();</span>
+<span class=p>}</span>
+<span class=c1>// 启动websocket服务器</span>
+<span class=kt>void</span><span class=w> </span><span class=nf>WebSocketServer::run</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=k>auto</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=n>address</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>net</span><span class=o>::</span><span class=n>ip</span><span class=o>::</span><span class=n>make_address</span><span class=p>(</span><span class=s>&quot;127.0.0.1&quot;</span><span class=p>);</span>
+<span class=w>    </span><span class=n>net</span><span class=o>::</span><span class=n>io_context</span><span class=w> </span><span class=n>ioc</span><span class=p>{</span><span class=mi>1</span><span class=p>};</span>
+<span class=w>    </span><span class=n>tcp</span><span class=o>::</span><span class=n>acceptor</span><span class=w> </span><span class=n>acceptor</span><span class=p>{</span><span class=n>ioc</span><span class=p>,</span><span class=w> </span><span class=p>{</span><span class=n>address</span><span class=p>,</span><span class=w> </span><span class=k>static_cast</span><span class=o>&lt;</span><span class=kt>unsigned</span><span class=w> </span><span class=kt>short</span><span class=o>&gt;</span><span class=p>(</span><span class=n>port_</span><span class=p>)}};</span>
+<span class=w>    </span><span class=n>tcp</span><span class=o>::</span><span class=n>socket</span><span class=w> </span><span class=n>socket</span><span class=p>{</span><span class=n>ioc</span><span class=p>};</span>
+<span class=w>    </span><span class=n>acceptor</span><span class=p>.</span><span class=n>accept</span><span class=p>(</span><span class=n>socket</span><span class=p>);</span>
+<span class=w>    </span><span class=n>ws_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>websocket</span><span class=o>::</span><span class=n>stream</span><span class=o>&lt;</span><span class=n>tcp</span><span class=o>::</span><span class=n>socket</span><span class=o>&gt;&gt;</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>websocket</span><span class=o>::</span><span class=n>stream</span><span class=o>&lt;</span><span class=n>tcp</span><span class=o>::</span><span class=n>socket</span><span class=o>&gt;</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>socket</span><span class=p>)));</span>
+<span class=w>    </span><span class=n>startListening</span><span class=p>();</span>
+<span class=p>}</span>
+<span class=c1>// 等待连接</span>
+<span class=kt>void</span><span class=w> </span><span class=nf>WebSocketServer::startListening</span><span class=p>()</span>
+<span class=p>{</span>
+<span class=w>   </span><span class=n>ws_</span><span class=o>-&gt;</span><span class=n>accept</span><span class=p>();</span>
+<span class=w>   </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=nb>true</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>       </span><span class=n>waitFrontendMessage</span><span class=p>();</span>
+<span class=w>   </span><span class=p>}</span>
+<span class=p>}</span>
+<span class=c1>// 读取连接中的消息</span>
+<span class=kt>void</span><span class=w> </span><span class=nf>WebSocketServer::waitFrontendMessage</span><span class=p>()</span>
+<span class=p>{</span>
+<span class=w>    </span><span class=n>beast</span><span class=o>::</span><span class=n>flat_buffer</span><span class=w> </span><span class=n>buffer</span><span class=p>;</span>
+<span class=w>    </span><span class=n>ws_</span><span class=o>-&gt;</span><span class=n>read</span><span class=p>(</span><span class=n>buffer</span><span class=p>);</span>
+<span class=w>    </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=w> </span><span class=n>message</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>boost</span><span class=o>::</span><span class=n>beast</span><span class=o>::</span><span class=n>buffers_to_string</span><span class=p>(</span><span class=n>buffer</span><span class=p>.</span><span class=n>data</span><span class=p>());</span>
+<span class=w>    </span><span class=n>onMessage_</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>message</span><span class=p>));</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> startAgent的逻辑就是启动websocket服务器。启动完毕后就等待客户的连接。连接成功后执行onMessage_。我们看一下onMessage的实现。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>Inspector::onMessage</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>std</span><span class=o>::</span><span class=n>cout</span><span class=w> </span><span class=o>&lt;&lt;</span><span class=w> </span><span class=s>&quot;CDT message: &quot;</span><span class=w> </span><span class=o>&lt;&lt;</span><span class=w> </span><span class=n>message</span><span class=w> </span><span class=o>&lt;&lt;</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>endl</span><span class=p>;</span>
+<span class=w>    </span><span class=c1>// StringView是V8要求的格式</span>
+<span class=w>    </span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>StringView</span><span class=w> </span><span class=n>protocolMessage</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>convertToStringView</span><span class=p>(</span><span class=n>message</span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// 通知V8 Inspector</span>
+<span class=w>    </span><span class=n>inspector_client_</span><span class=o>-&gt;</span><span class=n>dispatchProtocolMessage</span><span class=p>(</span><span class=n>protocolMessage</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> onMessage通过Inspector客户端把消息交给V8 Inspector处理。V8 Inspector处理完后，通过channel通知Inspector客户端，对应的函数是sendResponse。V8InspectorChannelImp是继承V8提供的Channel，sendResponse是一个纯虚函数，由V8InspectorChannelImp实现。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>V8InspectorChannelImp::sendResponse</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>callId</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>StringBuffer</span><span class=o>&gt;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=w> </span><span class=n>response</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>convertToString</span><span class=p>(</span><span class=n>isolate_</span><span class=p>,</span><span class=w> </span><span class=n>message</span><span class=o>-&gt;</span><span class=n>string</span><span class=p>());</span>
+<span class=w>    </span><span class=n>onResponse_</span><span class=p>(</span><span class=n>response</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> onResponse_是在Chnnel初始化时设置的，对应函数是inspector客户端的sendMessage。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>Inspector::sendMessage</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>websocket_server_</span><span class=o>-&gt;</span><span class=n>sendMessage</span><span class=p>(</span><span class=n>message</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> sendMessage通过websocket服务器把V8 Inspector返回的消息返回给客户的。至此，整个通信流程就完成了。</p> <h2 id=32-nodejsv14>3.2 Node.js的实现(v14)<a class=headerlink href=#32-nodejsv14 title="Permanent link">&para;</a></h2> <p>Node.js的实现非常复杂并且很绕，也无法通俗易懂地介绍和分析，只能按照我自己的思路大致讲解一下流程，有兴趣的同学可以自行阅读源码。当我们以以下方式执行我们的应用时 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code>node --inspect app.js
+</code></pre></div></td></tr></table></div></p> <h3 id=321>3.2.1 初始化<a class=headerlink href=#321 title="Permanent link">&para;</a></h3> <p>Node.js在启动的过程中，就会初始化Inspector相关的逻辑。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>inspector_agent_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>make_unique</span><span class=o>&lt;</span><span class=n>inspector</span><span class=o>::</span><span class=n>Agent</span><span class=o>&gt;</span><span class=p>(</span><span class=k>this</span><span class=p>);</span>
+</code></pre></div></td></tr></table></div> Agent是负责和V8 Inspector通信的对象。创建完后接着执行env-&gt;InitializeInspector({})启动Agent。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>inspector_agent_</span><span class=o>-&gt;</span><span class=n>Start</span><span class=p>(...);</span>
+</code></pre></div></td></tr></table></div> Start继续执行Agent::StartIoThread。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>bool</span><span class=w> </span><span class=nf>Agent::StartIoThread</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>io_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>InspectorIo</span><span class=o>::</span><span class=n>Start</span><span class=p>(</span><span class=n>client_</span><span class=o>-&gt;</span><span class=n>getThreadHandle</span><span class=p>(),</span><span class=w> </span><span class=p>...);</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=nb>true</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> StartIoThread中的client_-&gt;getThreadHandle()是重要的逻辑，我们先来分析该函数。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>  </span><span class=n>std</span><span class=o>::</span><span class=n>shared_ptr</span><span class=o>&lt;</span><span class=n>MainThreadHandle</span><span class=o>&gt;</span><span class=w> </span><span class=n>getThreadHandle</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>interface_</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>      </span><span class=n>interface_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>make_shared</span><span class=o>&lt;</span><span class=n>MainThreadInterface</span><span class=o>&gt;</span><span class=p>(</span><span class=n>env_</span><span class=o>-&gt;</span><span class=n>inspector_agent</span><span class=p>(),</span><span class=w> </span><span class=p>...);</span>
+<span class=w>    </span><span class=p>}</span>
+<span class=w>    </span><span class=k>return</span><span class=w> </span><span class=n>interface_</span><span class=o>-&gt;</span><span class=n>GetHandle</span><span class=p>();</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> getThreadHandle首先创建来一个MainThreadInterface对象，接着又调用了他的GetHandle方法，我们看一下该方法的逻辑。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>std</span><span class=o>::</span><span class=n>shared_ptr</span><span class=o>&lt;</span><span class=n>MainThreadHandle</span><span class=o>&gt;</span><span class=w> </span><span class=n>MainThreadInterface</span><span class=o>::</span><span class=n>GetHandle</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>handle_</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span>
+<span class=w>    </span><span class=n>handle_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>make_shared</span><span class=o>&lt;</span><span class=n>MainThreadHandle</span><span class=o>&gt;</span><span class=p>(</span><span class=k>this</span><span class=p>);</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>handle_</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> GetHandlei了创建了一个MainThreadHandle对象，最终结构如下所示。<br> <img alt src="https://img-blog.csdnimg.cn/2db9591e808048029abcffde4ecfc591.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 分析完后我们继续看Agent::StartIoThread中InspectorIo::Start的逻辑。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorIo</span><span class=o>&gt;</span><span class=w> </span><span class=n>InspectorIo</span><span class=o>::</span><span class=n>Start</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>shared_ptr</span><span class=o>&lt;</span><span class=n>MainThreadHandle</span><span class=o>&gt;</span><span class=w> </span><span class=n>main_thread</span><span class=p>,</span><span class=w> </span><span class=p>...)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>auto</span><span class=w> </span><span class=n>io</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorIo</span><span class=o>&gt;</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>InspectorIo</span><span class=p>(</span><span class=n>main_thread</span><span class=p>,</span><span class=w> </span><span class=p>...));</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>io</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> InspectorIo::Star里新建了一个InspectorIo对象，我们看看InspectorIo构造函数的逻辑。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>InspectorIo</span><span class=o>::</span><span class=n>InspectorIo</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>shared_ptr</span><span class=o>&lt;</span><span class=n>MainThreadHandle</span><span class=o>&gt;</span><span class=w> </span><span class=n>main_thread</span><span class=p>,</span><span class=w> </span><span class=p>...)</span>
+<span class=w>    </span><span class=o>:</span><span class=w> </span>
+<span class=w>    </span><span class=c1>// 初始化main_thread_</span>
+<span class=w>    </span><span class=n>main_thread_</span><span class=p>(</span><span class=n>main_thread</span><span class=p>))</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=c1>// 新建一个子线程，子线程中执行InspectorIo::ThreadMain</span>
+<span class=w>  </span><span class=n>uv_thread_create</span><span class=p>(</span><span class=o>&amp;</span><span class=n>thread_</span><span class=p>,</span><span class=w> </span><span class=n>InspectorIo</span><span class=o>::</span><span class=n>ThreadMain</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 这时候结构如下。<br> <img alt src="https://img-blog.csdnimg.cn/c0fbe74e8a164f028ea3848194d256df.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> Inspector在子线程里启动的原因主要有两个。<br> 1 如果在主线程里运行，那么当我们断点调试的时候，Node.js主线程就会被停住，也就无法处理客户端发过来的调试指令。<br> 2 如果主线程陷入死循环，我们就无法实时抓取进程的profile数据来分析原因。<br> 接着继续看一下子线程里执行InspectorIo::ThreadMain的逻辑。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>InspectorIo::ThreadMain</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>io</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>static_cast</span><span class=o>&lt;</span><span class=n>InspectorIo</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>io</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>ThreadMain</span><span class=p>();</span>
+<span class=p>}</span>
+
+<span class=kt>void</span><span class=w> </span><span class=nf>InspectorIo::ThreadMain</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>uv_loop_t</span><span class=w> </span><span class=n>loop</span><span class=p>;</span>
+<span class=w>  </span><span class=n>loop</span><span class=p>.</span><span class=n>data</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>nullptr</span><span class=p>;</span>
+<span class=w>  </span><span class=c1>// 在子线程开启一个新的事件循环</span>
+<span class=w>  </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv_loop_init</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=p>);</span>
+<span class=w>  </span><span class=n>std</span><span class=o>::</span><span class=n>shared_ptr</span><span class=o>&lt;</span><span class=n>RequestQueueData</span><span class=o>&gt;</span><span class=w> </span><span class=n>queue</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>RequestQueueData</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=p>),</span><span class=w> </span><span class=p>...);</span>
+<span class=w>  </span><span class=c1>// 新建一个delegate，用于处理请求</span>
+<span class=w>  </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorIoDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>(</span>
+<span class=w>    </span><span class=k>new</span><span class=w> </span><span class=n>InspectorIoDelegate</span><span class=p>(</span><span class=n>queue</span><span class=p>,</span><span class=w> </span><span class=n>main_thread_</span><span class=p>,</span><span class=w> </span><span class=p>...)</span>
+<span class=w>  </span><span class=p>);</span>
+<span class=w>  </span><span class=n>InspectorSocketServer</span><span class=w> </span><span class=n>server</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>),</span><span class=w> </span><span class=p>...);</span>
+<span class=w>  </span><span class=n>server</span><span class=p>.</span><span class=n>Start</span><span class=p>()</span>
+<span class=w>  </span><span class=n>uv_run</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>UV_RUN_DEFAULT</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> ThreadMain里主要三个逻辑<br> 1 创建一个delegate对象，该对象是核心的对象，后面我们会看到有什么作用。<br> 2 创建一个服务器并启动。<br> 3 开启事件循环。<br> 接下来看一下服务器的逻辑，首先看一下创建服务器的逻辑。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>InspectorSocketServer</span><span class=o>::</span><span class=n>InspectorSocketServer</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>SocketServerDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>,</span><span class=w> </span><span class=p>...)</span>
+<span class=w>    </span><span class=o>:</span><span class=w> </span>
+<span class=w>      </span><span class=c1>// 保存delegate</span>
+<span class=w>      </span><span class=n>delegate_</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>)),</span>
+<span class=w>      </span><span class=c1>// 初始化sessionId</span>
+<span class=w>      </span><span class=n>next_session_id_</span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=c1>// 设置delegate的server为当前服务器</span>
+<span class=w>  </span><span class=n>delegate_</span><span class=o>-&gt;</span><span class=n>AssignServer</span><span class=p>(</span><span class=k>this</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 执行完后形成以下结构。<br> <img alt src="https://img-blog.csdnimg.cn/36f2215207b642ae89f52e445717b8de.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 接着我们看启动服务器的逻辑。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>bool</span><span class=w> </span><span class=nf>InspectorSocketServer::Start</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=c1>// DNS解析,比如输入的是localhost</span>
+<span class=w>  </span><span class=k>struct</span><span class=w> </span><span class=nc>addrinfo</span><span class=w> </span><span class=n>hints</span><span class=p>;</span>
+<span class=w>  </span><span class=n>memset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>hints</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>hints</span><span class=p>));</span>
+<span class=w>  </span><span class=n>hints</span><span class=p>.</span><span class=n>ai_flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>AI_NUMERICSERV</span><span class=p>;</span>
+<span class=w>  </span><span class=n>hints</span><span class=p>.</span><span class=n>ai_socktype</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>SOCK_STREAM</span><span class=p>;</span>
+<span class=w>  </span><span class=n>uv_getaddrinfo_t</span><span class=w> </span><span class=n>req</span><span class=p>;</span>
+<span class=w>  </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=w> </span><span class=n>port_string</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>to_string</span><span class=p>(</span><span class=n>port_</span><span class=p>);</span>
+<span class=w>  </span><span class=n>uv_getaddrinfo</span><span class=p>(</span><span class=n>loop_</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>req</span><span class=p>,</span><span class=w> </span><span class=k>nullptr</span><span class=p>,</span><span class=w> </span><span class=n>host_</span><span class=p>.</span><span class=n>c_str</span><span class=p>(),</span>
+<span class=w>                           </span><span class=n>port_string</span><span class=p>.</span><span class=n>c_str</span><span class=p>(),</span><span class=w> </span><span class=o>&amp;</span><span class=n>hints</span><span class=p>);</span>
+<span class=w>  </span><span class=c1>// 监听解析到的ip列表                 </span>
+<span class=w>  </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>addrinfo</span><span class=o>*</span><span class=w> </span><span class=n>address</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>req</span><span class=p>.</span><span class=n>addrinfo</span><span class=p>;</span><span class=w> </span>
+<span class=w>       </span><span class=n>address</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>;</span>
+<span class=w>       </span><span class=n>address</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>address</span><span class=o>-&gt;</span><span class=n>ai_next</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>    </span><span class=k>auto</span><span class=w> </span><span class=n>server_socket</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ServerSocketPtr</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>ServerSocket</span><span class=p>(</span><span class=k>this</span><span class=p>));</span>
+<span class=w>    </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>server_socket</span><span class=o>-&gt;</span><span class=n>Listen</span><span class=p>(</span><span class=n>address</span><span class=o>-&gt;</span><span class=n>ai_addr</span><span class=p>,</span><span class=w> </span><span class=n>loop_</span><span class=p>);</span>
+<span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span>
+<span class=w>      </span><span class=n>server_sockets_</span><span class=p>.</span><span class=n>push_back</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>server_socket</span><span class=p>));</span>
+
+<span class=w>  </span><span class=p>}</span>
+
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=nb>true</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 首先根据参数做一个DNS解析，然后根据拿到的ip列表（通常是一个），创建对应个数的ServerSocket对象，并执行他的Listen方法。ServerSocket表示一个监听socket。看一下ServerSocket的构造函数。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>ServerSocket</span><span class=p>(</span><span class=n>InspectorSocketServer</span><span class=o>*</span><span class=w> </span><span class=n>server</span><span class=p>)</span>
+<span class=w>            </span><span class=o>:</span><span class=w> </span><span class=n>tcp_socket_</span><span class=p>(</span><span class=n>uv_tcp_t</span><span class=p>()),</span><span class=w> </span><span class=n>server_</span><span class=p>(</span><span class=n>server</span><span class=p>)</span><span class=w> </span><span class=p>{}</span>
+</code></pre></div></td></tr></table></div> 执行完后结构如下。<br> <img alt src="https://img-blog.csdnimg.cn/085c4f5baa7e4c73a22951893c81f4c6.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 接着看一下ServerSocket的Listen方法。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>int</span><span class=w> </span><span class=nf>ServerSocket::Listen</span><span class=p>(</span><span class=n>sockaddr</span><span class=o>*</span><span class=w> </span><span class=n>addr</span><span class=p>,</span><span class=w> </span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>uv_tcp_t</span><span class=o>*</span><span class=w> </span><span class=n>server</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>&amp;</span><span class=n>tcp_socket_</span><span class=p>;</span>
+<span class=w>  </span><span class=n>uv_tcp_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>server</span><span class=p>)</span>
+<span class=w>  </span><span class=n>uv_tcp_bind</span><span class=p>(</span><span class=n>server</span><span class=p>,</span><span class=w> </span><span class=n>addr</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>);</span>
+<span class=w>  </span><span class=n>uv_listen</span><span class=p>(</span><span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=n>uv_stream_t</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>server</span><span class=p>),</span><span class=w> </span>
+<span class=w>                    </span><span class=mi>511</span><span class=p>,</span>
+<span class=w>                    </span><span class=n>ServerSocket</span><span class=o>::</span><span class=n>SocketConnectedCallback</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> Listen调用Libuv的接口完成服务器的启动。至此，Inspector提供的Weboscket服务器启动了。</p> <h3 id=322>3.2.2 处理连接<a class=headerlink href=#322 title="Permanent link">&para;</a></h3> <p>从刚才分析中可以看到，当有连接到来时执行回调ServerSocket::SocketConnectedCallback。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>ServerSocket::SocketConnectedCallback</span><span class=p>(</span><span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>tcp_socket</span><span class=p>,</span>
+<span class=w>                                           </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=c1>// 根据Libuv handle找到对应的ServerSocket对象</span>
+<span class=w>    </span><span class=n>ServerSocket</span><span class=o>*</span><span class=w> </span><span class=n>server_socket</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ServerSocket</span><span class=o>::</span><span class=n>FromTcpSocket</span><span class=p>(</span><span class=n>tcp_socket</span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// Socket对象的server_字段保存了所在的InspectorSocketServer</span>
+<span class=w>    </span><span class=n>server_socket</span><span class=o>-&gt;</span><span class=n>server_</span><span class=o>-&gt;</span><span class=n>Accept</span><span class=p>(</span><span class=n>server_socket</span><span class=o>-&gt;</span><span class=n>port_</span><span class=p>,</span><span class=w> </span><span class=n>tcp_socket</span><span class=p>);</span>
+<span class=w>  </span><span class=p>}</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 接着看InspectorSocketServer的Accept是如何处理连接的。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>InspectorSocketServer::Accept</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>server_port</span><span class=p>,</span>
+<span class=w>                                   </span><span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>server_socket</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>  </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>SocketSession</span><span class=o>&gt;</span><span class=w> </span><span class=n>session</span><span class=p>(</span>
+<span class=w>      </span><span class=k>new</span><span class=w> </span><span class=n>SocketSession</span><span class=p>(</span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=n>next_session_id_</span><span class=o>++</span><span class=p>,</span><span class=w> </span><span class=n>server_port</span><span class=p>)</span>
+<span class=w>  </span><span class=p>);</span>
+
+<span class=w>  </span><span class=n>InspectorSocket</span><span class=o>::</span><span class=n>DelegatePointer</span><span class=w> </span><span class=n>delegate</span><span class=w> </span><span class=o>=</span>
+<span class=w>      </span><span class=n>InspectorSocket</span><span class=o>::</span><span class=n>DelegatePointer</span><span class=p>(</span>
+<span class=w>          </span><span class=k>new</span><span class=w> </span><span class=n>SocketSession</span><span class=o>::</span><span class=n>Delegate</span><span class=p>(</span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=n>session</span><span class=o>-&gt;</span><span class=n>id</span><span class=p>())</span>
+<span class=w>      </span><span class=p>);</span>
+
+<span class=w>  </span><span class=n>InspectorSocket</span><span class=o>::</span><span class=n>Pointer</span><span class=w> </span><span class=n>inspector</span><span class=w> </span><span class=o>=</span>
+<span class=w>      </span><span class=n>InspectorSocket</span><span class=o>::</span><span class=n>Accept</span><span class=p>(</span><span class=n>server_socket</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>));</span>
+
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>inspector</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>session</span><span class=o>-&gt;</span><span class=n>Own</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>inspector</span><span class=p>));</span>
+<span class=w>    </span><span class=n>connected_sessions_</span><span class=p>[</span><span class=n>session</span><span class=o>-&gt;</span><span class=n>id</span><span class=p>()].</span><span class=n>second</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>session</span><span class=p>);</span>
+<span class=w>  </span><span class=p>}</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> Accept的首先创建里一个SocketSession和SocketSession::Delegate对象。然后调用InspectorSocket::Accept，从代码中可以看到InspectorSocket::Accept会返回一个InspectorSocket对象。InspectorSocket是对通信socket的封装（和客户端通信的socket，区别于服务器的监听socket）。然后记录session对象对应的InspectorSocket对象，同时记录sessionId和session的映射关系。结构如下图所示。<br> <img alt src="https://img-blog.csdnimg.cn/5b5137ecb7284b78959388fced80e0e9.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 接着看一下InspectorSocket::Accept返回InspectorSocket的逻辑。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>InspectorSocket</span><span class=o>::</span><span class=n>Pointer</span><span class=w> </span><span class=nf>InspectorSocket::Accept</span><span class=p>(</span><span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>server</span><span class=p>,</span>
+<span class=w>                                                 </span><span class=n>DelegatePointer</span><span class=w> </span><span class=n>delegate</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>auto</span><span class=w> </span><span class=n>tcp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>TcpHolder</span><span class=o>::</span><span class=n>Accept</span><span class=p>(</span><span class=n>server</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>));</span>
+<span class=w>  </span><span class=n>InspectorSocket</span><span class=o>*</span><span class=w> </span><span class=n>inspector</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>InspectorSocket</span><span class=p>();</span>
+<span class=w>  </span><span class=n>inspector</span><span class=o>-&gt;</span><span class=n>SwitchProtocol</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>HttpHandler</span><span class=p>(</span><span class=n>inspector</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>tcp</span><span class=p>)));</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>InspectorSocket</span><span class=o>::</span><span class=n>Pointer</span><span class=p>(</span><span class=n>inspector</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> InspectorSocket::Accept的代码不多，但是逻辑还是挺多的。<br> 1 InspectorSocket::Accept再次调用TcpHolder::Accept获得一个TcpHolder对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>TcpHolder</span><span class=o>::</span><span class=n>Pointer</span><span class=w> </span><span class=nf>TcpHolder::Accept</span><span class=p>(</span>
+<span class=w>    </span><span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>server</span><span class=p>,</span>
+<span class=w>    </span><span class=n>InspectorSocket</span><span class=o>::</span><span class=n>DelegatePointer</span><span class=w> </span><span class=n>delegate</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=c1>// 新建一个TcpHolder对象，TcpHolder是对uv_tcp_t和delegate的封装</span>
+<span class=w>  </span><span class=n>TcpHolder</span><span class=o>*</span><span class=w> </span><span class=n>result</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>TcpHolder</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>));</span>
+<span class=w>  </span><span class=c1>// 拿到TcpHolder对象的uv_tcp_t结构体</span>
+<span class=w>  </span><span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>tcp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=n>uv_stream_t</span><span class=o>*&gt;</span><span class=p>(</span><span class=o>&amp;</span><span class=n>result</span><span class=o>-&gt;</span><span class=n>tcp_</span><span class=p>);</span>
+<span class=w>  </span><span class=c1>// 初始化</span>
+<span class=w>  </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv_tcp_init</span><span class=p>(</span><span class=n>server</span><span class=o>-&gt;</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>result</span><span class=o>-&gt;</span><span class=n>tcp_</span><span class=p>);</span>
+<span class=w>  </span><span class=c1>// 摘取一个TCP连接对应的fd保存到TcpHolder的uv_tcp_t结构体中（即第二个参数的tcp字段）</span>
+<span class=w>  </span><span class=n>uv_accept</span><span class=p>(</span><span class=n>server</span><span class=p>,</span><span class=w> </span><span class=n>tcp</span><span class=p>);</span>
+<span class=w>  </span><span class=c1>// 注册等待可读事件，有数据时执行OnDataReceivedCb回调</span>
+<span class=w>  </span><span class=n>uv_read_start</span><span class=p>(</span><span class=n>tcp</span><span class=p>,</span><span class=w> </span><span class=n>allocate_buffer</span><span class=p>,</span><span class=w> </span><span class=n>OnDataReceivedCb</span><span class=p>);</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>TcpHolder</span><span class=o>::</span><span class=n>Pointer</span><span class=p>(</span><span class=n>result</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 2 新建一个HttpHandler对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span></pre></div></td><td class=code><div><pre><span></span><code><span class=k>explicit</span><span class=w> </span><span class=n>HttpHandler</span><span class=p>(</span><span class=n>InspectorSocket</span><span class=o>*</span><span class=w> </span><span class=n>inspector</span><span class=p>,</span><span class=w> </span><span class=n>TcpHolder</span><span class=o>::</span><span class=n>Pointer</span><span class=w> </span><span class=n>tcp</span><span class=p>)</span>
+<span class=w>                     </span><span class=o>:</span><span class=w> </span><span class=n>ProtocolHandler</span><span class=p>(</span><span class=n>inspector</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>tcp</span><span class=p>)){</span>
+
+<span class=w>  </span><span class=n>llhttp_init</span><span class=p>(</span><span class=o>&amp;</span><span class=n>parser_</span><span class=p>,</span><span class=w> </span><span class=n>HTTP_REQUEST</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>parser_settings</span><span class=p>);</span>
+<span class=w>  </span><span class=n>llhttp_settings_init</span><span class=p>(</span><span class=o>&amp;</span><span class=n>parser_settings</span><span class=p>);</span>
+<span class=w>  </span><span class=n>parser_settings</span><span class=p>.</span><span class=n>on_header_field</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>OnHeaderField</span><span class=p>;</span>
+<span class=w>  </span><span class=n>parser_settings</span><span class=p>.</span><span class=n>on_header_value</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>OnHeaderValue</span><span class=p>;</span>
+<span class=w>  </span><span class=n>parser_settings</span><span class=p>.</span><span class=n>on_message_complete</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>OnMessageComplete</span><span class=p>;</span>
+<span class=w>  </span><span class=n>parser_settings</span><span class=p>.</span><span class=n>on_url</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>OnPath</span><span class=p>;</span>
+<span class=p>}</span>
+<span class=n>ProtocolHandler</span><span class=o>::</span><span class=n>ProtocolHandler</span><span class=p>(</span><span class=n>InspectorSocket</span><span class=o>*</span><span class=w> </span><span class=n>inspector</span><span class=p>,</span>
+<span class=w>                                 </span><span class=n>TcpHolder</span><span class=o>::</span><span class=n>Pointer</span><span class=w> </span><span class=n>tcp</span><span class=p>)</span>
+<span class=w>                                 </span><span class=o>:</span><span class=w> </span><span class=n>inspector_</span><span class=p>(</span><span class=n>inspector</span><span class=p>),</span><span class=w> </span><span class=n>tcp_</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>tcp</span><span class=p>))</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=c1>// 设置TCP数据的handler，TCP是只负责传输，数据的解析交给handler处理                               </span>
+<span class=w>  </span><span class=n>tcp_</span><span class=o>-&gt;</span><span class=n>SetHandler</span><span class=p>(</span><span class=k>this</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> HttpHandler是对uv_tcp_t的封装，主要通过HTTP解析器llhttp对HTTP协议进行解析。<br> 3 调用inspector-&gt;SwitchProtocol()切换当前协议为HTTP，建立TCP连接后，首先要经过一个HTTP请求从HTTP协议升级到WebSocket协议，升级成功后就使用Websocket协议进行通信。<br> 我们看一下这时候的结构图。<br> <img alt src="https://img-blog.csdnimg.cn/64e87dc3a91b4e1496957e454b30aceb.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 至此，就完成了连接处理的分析。</p> <h3 id=323>3.2.3 协议升级<a class=headerlink href=#323 title="Permanent link">&para;</a></h3> <p>完成了TCP连接的处理后，接下来要完成协议升级，因为Inspector是通过WebSocket协议和客户端通信的，所以需要通过一个HTTP请求来完成HTTP到WebSocekt协议的升级。从刚才的分析中看当有数据到来时会执行OnDataReceivedCb回调。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>TcpHolder::OnDataReceivedCb</span><span class=p>(</span><span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>tcp</span><span class=p>,</span><span class=w> </span><span class=kt>ssize_t</span><span class=w> </span><span class=n>nread</span><span class=p>,</span>
+<span class=w>                                 </span><span class=k>const</span><span class=w> </span><span class=n>uv_buf_t</span><span class=o>*</span><span class=w> </span><span class=n>buf</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>TcpHolder</span><span class=o>*</span><span class=w> </span><span class=n>holder</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>From</span><span class=p>(</span><span class=n>tcp</span><span class=p>);</span>
+<span class=w>  </span><span class=n>holder</span><span class=o>-&gt;</span><span class=n>ReclaimUvBuf</span><span class=p>(</span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=n>nread</span><span class=p>);</span>
+<span class=w>  </span><span class=c1>// 调用handler的onData，目前handler是HTTP协议</span>
+<span class=w>  </span><span class=n>holder</span><span class=o>-&gt;</span><span class=n>handler_</span><span class=o>-&gt;</span><span class=n>OnData</span><span class=p>(</span><span class=o>&amp;</span><span class=n>holder</span><span class=o>-&gt;</span><span class=n>buffer</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> TCP层收到数据后交给应用层解析，直接调用上层的OnData回调。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>OnData</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;*</span><span class=w> </span><span class=n>data</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=c1>// 解析HTTP协议</span>
+<span class=w>    </span><span class=n>llhttp_execute</span><span class=p>(</span><span class=o>&amp;</span><span class=n>parser_</span><span class=p>,</span><span class=w> </span><span class=n>data</span><span class=o>-&gt;</span><span class=n>data</span><span class=p>(),</span><span class=w> </span><span class=n>data</span><span class=o>-&gt;</span><span class=n>size</span><span class=p>());</span>
+<span class=w>    </span><span class=c1>// 解析完并且是升级协议的请求则调用delegate的回调OnSocketUpgrade</span>
+<span class=w>    </span><span class=n>delegate</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>OnSocketUpgrade</span><span class=p>(</span><span class=n>event</span><span class=p>.</span><span class=n>host</span><span class=p>,</span><span class=w> </span><span class=n>event</span><span class=p>.</span><span class=n>path</span><span class=p>,</span><span class=w> </span><span class=n>event</span><span class=p>.</span><span class=n>ws_key</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> OnData可能会被多次回调，并通过llhttp_execute解析收到的HTTP报文，当发现是一个协议升级的请求后，就调用OnSocketUpgrade回调。delegate是TCP层保存的SocketSession::Delegate对象。来看一下该对象的OnSocketUpgrade方法。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>SocketSession::Delegate::OnSocketUpgrade</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>host</span><span class=p>,</span>
+<span class=w>                                              </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>path</span><span class=p>,</span>
+<span class=w>                                              </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>ws_key</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=w> </span><span class=n>id</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>path</span><span class=p>.</span><span class=n>empty</span><span class=p>()</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>path</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=n>path</span><span class=p>.</span><span class=n>substr</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+<span class=w>  </span><span class=n>server_</span><span class=o>-&gt;</span><span class=n>SessionStarted</span><span class=p>(</span><span class=n>session_id_</span><span class=p>,</span><span class=w> </span><span class=n>id</span><span class=p>,</span><span class=w> </span><span class=n>ws_key</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> OnSocketUpgrade又调用来server_（InspectorSocketServer对象）的SessionStarted。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>InspectorSocketServer::SessionStarted</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span>
+<span class=w>                                           </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>id</span><span class=p>,</span>
+<span class=w>                                           </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>ws_key</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=c1>// 找到对应的session对象                                           </span>
+<span class=w>  </span><span class=n>SocketSession</span><span class=o>*</span><span class=w> </span><span class=n>session</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Session</span><span class=p>(</span><span class=n>session_id</span><span class=p>);</span>
+<span class=w>  </span><span class=n>connected_sessions_</span><span class=p>[</span><span class=n>session_id</span><span class=p>].</span><span class=n>first</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>id</span><span class=p>;</span>
+<span class=w>  </span><span class=n>session</span><span class=o>-&gt;</span><span class=n>Accept</span><span class=p>(</span><span class=n>ws_key</span><span class=p>);</span>
+<span class=w>  </span><span class=n>delegate_</span><span class=o>-&gt;</span><span class=n>StartSession</span><span class=p>(</span><span class=n>session_id</span><span class=p>,</span><span class=w> </span><span class=n>id</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 首先通过session_id找到建立TCP连接时分配的SocketSession对象。<br> 1 执行session-&gt;Accept(ws_key);回复客户端同意协议升级。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>Accept</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>ws_key</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>ws_socket_</span><span class=o>-&gt;</span><span class=n>AcceptUpgrade</span><span class=p>(</span><span class=n>ws_key</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 从结构图我们可以看到ws_socket_是一个InspectorSocket对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>AcceptUpgrade</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>accept_key</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=kt>char</span><span class=w> </span><span class=n>accept_string</span><span class=p>[</span><span class=n>ACCEPT_KEY_LENGTH</span><span class=p>];</span>
+<span class=w>    </span><span class=n>generate_accept_string</span><span class=p>(</span><span class=n>accept_key</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>accept_string</span><span class=p>);</span>
+<span class=w>    </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=w> </span><span class=n>accept_ws_prefix</span><span class=p>[]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=s>&quot;HTTP/1.1 101 Switching Protocols</span><span class=se>\r\n</span><span class=s>&quot;</span>
+<span class=w>                                    </span><span class=s>&quot;Upgrade: websocket</span><span class=se>\r\n</span><span class=s>&quot;</span>
+<span class=w>                                    </span><span class=s>&quot;Connection: Upgrade</span><span class=se>\r\n</span><span class=s>&quot;</span>
+<span class=w>                                    </span><span class=s>&quot;Sec-WebSocket-Accept: &quot;</span><span class=p>;</span>
+<span class=w>    </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=w> </span><span class=n>accept_ws_suffix</span><span class=p>[]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=s>&quot;</span><span class=se>\r\n\r\n</span><span class=s>&quot;</span><span class=p>;</span>
+<span class=w>    </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;</span><span class=w> </span><span class=n>reply</span><span class=p>(</span><span class=n>accept_ws_prefix</span><span class=p>,</span>
+<span class=w>                            </span><span class=n>accept_ws_prefix</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>accept_ws_prefix</span><span class=p>)</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=mi>1</span><span class=p>);</span>
+<span class=w>    </span><span class=n>reply</span><span class=p>.</span><span class=n>insert</span><span class=p>(</span><span class=n>reply</span><span class=p>.</span><span class=n>end</span><span class=p>(),</span><span class=w> </span><span class=n>accept_string</span><span class=p>,</span>
+<span class=w>                 </span><span class=n>accept_string</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>accept_string</span><span class=p>));</span>
+<span class=w>    </span><span class=n>reply</span><span class=p>.</span><span class=n>insert</span><span class=p>(</span><span class=n>reply</span><span class=p>.</span><span class=n>end</span><span class=p>(),</span><span class=w> </span><span class=n>accept_ws_suffix</span><span class=p>,</span>
+<span class=w>                 </span><span class=n>accept_ws_suffix</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>accept_ws_suffix</span><span class=p>)</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=mi>1</span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// 回复101给客户端             </span>
+<span class=w>    </span><span class=n>WriteRaw</span><span class=p>(</span><span class=n>reply</span><span class=p>,</span><span class=w> </span><span class=n>WriteRequest</span><span class=o>::</span><span class=n>Cleanup</span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// 切换handler为WebSocket handler</span>
+<span class=w>    </span><span class=n>inspector_</span><span class=o>-&gt;</span><span class=n>SwitchProtocol</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>WsHandler</span><span class=p>(</span><span class=n>inspector_</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>tcp_</span><span class=p>)));</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> AcceptUpgradeh首先回复客户端101表示同意升级道WebSocket协议，然后切换数据处理器为WsHandler，即后续的数据按照WebSocket协议处理。<br> 2 执行delegate_-&gt;StartSession(session_id, id)建立和V8 Inspector的会话。delegate_是InspectorIoDelegate对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>InspectorIoDelegate::StartSession</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span>
+<span class=w>                                       </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>target_id</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>auto</span><span class=w> </span><span class=n>session</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>main_thread_</span><span class=o>-&gt;</span><span class=n>Connect</span><span class=p>(</span>
+<span class=w>      </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSessionDelegate</span><span class=o>&gt;</span><span class=p>(</span>
+<span class=w>          </span><span class=k>new</span><span class=w> </span><span class=n>IoSessionDelegate</span><span class=p>(</span><span class=n>request_queue_</span><span class=o>-&gt;</span><span class=n>handle</span><span class=p>(),</span><span class=w> </span><span class=n>session_id</span><span class=p>)</span>
+<span class=w>      </span><span class=p>),</span><span class=w> </span>
+<span class=w>      </span><span class=nb>true</span><span class=p>);</span>
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>session</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>sessions_</span><span class=p>[</span><span class=n>session_id</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>session</span><span class=p>);</span>
+<span class=w>    </span><span class=n>fprintf</span><span class=p>(</span><span class=n>stderr</span><span class=p>,</span><span class=w> </span><span class=s>&quot;Debugger attached.</span><span class=se>\n</span><span class=s>&quot;</span><span class=p>);</span>
+<span class=w>  </span><span class=p>}</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 首先通过main_thread_-&gt;Connect拿到一个session，并在InspectorIoDelegate中记录映射关系。结构图如下。<br> <img alt src="https://img-blog.csdnimg.cn/a1f20d470ab94e65b40a2a851be9be67.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 接下来看一下main_thread_-&gt;Connect的逻辑（main_thread_是MainThreadHandle对象）。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSession</span><span class=o>&gt;</span><span class=w> </span><span class=n>MainThreadHandle</span><span class=o>::</span><span class=n>Connect</span><span class=p>(</span>
+<span class=w>    </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSessionDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>,</span>
+<span class=w>    </span><span class=kt>bool</span><span class=w> </span><span class=n>prevent_shutdown</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSession</span><span class=o>&gt;</span><span class=p>(</span>
+<span class=w>      </span><span class=k>new</span><span class=w> </span><span class=n>CrossThreadInspectorSession</span><span class=p>(</span><span class=o>++</span><span class=n>next_session_id_</span><span class=p>,</span>
+<span class=w>                                      </span><span class=n>shared_from_this</span><span class=p>(),</span>
+<span class=w>                                      </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>),</span>
+<span class=w>                                      </span><span class=n>prevent_shutdown</span><span class=p>));</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> Connect函数新建了一个CrossThreadInspectorSession对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w> </span><span class=n>CrossThreadInspectorSession</span><span class=p>(</span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>id</span><span class=p>,</span>
+<span class=w>      </span><span class=n>std</span><span class=o>::</span><span class=n>shared_ptr</span><span class=o>&lt;</span><span class=n>MainThreadHandle</span><span class=o>&gt;</span><span class=w> </span><span class=kr>thread</span><span class=p>,</span>
+<span class=w>      </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSessionDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>,</span>
+<span class=w>      </span><span class=kt>bool</span><span class=w> </span><span class=n>prevent_shutdown</span><span class=p>)</span>
+<span class=w>      </span><span class=c1>// 创建一个MainThreadSessionState对象</span>
+<span class=w>      </span><span class=o>:</span><span class=w> </span><span class=n>state_</span><span class=p>(</span><span class=kr>thread</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>bind</span><span class=p>(</span><span class=n>MainThreadSessionState</span><span class=o>::</span><span class=n>Create</span><span class=p>,</span>
+<span class=w>                                 </span><span class=n>std</span><span class=o>::</span><span class=n>placeholders</span><span class=o>::</span><span class=n>_1</span><span class=p>,</span>
+<span class=w>                                 </span><span class=n>prevent_shutdown</span><span class=p>))</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=c1>// 执行MainThreadSessionState::Connect                             </span>
+<span class=w>    </span><span class=n>state_</span><span class=p>.</span><span class=n>Call</span><span class=p>(</span><span class=o>&amp;</span><span class=n>MainThreadSessionState</span><span class=o>::</span><span class=n>Connect</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>));</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> 继续看MainThreadSessionState::Connect。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>Connect</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSessionDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>Agent</span><span class=o>*</span><span class=w> </span><span class=n>agent</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>thread_</span><span class=o>-&gt;</span><span class=n>inspector_agent</span><span class=p>();</span>
+<span class=w>    </span><span class=n>session_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>agent</span><span class=o>-&gt;</span><span class=n>Connect</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>),</span><span class=w> </span><span class=n>prevent_shutdown_</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 继续调agent-&gt;Connect。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSession</span><span class=o>&gt;</span><span class=w> </span><span class=n>Agent</span><span class=o>::</span><span class=n>Connect</span><span class=p>(</span>
+<span class=w>    </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSessionDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>,</span>
+<span class=w>    </span><span class=kt>bool</span><span class=w> </span><span class=n>prevent_shutdown</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>  </span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>client_</span><span class=o>-&gt;</span><span class=n>connectFrontend</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>),</span>
+<span class=w>                                            </span><span class=n>prevent_shutdown</span><span class=p>);</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSession</span><span class=o>&gt;</span><span class=p>(</span>
+<span class=w>      </span><span class=k>new</span><span class=w> </span><span class=n>SameThreadInspectorSession</span><span class=p>(</span><span class=n>session_id</span><span class=p>,</span><span class=w> </span><span class=n>client_</span><span class=p>));</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 继续调connectFrontend <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>  </span><span class=kt>int</span><span class=w> </span><span class=nf>connectFrontend</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSessionDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>,</span>
+<span class=w>                      </span><span class=kt>bool</span><span class=w> </span><span class=n>prevent_shutdown</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>next_session_id_</span><span class=o>++</span><span class=p>;</span>
+<span class=w>    </span><span class=n>channels_</span><span class=p>[</span><span class=n>session_id</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>make_unique</span><span class=o>&lt;</span><span class=n>ChannelImpl</span><span class=o>&gt;</span><span class=p>(</span><span class=n>env_</span><span class=p>,</span>
+<span class=w>                                                          </span><span class=n>client_</span><span class=p>,</span>
+<span class=w>                                                          </span><span class=n>getWorkerManager</span><span class=p>(),</span>
+<span class=w>                                                          </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>),</span>
+<span class=w>                                                          </span><span class=n>getThreadHandle</span><span class=p>(),</span>
+<span class=w>                                                          </span><span class=n>prevent_shutdown</span><span class=p>);</span>
+<span class=w>    </span><span class=k>return</span><span class=w> </span><span class=n>session_id</span><span class=p>;</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> connectFrontend创建了一个ChannelImpl并且在channels_中保存了映射关系。看看ChannelImpl的构造函数。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=k>explicit</span><span class=w> </span><span class=n>ChannelImpl</span><span class=p>(</span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=p>,</span>
+<span class=w>                     </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>V8Inspector</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>inspector</span><span class=p>,</span>
+<span class=w>                     </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>InspectorSessionDelegate</span><span class=o>&gt;</span><span class=w> </span><span class=n>delegate</span><span class=p>,</span><span class=w> </span><span class=p>...)</span>
+<span class=w>      </span><span class=o>:</span><span class=w> </span><span class=n>delegate_</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>delegate</span><span class=p>))</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>    </span><span class=n>session_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>inspector</span><span class=o>-&gt;</span><span class=n>connect</span><span class=p>(</span><span class=n>CONTEXT_GROUP_ID</span><span class=p>,</span><span class=w> </span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=n>StringView</span><span class=p>());</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> ChannelImpl调用inspector-&gt;connect建立了一个和V8 Inspector的会话。结构图大致如下。<br> <img alt src="https://img-blog.csdnimg.cn/3265bafd385c49beb345a604aa77ebc2.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"> </p> <h3 id=324-v8-inspector>3.2.4 客户端到V8 Inspector的数据处理<a class=headerlink href=#324-v8-inspector title="Permanent link">&para;</a></h3> <p>TCP连接建立了，协议升级也完成了，接下来就可以开始处理业务数据。从前面的分析中我们已经知道数据到来时会执行TcpHoldler的handler_-&gt;OnData回调。因为已经完成了协议升级，所以这时候的handler变成了WeSocket handler。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>  </span><span class=kt>void</span><span class=w> </span><span class=nf>OnData</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;*</span><span class=w> </span><span class=n>data</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=c1>// 1. Parse.</span>
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=n>processed</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span>
+<span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span>
+<span class=w>      </span><span class=n>processed</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ParseWsFrames</span><span class=p>(</span><span class=o>*</span><span class=n>data</span><span class=p>);</span>
+<span class=w>      </span><span class=c1>// 2. Fix the data size &amp; length</span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>processed</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>        </span><span class=n>remove_from_beginning</span><span class=p>(</span><span class=n>data</span><span class=p>,</span><span class=w> </span><span class=n>processed</span><span class=p>);</span>
+<span class=w>      </span><span class=p>}</span>
+<span class=w>    </span><span class=p>}</span><span class=w> </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>processed</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=mi>0</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=o>!</span><span class=n>data</span><span class=o>-&gt;</span><span class=n>empty</span><span class=p>());</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> OnData通过ParseWsFrames解析WebSocket协议。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>int</span><span class=w> </span><span class=nf>ParseWsFrames</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>buffer</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=n>bytes_consumed</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span>
+<span class=w>    </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;</span><span class=w> </span><span class=n>output</span><span class=p>;</span>
+<span class=w>    </span><span class=kt>bool</span><span class=w> </span><span class=n>compressed</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>false</span><span class=p>;</span>
+<span class=w>    </span><span class=c1>// 解析WebSocket协议</span>
+<span class=w>    </span><span class=n>ws_decode_result</span><span class=w> </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w>  </span><span class=n>decode_frame_hybi17</span><span class=p>(</span><span class=n>buffer</span><span class=p>,</span>
+<span class=w>                                              </span><span class=nb>true</span><span class=w> </span><span class=cm>/* client_frame */</span><span class=p>,</span>
+<span class=w>                                              </span><span class=o>&amp;</span><span class=n>bytes_consumed</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>output</span><span class=p>,</span>
+<span class=w>                                              </span><span class=o>&amp;</span><span class=n>compressed</span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// 执行delegate的回调                                        </span>
+<span class=w>    </span><span class=n>delegate</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>OnWsFrame</span><span class=p>(</span><span class=n>output</span><span class=p>);</span>
+<span class=w>    </span><span class=k>return</span><span class=w> </span><span class=n>bytes_consumed</span><span class=p>;</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> 前面已经分析过delegate是TcpHoldler的delegate，即SocketSession::Delegate对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>SocketSession::Delegate::OnWsFrame</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>data</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>server_</span><span class=o>-&gt;</span><span class=n>MessageReceived</span><span class=p>(</span><span class=n>session_id_</span><span class=p>,</span>
+<span class=w>                           </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=p>(</span><span class=n>data</span><span class=p>.</span><span class=n>data</span><span class=p>(),</span><span class=w> </span>
+<span class=w>                           </span><span class=n>data</span><span class=p>.</span><span class=n>size</span><span class=p>()));</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 继续回调server_-&gt;MessageReceived。从结构图可以看到server_是InspectorSocketServer对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>MessageReceived</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>delegate_</span><span class=o>-&gt;</span><span class=n>MessageReceived</span><span class=p>(</span><span class=n>session_id</span><span class=p>,</span><span class=w> </span><span class=n>message</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 继续回调delegate_-&gt;MessageReceived。InspectorSocketServer的delegate_是InspectorIoDelegate对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>InspectorIoDelegate::MessageReceived</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span>
+<span class=w>                                          </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>auto</span><span class=w> </span><span class=n>session</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>sessions_</span><span class=p>.</span><span class=n>find</span><span class=p>(</span><span class=n>session_id</span><span class=p>);</span>
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>session</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=n>sessions_</span><span class=p>.</span><span class=n>end</span><span class=p>())</span>
+<span class=w>    </span><span class=n>session</span><span class=o>-&gt;</span><span class=n>second</span><span class=o>-&gt;</span><span class=n>Dispatch</span><span class=p>(</span><span class=n>Utf8ToStringView</span><span class=p>(</span><span class=n>message</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>string</span><span class=p>());</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 首先通过session_id找到对应的session。session是一个CrossThreadInspectorSession对象。看看他的Dispatch方法。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>Dispatch</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>StringView</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=n>override</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>state_</span><span class=p>.</span><span class=n>Call</span><span class=p>(</span><span class=o>&amp;</span><span class=n>MainThreadSessionState</span><span class=o>::</span><span class=n>Dispatch</span><span class=p>,</span>
+<span class=w>                </span><span class=n>StringBuffer</span><span class=o>::</span><span class=n>create</span><span class=p>(</span><span class=n>message</span><span class=p>));</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> 执行MainThreadSessionState::Dispatch。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>Dispatch</span><span class=p>(</span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>StringBuffer</span><span class=o>&gt;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>session_</span><span class=o>-&gt;</span><span class=n>Dispatch</span><span class=p>(</span><span class=n>message</span><span class=o>-&gt;</span><span class=n>string</span><span class=p>());</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> session_是SameThreadInspectorSession对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>SameThreadInspectorSession::Dispatch</span><span class=p>(</span>
+<span class=w>    </span><span class=k>const</span><span class=w> </span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>StringView</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>auto</span><span class=w> </span><span class=n>client</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>client_</span><span class=p>.</span><span class=n>lock</span><span class=p>();</span>
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>client</span><span class=p>)</span>
+<span class=w>    </span><span class=n>client</span><span class=o>-&gt;</span><span class=n>dispatchMessageFromFrontend</span><span class=p>(</span><span class=n>session_id_</span><span class=p>,</span><span class=w> </span><span class=n>message</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 继续调client-&gt;dispatchMessageFromFrontend。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>dispatchMessageFromFrontend</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=n>StringView</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>   </span><span class=n>channels_</span><span class=p>[</span><span class=n>session_id</span><span class=p>]</span><span class=o>-&gt;</span><span class=n>dispatchProtocolMessage</span><span class=p>(</span><span class=n>message</span><span class=p>);</span>
+<span class=w> </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> 通过session_id找到对应的ChannelImpl，继续调ChannelImpl的dispatchProtocolMessage。</p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w> </span><span class=n>voiddispatchProtocolMessage</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>StringView</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>   </span><span class=n>session_</span><span class=o>-&gt;</span><span class=n>dispatchProtocolMessage</span><span class=p>(</span><span class=n>message</span><span class=p>);</span>
+<span class=w> </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> 最终调用和V8 Inspector的会话对象把数据发送给V8。至此客户端到V8 Inspector的通信过程就完成了。</p> <h3 id=325-v8-inspector>3.2.5 V8 Inspector到客户端的数据处理<a class=headerlink href=#325-v8-inspector title="Permanent link">&para;</a></h3> <p>接着看从V8 inspector到客户端的数据传递逻辑。V8 inspector是通过channel的sendResponse函数传递给客户端的。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>sendResponse</span><span class=p>(</span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>callId</span><span class=p>,</span>
+<span class=w>      </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>StringBuffer</span><span class=o>&gt;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>    </span><span class=n>sendMessageToFrontend</span><span class=p>(</span><span class=n>message</span><span class=o>-&gt;</span><span class=n>string</span><span class=p>());</span>
+<span class=w>  </span><span class=p>}</span>
+
+<span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>sendMessageToFrontend</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>StringView</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>delegate_</span><span class=o>-&gt;</span><span class=n>SendMessageToFrontend</span><span class=p>(</span><span class=n>message</span><span class=p>);</span>
+<span class=w> </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> delegate_是IoSessionDelegate对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>SendMessageToFrontend</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>v8_inspector</span><span class=o>::</span><span class=n>StringView</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>request_queue_</span><span class=o>-&gt;</span><span class=n>Post</span><span class=p>(</span><span class=n>id_</span><span class=p>,</span><span class=w> </span><span class=n>TransportAction</span><span class=o>::</span><span class=n>kSendMessage</span><span class=p>,</span>
+<span class=w>                         </span><span class=n>StringBuffer</span><span class=o>::</span><span class=n>create</span><span class=p>(</span><span class=n>message</span><span class=p>));</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> request_queue_是RequestQueueData对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>Post</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span>
+<span class=w>            </span><span class=n>TransportAction</span><span class=w> </span><span class=n>action</span><span class=p>,</span>
+<span class=w>            </span><span class=n>std</span><span class=o>::</span><span class=n>unique_ptr</span><span class=o>&lt;</span><span class=n>StringBuffer</span><span class=o>&gt;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+
+<span class=w>    </span><span class=n>Mutex</span><span class=o>::</span><span class=n>ScopedLock</span><span class=w> </span><span class=n>scoped_lock</span><span class=p>(</span><span class=n>state_lock_</span><span class=p>);</span>
+<span class=w>    </span><span class=kt>bool</span><span class=w> </span><span class=n>notify</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>messages_</span><span class=p>.</span><span class=n>empty</span><span class=p>();</span>
+<span class=w>    </span><span class=n>messages_</span><span class=p>.</span><span class=n>emplace_back</span><span class=p>(</span><span class=n>action</span><span class=p>,</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>move</span><span class=p>(</span><span class=n>message</span><span class=p>));</span>
+<span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>notify</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>      </span><span class=n>CHECK_EQ</span><span class=p>(</span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=n>uv_async_send</span><span class=p>(</span><span class=o>&amp;</span><span class=n>async_</span><span class=p>));</span>
+<span class=w>      </span><span class=n>incoming_message_cond_</span><span class=p>.</span><span class=n>Broadcast</span><span class=p>(</span><span class=n>scoped_lock</span><span class=p>);</span>
+<span class=w>    </span><span class=p>}</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> Post首先把消息入队，然后通过异步的方式通知async_接着看async_的处理函数（在子线程的事件循环里执行）。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>uv_async_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>async_</span><span class=p>,</span><span class=w> </span><span class=p>[](</span><span class=n>uv_async_t</span><span class=o>*</span><span class=w> </span><span class=n>async</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>   </span><span class=c1>// 拿到async对应的上下文</span>
+<span class=w>   </span><span class=n>RequestQueueData</span><span class=o>*</span><span class=w> </span><span class=n>wrapper</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>node</span><span class=o>::</span><span class=n>ContainerOf</span><span class=p>(</span><span class=o>&amp;</span><span class=n>RequestQueueData</span><span class=o>::</span><span class=n>async_</span><span class=p>,</span><span class=w> </span><span class=n>async</span><span class=p>);</span>
+<span class=w>   </span><span class=c1>// 执行RequestQueueData的DoDispatch</span>
+<span class=w>   </span><span class=n>wrapper</span><span class=o>-&gt;</span><span class=n>DoDispatch</span><span class=p>();</span>
+<span class=p>});</span>
+</code></pre></div></td></tr></table></div></p> <p><div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>  </span><span class=kt>void</span><span class=w> </span><span class=nf>DoDispatch</span><span class=p>()</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=k>auto</span><span class=o>&amp;</span><span class=w> </span><span class=n>request</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=n>GetMessages</span><span class=p>())</span><span class=w> </span><span class=p>{</span>
+<span class=w>      </span><span class=n>request</span><span class=p>.</span><span class=n>Dispatch</span><span class=p>(</span><span class=n>server_</span><span class=p>);</span>
+<span class=w>    </span><span class=p>}</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> request是RequestToServer对象。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>  </span><span class=kt>void</span><span class=w> </span><span class=nf>Dispatch</span><span class=p>(</span><span class=n>InspectorSocketServer</span><span class=o>*</span><span class=w> </span><span class=n>server</span><span class=p>)</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=k>switch</span><span class=w> </span><span class=p>(</span><span class=n>action_</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>      </span><span class=k>case</span><span class=w> </span><span class=no>TransportAction</span><span class=o>::</span><span class=no>kSendMessage</span><span class=p>:</span>
+<span class=w>        </span><span class=n>server</span><span class=o>-&gt;</span><span class=n>Send</span><span class=p>(</span>
+<span class=w>            </span><span class=n>session_id_</span><span class=p>,</span>
+<span class=w>            </span><span class=n>protocol</span><span class=o>::</span><span class=n>StringUtil</span><span class=o>::</span><span class=n>StringViewToUtf8</span><span class=p>(</span><span class=n>message_</span><span class=o>-&gt;</span><span class=n>string</span><span class=p>()));</span>
+<span class=w>        </span><span class=k>break</span><span class=p>;</span>
+<span class=w>    </span><span class=p>}</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> 接着看InspectorSocketServer的Send。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>InspectorSocketServer::Send</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>session_id</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>SocketSession</span><span class=o>*</span><span class=w> </span><span class=n>session</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Session</span><span class=p>(</span><span class=n>session_id</span><span class=p>);</span>
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>session</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=k>nullptr</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>session</span><span class=o>-&gt;</span><span class=n>Send</span><span class=p>(</span><span class=n>message</span><span class=p>);</span>
+<span class=w>  </span><span class=p>}</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> session代表可客户端的一个连接。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>void</span><span class=w> </span><span class=nf>SocketSession::Send</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>string</span><span class=o>&amp;</span><span class=w> </span><span class=n>message</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=n>ws_socket_</span><span class=o>-&gt;</span><span class=n>Write</span><span class=p>(</span><span class=n>message</span><span class=p>.</span><span class=n>data</span><span class=p>(),</span><span class=w> </span><span class=n>message</span><span class=p>.</span><span class=n>length</span><span class=p>());</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 接着调用WebSocket handler的Write。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>  </span><span class=kt>void</span><span class=w> </span><span class=nf>Write</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;</span><span class=w> </span><span class=n>data</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;</span><span class=w> </span><span class=n>output</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>encode_frame_hybi17</span><span class=p>(</span><span class=n>data</span><span class=p>);</span>
+<span class=w>    </span><span class=n>WriteRaw</span><span class=p>(</span><span class=n>output</span><span class=p>,</span><span class=w> </span><span class=n>WriteRequest</span><span class=o>::</span><span class=n>Cleanup</span><span class=p>);</span>
+<span class=w>  </span><span class=p>}</span>
+</code></pre></div></td></tr></table></div> WriteRaw是基类ProtocolHandler实现的。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>int</span><span class=w> </span><span class=nf>ProtocolHandler::WriteRaw</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>buffer</span><span class=p>,</span>
+<span class=w>                              </span><span class=n>uv_write_cb</span><span class=w> </span><span class=n>write_cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>tcp_</span><span class=o>-&gt;</span><span class=n>WriteRaw</span><span class=p>(</span><span class=n>buffer</span><span class=p>,</span><span class=w> </span><span class=n>write_cb</span><span class=p>);</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 最终是通过TCP连接返回给客户端。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kt>int</span><span class=w> </span><span class=nf>TcpHolder::WriteRaw</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>vector</span><span class=o>&lt;</span><span class=kt>char</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>buffer</span><span class=p>,</span><span class=w> </span><span class=n>uv_write_cb</span><span class=w> </span><span class=n>write_cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>  </span><span class=c1>// Freed in write_request_cleanup</span>
+<span class=w>  </span><span class=n>WriteRequest</span><span class=o>*</span><span class=w> </span><span class=n>wr</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>WriteRequest</span><span class=p>(</span><span class=n>handler_</span><span class=p>,</span><span class=w> </span><span class=n>buffer</span><span class=p>);</span>
+<span class=w>  </span><span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>stream</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>reinterpret_cast</span><span class=o>&lt;</span><span class=n>uv_stream_t</span><span class=o>*&gt;</span><span class=p>(</span><span class=o>&amp;</span><span class=n>tcp_</span><span class=p>);</span>
+<span class=w>  </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv_write</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wr</span><span class=o>-&gt;</span><span class=n>req</span><span class=p>,</span><span class=w> </span><span class=n>stream</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>wr</span><span class=o>-&gt;</span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=mi>1</span><span class=p>,</span><span class=w> </span><span class=n>write_cb</span><span class=p>);</span>
+<span class=w>  </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span>
+<span class=w>    </span><span class=k>delete</span><span class=w> </span><span class=n>wr</span><span class=p>;</span>
+<span class=w>  </span><span class=k>return</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=mi>0</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></div></td></tr></table></div> 新建一个写请求，socket可写的时候发送数据给客户端。</p> <h1 id=4-inspector>4 动态开启Inspector<a class=headerlink href=#4-inspector title="Permanent link">&para;</a></h1> <p>默认打开Inspector能力是不安全的，这意味着能连上websocket服务器的客户端都能通过协议控制Node.js进程，通常我们是在Node.js进程出现问题的时候，动态开启Inspector。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span></pre></div></td><td class=code><div><pre><span></span><code><span class=kd>const</span><span class=w> </span><span class=nx>http</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=s1>&#39;http&#39;</span><span class=p>);</span>
+<span class=kd>const</span><span class=w> </span><span class=nx>inspector</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=s1>&#39;inspector&#39;</span><span class=p>);</span>
+<span class=kd>const</span><span class=w> </span><span class=nx>fs</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>require</span><span class=p>(</span><span class=s1>&#39;fs&#39;</span><span class=p>);</span>
+
+<span class=nx>http</span><span class=p>.</span><span class=nx>createServer</span><span class=p>((</span><span class=nx>req</span><span class=p>,</span><span class=w> </span><span class=nx>res</span><span class=p>)</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>req</span><span class=p>.</span><span class=nx>url</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s1>&#39;debug&#39;</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>          </span><span class=kd>const</span><span class=w> </span><span class=nx>session</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>inspector</span><span class=p>.</span><span class=nx>Session</span><span class=p>();</span>
+<span class=w>          </span><span class=nx>session</span><span class=p>.</span><span class=nx>connect</span><span class=p>();</span>
+<span class=w>          </span><span class=nx>session</span><span class=p>.</span><span class=nx>post</span><span class=p>(</span><span class=s1>&#39;Profiler.enable&#39;</span><span class=p>,</span><span class=w> </span><span class=p>()</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span>
+<span class=w>          </span><span class=nx>session</span><span class=p>.</span><span class=nx>post</span><span class=p>(</span><span class=s1>&#39;Profiler.start&#39;</span><span class=p>,</span><span class=w> </span><span class=p>()</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span>
+<span class=w>            </span><span class=nx>session</span><span class=p>.</span><span class=nx>post</span><span class=p>(</span><span class=s1>&#39;Profiler.stop&#39;</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=nx>err</span><span class=p>,</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=nx>profile</span><span class=w> </span><span class=p>})</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span>
+<span class=w>              </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=nx>err</span><span class=p>)</span><span class=w> </span><span class=p>{</span>
+<span class=w>                </span><span class=nx>fs</span><span class=p>.</span><span class=nx>writeFileSync</span><span class=p>(</span><span class=s1>&#39;./profile.cpuprofile&#39;</span><span class=p>,</span><span class=w> </span><span class=nb>JSON</span><span class=p>.</span><span class=nx>stringify</span><span class=p>(</span><span class=nx>profile</span><span class=p>));</span>
+<span class=w>              </span><span class=p>}</span>
+<span class=w>              </span><span class=nx>session</span><span class=p>.</span><span class=nx>disconnect</span><span class=p>();</span>
+<span class=w>              </span><span class=nx>res</span><span class=p>.</span><span class=nx>end</span><span class=p>(</span><span class=s1>&#39;ok&#39;</span><span class=p>);</span>
+<span class=w>            </span><span class=p>});</span>
+<span class=w>          </span><span class=p>});</span>
+<span class=w>        </span><span class=p>});</span>
+<span class=w>    </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span>
+<span class=w>        </span><span class=nx>res</span><span class=p>.</span><span class=nx>end</span><span class=p>(</span><span class=s1>&#39;ok&#39;</span><span class=p>);</span>
+<span class=w>    </span><span class=p>}</span>
+<span class=p>}).</span><span class=nx>listen</span><span class=p>(</span><span class=mf>80</span><span class=p>);</span>
+</code></pre></div></td></tr></table></div> 我们可以通过url参数控制Inspector的能力，本地调试时可以在vscode里可以直接看到数据。<br> <img alt=在这里插入图片描述 src="https://img-blog.csdnimg.cn/30b87bb430074f8e973c987c8df06cef.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"> </p> <h1 id=5>5 收集数据<a class=headerlink href=#5 title="Permanent link">&para;</a></h1> <p>V8 inspector是一个非常强大的工具，调试只是它其中一个能力，他还可以获取内存、CPU等数据，具体能力请参考文档。<br> <img alt src="https://img-blog.csdnimg.cn/ad5cbee01d1c47ce9da3d4af534e7f79.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"> </p> <p><strong>后记：Node.js的inspector是在Node.js额外线程里开启的一个非常强大的工具，通过Node.js作为中间人，完成客户端和V8 inspector的通信（调试、收集数据），是我们调试和诊断Node.js进程非常好的方式。</strong></p> <p>参考内容：<br> 1 <a href=https://nodejs.org/en/docs/guides/debugging-getting-started>Debugging Guide</a><br> 2 <a href=https://nodejs.org/dist/latest-v16.x/docs/api/inspector.html>inspector</a><br> 3 <a href=https://github.com/ahmadov/v8_inspector_example>开源的inspector agent实现</a><br> 4 <a href=https://chromedevtools.github.io/devtools-protocol/v8/Debugger/ >inpector协议文档</a><br> 5 <a href=https://medium.com/@paul_irish/debugging-node-js-nightlies-with-chrome-devtools-7c4a1b95ae27>Debugging Node.js with Chrome DevTools</a> </p> </article> </div> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> 回到页面顶部 </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; 2021 theanarkh </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/theanarkh target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> <a href=https://www.zhihu.com/people/theanarkh target=_blank rel=noopener title=www.zhihu.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 640 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M170.54 148.13v217.54l23.43.01 7.71 26.37 42.01-26.37h49.53V148.13zm97.75 193.93h-27.94l-27.9 17.51-5.08-17.47-11.9-.04V171.75h72.82zm-118.46-94.39H97.5c1.74-27.1 2.2-51.59 2.2-73.46h51.16s1.97-22.56-8.58-22.31h-88.5c3.49-13.12 7.87-26.66 13.12-40.67 0 0-24.07 0-32.27 21.57-3.39 8.9-13.21 43.14-30.7 78.12 5.89-.64 25.37-1.18 36.84-22.21 2.11-5.89 2.51-6.66 5.14-14.53h28.87c0 10.5-1.2 66.88-1.68 73.44H20.83c-11.74 0-15.56 23.62-15.56 23.62h65.58C66.45 321.1 42.83 363.12 0 396.34c20.49 5.85 40.91-.93 51-9.9 0 0 22.98-20.9 35.59-69.25l53.96 64.94s7.91-26.89-1.24-39.99c-7.58-8.92-28.06-33.06-36.79-41.81L87.9 311.95c4.36-13.98 6.99-27.55 7.87-40.67h61.65s-.09-23.62-7.59-23.62zm412.02-1.6c20.83-25.64 44.98-58.57 44.98-58.57s-18.65-14.8-27.38-4.06c-6 8.15-36.83 48.2-36.83 48.2zm-150.09-59.09c-9.01-8.25-25.91 2.13-25.91 2.13s39.52 55.04 41.12 57.45l19.46-13.73s-25.67-37.61-34.66-45.86h-.01zM640 258.35c-19.78 0-130.91.93-131.06.93v-101c4.81 0 12.42-.4 22.85-1.2 40.88-2.41 70.13-4 87.77-4.81 0 0 12.22-27.19-.59-33.44-3.07-1.18-23.17 4.58-23.17 4.58s-165.22 16.49-232.36 18.05c1.6 8.82 7.62 17.08 15.78 19.55 13.31 3.48 22.69 1.7 49.15.89 24.83-1.6 43.68-2.43 56.51-2.43v99.81H351.41s2.82 22.31 25.51 22.85h107.94v70.92c0 13.97-11.19 21.99-24.48 21.12-14.08.11-26.08-1.15-41.69-1.81 1.99 3.97 6.33 14.39 19.31 21.84 9.88 4.81 16.17 6.57 26.02 6.57 29.56 0 45.67-17.28 44.89-45.31v-73.32h122.36c9.68 0 8.7-23.78 8.7-23.78z"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"base": "..", "features": ["content.code.annotate", "navigation.indexes", "navigation.instant", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script> <script src=../assets/javascripts/bundle.83f73b43.min.js></script> <script src=../extra/image.js defer></script> </body> </html>

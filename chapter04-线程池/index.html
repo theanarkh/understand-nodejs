@@ -1,0 +1,933 @@
+<!doctype html><html lang=zh class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="通过源码分析 Node.js 原理"><meta name=author content=theanarkh><link href=https://github.com/theanarkh/understand-nodejs/chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ rel=canonical><link href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ rel=prev><link href=../chapter05-Libuv%E6%B5%81/ rel=next><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.5.44"><title>04-线程池 - Node.js 源码剖析</title><link rel=stylesheet href=../assets/stylesheets/main.0253249f.min.css><link rel=stylesheet href=../assets/stylesheets/palette.06af60db.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#_1 class=md-skip> 跳转至 </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=页眉> <a href=.. title="Node.js 源码剖析" class="md-header__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> Node.js 源码剖析 </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> 04-线程池 </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=blue data-md-color-accent=blue aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=搜索 placeholder=搜索 autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=查找> <a href=javascript:void(0) class="md-search__icon md-icon" title=分享 aria-label=分享 data-clipboard data-clipboard-text data-md-component=search-share tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg> </a> <button type=reset class="md-search__icon md-icon" title=清空当前内容 aria-label=清空当前内容 tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> 正在初始化搜索引擎 </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> </nav> <nav class=md-tabs aria-label=标签 data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-tabs__link> 前言 </a> </li> <li class="md-tabs__item md-tabs__item--active"> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-tabs__link> Node.js基础和架构 </a> </li> <li class=md-tabs__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-tabs__link> Node.js核心模块的实现 </a> </li> <li class=md-tabs__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-tabs__link> 其他 </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=导航栏 data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title="Node.js 源码剖析" class="md-nav__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> Node.js 源码剖析 </label> <div class=md-nav__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class=md-nav__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-nav__link> <span class=md-ellipsis> 前言 </span> </a> </li> <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_3 checked> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex> <span class=md-ellipsis> Node.js基础和架构 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=true> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Node.js基础和架构 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 01-Node.js组成和原理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ class=md-nav__link> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </a> </li> <li class=md-nav__item> <a href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ class=md-nav__link> <span class=md-ellipsis> 03-事件循环 </span> </a> </li> <li class="md-nav__item md-nav__item--active"> <input class="md-nav__toggle md-toggle" type=checkbox id=__toc> <label class="md-nav__link md-nav__link--active" for=__toc> <span class=md-ellipsis> 04-线程池 </span> <span class="md-nav__icon md-icon"></span> </label> <a href=./ class="md-nav__link md-nav__link--active"> <span class=md-ellipsis> 04-线程池 </span> </a> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#41 class=md-nav__link> <span class=md-ellipsis> 4.1主线程和子线程间通信 </span> </a> <nav class=md-nav aria-label=4.1主线程和子线程间通信> <ul class=md-nav__list> <li class=md-nav__item> <a href=#411 class=md-nav__link> <span class=md-ellipsis> 4.1.1 初始化 </span> </a> </li> <li class=md-nav__item> <a href=#412 class=md-nav__link> <span class=md-ellipsis> 4.1.2 通知主线程 </span> </a> </li> <li class=md-nav__item> <a href=#413 class=md-nav__link> <span class=md-ellipsis> 4.1.3 主线程处理回调 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#42 class=md-nav__link> <span class=md-ellipsis> 4.2 线程池的实现 </span> </a> <nav class=md-nav aria-label="4.2 线程池的实现"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#421 class=md-nav__link> <span class=md-ellipsis> 4.2.1 线程池的初始化 </span> </a> </li> <li class=md-nav__item> <a href=#422 class=md-nav__link> <span class=md-ellipsis> 4.2.2 提交任务到线程池 </span> </a> </li> <li class=md-nav__item> <a href=#423 class=md-nav__link> <span class=md-ellipsis> 4.2.3 处理任务 </span> </a> </li> <li class=md-nav__item> <a href=#424 class=md-nav__link> <span class=md-ellipsis> 4.2.4 通知主线程 </span> </a> </li> <li class=md-nav__item> <a href=#425 class=md-nav__link> <span class=md-ellipsis> 4.2.5 取消任务 </span> </a> </li> </ul> </nav> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../chapter05-Libuv%E6%B5%81/ class=md-nav__link> <span class=md-ellipsis> 05-Libuv流 </span> </a> </li> <li class=md-nav__item> <a href=../chapter06-C%2B%2B%E5%B1%82/ class=md-nav__link> <span class=md-ellipsis> 06-C++层 </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_4> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex=0> <span class=md-ellipsis> Node.js核心模块的实现 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=false> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Node.js核心模块的实现 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 07-信号处理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter08-DNS/ class=md-nav__link> <span class=md-ellipsis> 08-DNS </span> </a> </li> <li class=md-nav__item> <a href=../chapter09-Unix%E5%9F%9F/ class=md-nav__link> <span class=md-ellipsis> 09-Unix域 </span> </a> </li> <li class=md-nav__item> <a href=../chapter10-%E5%AE%9A%E6%97%B6%E5%99%A8/ class=md-nav__link> <span class=md-ellipsis> 10-定时器 </span> </a> </li> <li class=md-nav__item> <a href=../chapter11-setImmediate%E5%92%8CnextTick/ class=md-nav__link> <span class=md-ellipsis> 11-setImmediate和nextTick </span> </a> </li> <li class=md-nav__item> <a href=../chapter12-%E6%96%87%E4%BB%B6/ class=md-nav__link> <span class=md-ellipsis> 12-文件 </span> </a> </li> <li class=md-nav__item> <a href=../chapter13-%E8%BF%9B%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 13-进程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter14-%E7%BA%BF%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 14-线程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter15-Cluster/ class=md-nav__link> <span class=md-ellipsis> 15-Cluster </span> </a> </li> <li class=md-nav__item> <a href=../chapter16-UDP/ class=md-nav__link> <span class=md-ellipsis> 16-UDP </span> </a> </li> <li class=md-nav__item> <a href=../chapter17-TCP/ class=md-nav__link> <span class=md-ellipsis> 17-TCP </span> </a> </li> <li class=md-nav__item> <a href=../chapter18-HTTP/ class=md-nav__link> <span class=md-ellipsis> 18-HTTP </span> </a> </li> <li class=md-nav__item> <a href=../chapter19-%E6%A8%A1%E5%9D%97%E5%8A%A0%E8%BD%BD/ class=md-nav__link> <span class=md-ellipsis> 19-模块加载 </span> </a> </li> <li class=md-nav__item> <a href=../chapter21-JS%20Stream/ class=md-nav__link> <span class=md-ellipsis> 20-JS Stream </span> </a> </li> <li class=md-nav__item> <a href=../chapter22-events%E6%A8%A1%E5%9D%97/ class=md-nav__link> <span class=md-ellipsis> 21-events模块 </span> </a> </li> <li class=md-nav__item> <a href=../chapter23-Async%20hooks/ class=md-nav__link> <span class=md-ellipsis> 22-Async hooks </span> </a> </li> <li class=md-nav__item> <a href=../chapter24-Inspector/ class=md-nav__link> <span class=md-ellipsis> 23-Inspector </span> </a> </li> <li class=md-nav__item> <a href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ class=md-nav__link> <span class=md-ellipsis> 27-深入理解 Node.js 的 Buffer </span> </a> </li> <li class=md-nav__item> <a href=../chapter30-Node.js%20%E7%9A%84%20trace%20events%20%E6%9E%B6%E6%9E%84/ class=md-nav__link> <span class=md-ellipsis> 30-Node.js 的 trace events 架构 </span> </a> </li> <li class=md-nav__item> <a href=../chapter31-Node.js%20%E7%9A%84%20perf_hooks/ class=md-nav__link> <span class=md-ellipsis> 31-Node.js 的 perf_hooks </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> 其他 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> 其他 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 24-拓展Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter25-Node.js子线程调试和诊断指南 class=md-nav__link> <span class=md-ellipsis> 25-Node.js子线程调试和诊断指南 </span> </a> </li> <li class=md-nav__item> <a href=../chapter26-vscode%E8%B0%83%E8%AF%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 26-vscode调试Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter28-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E6%9E%B6%E6%9E%84%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 28-Node.js底层原理（架构篇） </span> </a> </li> <li class=md-nav__item> <a href=../chapter29-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E5%AE%9E%E7%8E%B0%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 29-Node.js底层原理（实现篇） </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#41 class=md-nav__link> <span class=md-ellipsis> 4.1主线程和子线程间通信 </span> </a> <nav class=md-nav aria-label=4.1主线程和子线程间通信> <ul class=md-nav__list> <li class=md-nav__item> <a href=#411 class=md-nav__link> <span class=md-ellipsis> 4.1.1 初始化 </span> </a> </li> <li class=md-nav__item> <a href=#412 class=md-nav__link> <span class=md-ellipsis> 4.1.2 通知主线程 </span> </a> </li> <li class=md-nav__item> <a href=#413 class=md-nav__link> <span class=md-ellipsis> 4.1.3 主线程处理回调 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#42 class=md-nav__link> <span class=md-ellipsis> 4.2 线程池的实现 </span> </a> <nav class=md-nav aria-label="4.2 线程池的实现"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#421 class=md-nav__link> <span class=md-ellipsis> 4.2.1 线程池的初始化 </span> </a> </li> <li class=md-nav__item> <a href=#422 class=md-nav__link> <span class=md-ellipsis> 4.2.2 提交任务到线程池 </span> </a> </li> <li class=md-nav__item> <a href=#423 class=md-nav__link> <span class=md-ellipsis> 4.2.3 处理任务 </span> </a> </li> <li class=md-nav__item> <a href=#424 class=md-nav__link> <span class=md-ellipsis> 4.2.4 通知主线程 </span> </a> </li> <li class=md-nav__item> <a href=#425 class=md-nav__link> <span class=md-ellipsis> 4.2.5 取消任务 </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <h1 id=_1>第四章 线程池<a class=headerlink href=#_1 title="Permanent link">&para;</a></h1> <p>Libuv是单线程事件驱动的异步IO库，对于阻塞式或耗时的操作，如果在Libuv的主循环里执行的话，就会阻塞后面的任务执行，所以Libuv里维护了一个线程池，它负责处理Libuv中耗时或者导致阻塞的操作，比如文件IO、DNS、自定义的耗时任务。线程池在Libuv架构中的位置如图4-1所示。</p> <p><img alt src="https://img-blog.csdnimg.cn/20210420234827155.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"></p> <p>Libuv主线程通过线程池提供的接口把任务提交给线程池，然后立刻返回到事件循环中继续执行，线程池维护了一个任务队列，多个子线程会互斥地从中摘下任务节点执行，当子线程执行任务完毕后会通知主线程，主线程在事件循环的Poll IO阶段就会执行对应的回调。下面我们看一下线程池在Libuv中的实现。</p> <h2 id=41>4.1主线程和子线程间通信<a class=headerlink href=#41 title="Permanent link">&para;</a></h2> <p>Libuv子线程和主线程的通信是使用uv_async_t结构体实现的。Libuv使用loop-&gt;async_handles队列记录所有的uv_async_t结构体，使用loop-&gt;async_io_watcher作为所有uv_async_t结构体的IO观察者，即loop-&gt; async_handles队列上所有的handle都是共享async_io_watcher这个IO观察者的。第一次插入一个uv_async_t结构体到async_handle队列时，会初始化IO观察者，如果再次注册一个async_handle，只会在loop-&gt;async_handle队列和handle队列插入一个节点，而不会新增一个IO观察者。当uv_async_t结构体对应的任务完成时，子线程会设置IO观察者为可读。Libuv在事件循环的Poll IO阶段就会处理IO观察者。下面我们看一下uv_async_t在Libuv中的使用。</p> <h3 id=411>4.1.1 初始化<a class=headerlink href=#411 title="Permanent link">&para;</a></h3> <p>使用uv_async_t之前首先需要执行uv_async_init进行初始化。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_async_init</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=n>uv_async_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=n>uv_async_cb</span><span class=w> </span><span class=n>async_cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 给Libuv注册一个观察者io  </span>
+<span class=w>      </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__async_start</span><span class=p>(</span><span class=n>loop</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 设置相关字段，给Libuv插入一个handle  </span>
+<span class=w>      </span><span class=n>uv__handle_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=n>uv_handle_t</span><span class=o>*</span><span class=p>)</span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=n>UV_ASYNC</span><span class=p>);</span>
+<span class=w>        </span><span class=c1>// 设置回调  </span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>async_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>async_cb</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 初始化标记字段，0表示没有任务完成</span>
+<span class=w>      </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>pending</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 把uv_async_t插入async_handle队列</span>
+<span class=w>      </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_handles</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__handle_start</span><span class=p>(</span><span class=n>handle</span><span class=p>);</span><span class=w> </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv_async_init函数主要初始化结构体uv_async_t的一些字段，然后执行QUEUE_INSERT_TAIL给Libuv的async_handles队列追加一个节点。我们看到还有一个uv__async_start函数。我们看一下uv__async_start的实现。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__async_start</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// uv__async_start只执行一次，有fd则不需要执行了  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_io_watcher</span><span class=p>.</span><span class=n>fd</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 获取一个用于进程间通信的fd（Linux的eventfd机制）  </span>
+<span class=w>      </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__async_eventfd</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/*</span>
+<span class=cm>         成功则保存fd，失败说明不支持eventfd，</span>
+<span class=cm>          则使用管道通信作为进程间通信  </span>
+<span class=cm>        */</span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=w> </span><span class=o>&gt;=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>0</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>1</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>-1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV_ENOSYS</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 不支持eventfd则使用匿名管道  </span>
+<span class=w>        </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__make_pipe</span><span class=p>(</span><span class=n>pipefd</span><span class=p>,</span><span class=w> </span><span class=n>UV__F_NONBLOCK</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=cp>#if defined(__Linux__)  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=kt>char</span><span class=w> </span><span class=n>buf</span><span class=p>[</span><span class=mi>32</span><span class=p>];</span><span class=w>  </span>
+<span class=w>          </span><span class=kt>int</span><span class=w> </span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=n>snprintf</span><span class=p>(</span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>buf</span><span class=p>),</span><span class=w> </span><span class=s>&quot;/proc/self/fd/%d&quot;</span><span class=p>,</span><span class=w> </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>0</span><span class=p>]);</span><span class=w>         </span><span class=c1>// 通过一个fd就可以实现对管道的读写，高级用法  </span>
+<span class=w>          </span><span class=n>fd</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__open_cloexec</span><span class=p>(</span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=n>O_RDWR</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>fd</span><span class=w> </span><span class=o>&gt;=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 关掉旧的  </span>
+<span class=w>            </span><span class=n>uv__close</span><span class=p>(</span><span class=n>pipefd</span><span class=p>[</span><span class=mi>0</span><span class=p>]);</span><span class=w>  </span>
+<span class=w>            </span><span class=n>uv__close</span><span class=p>(</span><span class=n>pipefd</span><span class=p>[</span><span class=mi>1</span><span class=p>]);</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 赋值新的  </span>
+<span class=w>            </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>0</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=w>            </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>1</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=cp>#endif  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// err大于等于0说明拿到了通信的读写两端  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/*</span>
+<span class=cm>          初始化IO观察者async_io_watcher，</span>
+<span class=cm>          把读端文件描述符保存到IO观察者</span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__io_init</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_io_watcher</span><span class=p>,</span><span class=w> </span><span class=n>uv__async_io</span><span class=p>,</span><span class=w> </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>0</span><span class=p>]);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 注册IO观察者到loop里，并注册感兴趣的事件POLLIN，等待可读  </span>
+<span class=w>      </span><span class=n>uv__io_start</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_io_watcher</span><span class=p>,</span><span class=w> </span><span class=n>POLLIN</span><span class=p>);</span>
+<span class=w>        </span><span class=c1>// 保存写端文件描述符  </span>
+<span class=w>      </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_wfd</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>pipefd</span><span class=p>[</span><span class=mi>1</span><span class=p>];</span><span class=w> </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__async_start只会执行一次，时机在第一次执行uv_async_init的时候。uv__async_start主要的逻辑如下 1 获取通信描述符（通过eventfd生成一个通信的fd（充当读写两端）或者管道生成线程间通信的两个fd表示读端和写端）。 2 封装感兴趣的事件和回调到IO观察者然后追加到watcher_queue队列，在Poll IO阶段，Libuv会注册到epoll里面，如果有任务完成，也会在Poll IO阶段执行回调。 3 保存写端描述符。任务完成时通过写端fd通知主线程。 我们看到uv__async_start函数里有很多获取通信文件描述符的逻辑，总的来说，是为了完成两端通信的功能。初始化async结构体后，Libuv结构如图4-2所示。</p> <p><img alt src="https://img-blog.csdnimg.cn/20210420234949238.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"></p> <h3 id=412>4.1.2 通知主线程<a class=headerlink href=#412 title="Permanent link">&para;</a></h3> <p>初始化async结构体后，如果async结构体对应的任务完成后，就会通知主线程，子线程通过设置这个handle的pending为1标记任务完成，然后再往管道写端写入标记，通知主线程有任务完成了。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_async_send</span><span class=p>(</span><span class=n>uv_async_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/* Do a cheap read first. */</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>ACCESS_ONCE</span><span class=p>(</span><span class=kt>int</span><span class=p>,</span><span class=w> </span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>pending</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/*</span>
+<span class=cm>          如pending是0，则设置为1，返回0，如果是1则返回1，</span>
+<span class=cm>          所以如果多次调用该函数是会被合并的</span>
+<span class=cm>        */</span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>cmpxchgi</span><span class=p>(</span><span class=o>&amp;</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>pending</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=mi>1</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__async_send</span><span class=p>(</span><span class=n>handle</span><span class=o>-&gt;</span><span class=n>loop</span><span class=p>);</span><span class=w> </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__async_send</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>const</span><span class=w> </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>buf</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>ssize_t</span><span class=w> </span><span class=n>len</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>r</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>buf</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=s>&quot;&quot;</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>len</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>fd</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_wfd</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>    </span><span class=cp>#if defined(__Linux__)  </span>
+<span class=w>      </span><span class=c1>// 说明用的是eventfd而不是管道,eventfd时读写两端对应同一个fd  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>fd</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>static</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=kt>uint64_t</span><span class=w> </span><span class=n>val</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>buf</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>&amp;</span><span class=n>val</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>len</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>val</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 见uv__async_start  </span>
+<span class=w>        </span><span class=n>fd</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_io_watcher</span><span class=p>.</span><span class=n>fd</span><span class=p>;</span><span class=w>  </span><span class=cm>/* eventfd */</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=cp>#endif  </span>
+<span class=w>      </span><span class=c1>// 通知读端  </span>
+<span class=w>      </span><span class=k>do</span><span class=w>  </span>
+<span class=w>        </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>write</span><span class=p>(</span><span class=n>fd</span><span class=p>,</span><span class=w> </span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=n>len</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EINTR</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>len</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EAGAIN</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EWOULDBLOCK</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>abort</span><span class=p>();</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv_async_send首先拿到写端对应的fd，然后调用write函数，此时，往管道的写端写入数据，标记有任务完成。有写则必然有读。读的逻辑是在uv__io_poll中实现的。uv__io_poll函数即Libuv中Poll IO阶段执行的函数。在uv__io_poll中会发现管道可读，然后执行对应的回调uv__async_io。</p> <h3 id=413>4.1.3 主线程处理回调<a class=headerlink href=#413 title="Permanent link">&para;</a></h3> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span>
+<span class=normal>54</span>
+<span class=normal>55</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__async_io</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span>
+<span class=w>                               </span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span>
+<span class=w>                               </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>events</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>char</span><span class=w> </span><span class=n>buf</span><span class=p>[</span><span class=mi>1024</span><span class=p>];</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>ssize_t</span><span class=w> </span><span class=n>r</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE</span><span class=w> </span><span class=n>queue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE</span><span class=o>*</span><span class=w> </span><span class=n>q</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_async_t</span><span class=o>*</span><span class=w> </span><span class=n>h</span><span class=p>;</span><span class=w>    </span>
+
+<span class=w>      </span><span class=k>for</span><span class=w> </span><span class=p>(;;)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 消费所有的数据  </span>
+<span class=w>        </span><span class=n>r</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>read</span><span class=p>(</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>,</span><span class=w> </span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>buf</span><span class=p>));</span><span class=w> </span>
+<span class=w>            </span><span class=c1>// 数据大小大于buf长度（1024），则继续消费</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>buf</span><span class=p>))</span><span class=w>  </span>
+<span class=w>          </span><span class=k>continue</span><span class=p>;</span><span class=w> </span>
+<span class=w>            </span><span class=c1>// 成功消费完毕，跳出消费的逻辑</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 读繁忙</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EAGAIN</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EWOULDBLOCK</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 读被中断，继续读</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>errno</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>EINTR</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>abort</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 把async_handles队列里的所有节点都移到queue变量中  </span>
+<span class=w>      </span><span class=n>QUEUE_MOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_handles</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>queue</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 逐个取出节点  </span>
+<span class=w>        </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 根据结构体字段获取结构体首地址  </span>
+<span class=w>        </span><span class=n>h</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_DATA</span><span class=p>(</span><span class=n>q</span><span class=p>,</span><span class=w> </span><span class=n>uv_async_t</span><span class=p>,</span><span class=w> </span><span class=n>queue</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 从队列中移除该节点  </span>
+<span class=w>        </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 重新插入async_handles队列，等待下次事件  </span>
+<span class=w>        </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>async_handles</span><span class=p>,</span><span class=w> </span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/* </span>
+<span class=cm>         将第一个参数和第二个参数进行比较，如果相等， </span>
+<span class=cm>         则将第三参数写入第一个参数，返回第二个参数的值， </span>
+<span class=cm>         如果不相等，则返回第一个参数的值。 </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>              判断触发了哪些async。pending在uv_async_send里设置成1，          </span>
+<span class=cm>              如果pending等于1，则清0，返回1.如果pending等于0，则返回0</span>
+<span class=cm>            */</span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>cmpxchgi</span><span class=p>(</span><span class=o>&amp;</span><span class=n>h</span><span class=o>-&gt;</span><span class=n>pending</span><span class=p>,</span><span class=w> </span><span class=mi>1</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>h</span><span class=o>-&gt;</span><span class=n>async_cb</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 执行上层回调  </span>
+<span class=w>        </span><span class=n>h</span><span class=o>-&gt;</span><span class=n>async_cb</span><span class=p>(</span><span class=n>h</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__async_io会遍历async_handles队列，pending等于1的话说明任务完成，然后执行对应的回调并清除标记位。</p> <h2 id=42>4.2 线程池的实现<a class=headerlink href=#42 title="Permanent link">&para;</a></h2> <p>了解了Libuv中子线程和主线程的通信机制后，我们来看一下线程池的实现。</p> <h3 id=421>4.2.1 线程池的初始化<a class=headerlink href=#421 title="Permanent link">&para;</a></h3> <p>线程池是懒初始化的，Node.js启动的时候，并没有创建子线程，而是在提交第一个任务给线程池时，线程池才开始初始化。我们先看线程池的初始化逻辑，然后再看它的使用。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>init_threads</span><span class=p>(</span><span class=kt>void</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>i</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>val</span><span class=p>;</span><span class=w> </span>
+<span class=w>      </span><span class=c1>// 默认线程数4个，static uv_thread_t default_threads[4];  </span>
+<span class=w>      </span><span class=n>nthreads</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ARRAY_SIZE</span><span class=p>(</span><span class=n>default_threads</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 判断用户是否在环境变量中设置了线程数，是的话取用户定义的  </span>
+<span class=w>      </span><span class=n>val</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>getenv</span><span class=p>(</span><span class=s>&quot;UV_THREADPOOL_SIZE&quot;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>val</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>nthreads</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>atoi</span><span class=p>(</span><span class=n>val</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>nthreads</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>nthreads</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// #define MAX_THREADPOOL_SIZE 128最多128个线程  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>nthreads</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>MAX_THREADPOOL_SIZE</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>nthreads</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>MAX_THREADPOOL_SIZE</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>threads</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>default_threads</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 超过默认大小，重新分配内存  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>nthreads</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>ARRAY_SIZE</span><span class=p>(</span><span class=n>default_threads</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>            </span><span class=n>threads</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__malloc</span><span class=p>(</span><span class=n>nthreads</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>threads</span><span class=p>[</span><span class=mi>0</span><span class=p>]));</span><span class=w>  </span>
+<span class=w>       </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 初始化条件变量，用于有任务时唤醒子线程，没有任务时挂起子线程  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>uv_cond_init</span><span class=p>(</span><span class=o>&amp;</span><span class=n>cond</span><span class=p>))</span><span class=w>  </span>
+<span class=w>        </span><span class=n>abort</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 初始化互斥变量，用于多个子线程互斥访问任务队列  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>uv_mutex_init</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>))</span><span class=w>  </span>
+<span class=w>        </span><span class=n>abort</span><span class=p>();</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 初始化三个队列  </span>
+<span class=w>      </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=o>&amp;</span><span class=n>slow_io_pending_wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=o>&amp;</span><span class=n>run_slow_work_message</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 创建多个线程，工作函数为worker，sem为worker入参  </span>
+<span class=w>      </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>i</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>nthreads</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=o>++</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>uv_thread_create</span><span class=p>(</span><span class=n>threads</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>i</span><span class=p>,</span><span class=w> </span><span class=n>worker</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>sem</span><span class=p>))</span><span class=w>  </span>
+<span class=w>          </span><span class=n>abort</span><span class=p>();</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>线程池初始化时，会根据配置的子线程数创建对应数量的线程。默认是4个，最大128个子线程（不同版本的Libuv可能会不一样），我们也可以通过环境变量设置自定义的大小。线程池的初始化主要是初始化一些数据结构，然后创建多个线程，接着在每个线程里执行worker函数处理任务。后面我们会分析worker的逻辑。</p> <h3 id=422>4.2.2 提交任务到线程池<a class=headerlink href=#422 title="Permanent link">&para;</a></h3> <p>了解线程池的初始化之后，我们看一下如何给线程池提交任务</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 给线程池提交一个任务  </span>
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__work_submit</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w>  </span>
+<span class=w>               </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w>  </span>
+<span class=w>               </span><span class=k>enum</span><span class=w> </span><span class=nc>uv__work_kind</span><span class=w> </span><span class=n>kind</span><span class=p>,</span><span class=w>  </span>
+<span class=w>               </span><span class=kt>void</span><span class=w> </span><span class=p>(</span><span class=o>*</span><span class=n>work</span><span class=p>)(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>),</span><span class=w>  </span>
+<span class=w>               </span><span class=kt>void</span><span class=w> </span><span class=p>(</span><span class=o>*</span><span class=n>done</span><span class=p>)(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>)){</span><span class=w>  </span>
+<span class=w>       </span><span class=cm>/* </span>
+<span class=cm>         保证已经初始化线程，并只执行一次，所以线程池是在提交第一个 </span>
+<span class=cm>        任务的时候才被初始化，init_once -&gt; init_threads</span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_once</span><span class=p>(</span><span class=o>&amp;</span><span class=n>once</span><span class=p>,</span><span class=w> </span><span class=n>init_once</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>loop</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>loop</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>work</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>work</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>done</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>done</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>post</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>,</span><span class=w> </span><span class=n>kind</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>这里把业务相关的函数和任务完成后的回调函数封装到uv__work结构体中。uv__work结构定义如下。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>void</span><span class=w> </span><span class=p>(</span><span class=o>*</span><span class=n>work</span><span class=p>)(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=w> </span><span class=o>*</span><span class=n>w</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>void</span><span class=w> </span><span class=p>(</span><span class=o>*</span><span class=n>done</span><span class=p>)(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=w> </span><span class=o>*</span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>uv_loop_s</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>wq</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>然后调调用post函数往线程池的队列中加入一个新的任务。Libuv把任务分为三种类型，慢IO（DNS解析）、快IO（文件操作）、CPU密集型等，kind就是说明任务的类型的。我们接着看post函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>post</span><span class=p>(</span><span class=n>QUEUE</span><span class=o>*</span><span class=w> </span><span class=n>q</span><span class=p>,</span><span class=w> </span><span class=k>enum</span><span class=w> </span><span class=nc>uv__work_kind</span><span class=w> </span><span class=n>kind</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 加锁访问任务队列，因为这个队列是线程池共享的  </span>
+<span class=w>      </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 类型是慢IO  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>kind</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV__WORK_SLOW_IO</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*  </span>
+<span class=cm>        插入慢IO对应的队列，Libuv这个版本把任务分为几种类型， </span>
+<span class=cm>       对于慢IO类型的任务，Libuv是往任务队列里面插入一个特殊的节点 </span>
+<span class=cm>       run_slow_work_message，然后用slow_io_pending_wq维护了一个慢IO</span>
+<span class=cm>          任务的队列，当处理到run_slow_work_message这个节点的时候，</span>
+<span class=cm>          Libuv会从slow_io_pending_wq队列里逐个取出任务节点来执行。  </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>        </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>slow_io_pending_wq</span><span class=p>,</span><span class=w> </span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/* </span>
+<span class=cm>          有慢IO任务的时候，需要给主队列wq插入一个消息节点</span>
+<span class=cm>              run_slow_work_message,说明有慢IO任务，所以如果</span>
+<span class=cm>              run_slow_work_message是空，说明还没有插入主队列。需要进行</span>
+<span class=cm>              q = &amp;run_slow_work_message;赋值，然后把</span>
+<span class=cm>              run_slow_work_message插入主队列。如果run_slow_work_message</span>
+<span class=cm>              非空，说明已经插入线程池的任务队列了。解锁然后直接返回。 </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>run_slow_work_message</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>            </span><span class=p>}</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 说明run_slow_work_message还没有插入队列，准备插入队列  </span>
+<span class=w>        </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>&amp;</span><span class=n>run_slow_work_message</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 把节点插入主队列，可能是慢IO消息节点或者一般任务  </span>
+<span class=w>      </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>,</span><span class=w> </span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/*</span>
+<span class=cm>         有空闲线程则唤醒它，如果大家都在忙，</span>
+<span class=cm>          则等到它忙完后就会重新判断是否还有新任务</span>
+<span class=cm>         */</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>idle_threads</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv_cond_signal</span><span class=p>(</span><span class=o>&amp;</span><span class=n>cond</span><span class=p>);</span><span class=w> </span>
+<span class=w>        </span><span class=c1>// 操作完队列，解锁 </span>
+<span class=w>      </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>这就是Libuv中线程池的生产者逻辑。任务队列的架构如图4-3所示。</p> <p><img alt src="https://img-blog.csdnimg.cn/20210420235058824.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"></p> <p>除了上面提到的，Libuv还提供了另外一种生产任务的方式，即uv_queue_work函数，它只提交CPU密集型的任务（在Node.js的crypto模块中使用）。下面我们看uv_queue_work的实现。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_queue_work</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                      </span><span class=n>uv_work_t</span><span class=o>*</span><span class=w> </span><span class=n>req</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                      </span><span class=n>uv_work_cb</span><span class=w> </span><span class=n>work_cb</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                      </span><span class=n>uv_after_work_cb</span><span class=w> </span><span class=n>after_work_cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>work_cb</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>UV_EINVAL</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>uv__req_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=p>,</span><span class=w> </span><span class=n>UV_WORK</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>loop</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>loop</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>work_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>work_cb</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>after_work_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>after_work_cb</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__work_submit</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w>  </span>
+<span class=w>              </span><span class=o>&amp;</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>work_req</span><span class=p>,</span><span class=w>  </span>
+<span class=w>              </span><span class=n>UV__WORK_CPU</span><span class=p>,</span><span class=w>  </span>
+<span class=w>              </span><span class=n>uv__queue_work</span><span class=p>,</span><span class=w>  </span>
+<span class=w>              </span><span class=n>uv__queue_done</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv_queue_work函数其实也没有太多的逻辑，它保存用户的工作函数和回调到request中。然后把uv__queue_work和uv__queue_done封装到uv__work中，接着提交任务到线程池中。所以当这个任务被执行的时候。它会执行工作函数uv__queue_work。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__queue_work</span><span class=p>(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 通过结构体某字段拿到结构体地址  </span>
+<span class=w>      </span><span class=n>uv_work_t</span><span class=o>*</span><span class=w> </span><span class=n>req</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>container_of</span><span class=p>(</span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=n>uv_work_t</span><span class=p>,</span><span class=w> </span><span class=n>work_req</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>work_cb</span><span class=p>(</span><span class=n>req</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到uv__queue_work其实就是对用户定义的任务函数进行了封装。这时候我们可以猜到，uv__queue_done也只是对用户回调的简单封装，即它会执行用户的回调。</p> <h3 id=423>4.2.3 处理任务<a class=headerlink href=#423 title="Permanent link">&para;</a></h3> <p>我们提交了任务后，线程自然要处理，初始化线程池的时候我们分析过，worker函数是负责处理任务。我们看一下worker函数的逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>  1</span>
+<span class=normal>  2</span>
+<span class=normal>  3</span>
+<span class=normal>  4</span>
+<span class=normal>  5</span>
+<span class=normal>  6</span>
+<span class=normal>  7</span>
+<span class=normal>  8</span>
+<span class=normal>  9</span>
+<span class=normal> 10</span>
+<span class=normal> 11</span>
+<span class=normal> 12</span>
+<span class=normal> 13</span>
+<span class=normal> 14</span>
+<span class=normal> 15</span>
+<span class=normal> 16</span>
+<span class=normal> 17</span>
+<span class=normal> 18</span>
+<span class=normal> 19</span>
+<span class=normal> 20</span>
+<span class=normal> 21</span>
+<span class=normal> 22</span>
+<span class=normal> 23</span>
+<span class=normal> 24</span>
+<span class=normal> 25</span>
+<span class=normal> 26</span>
+<span class=normal> 27</span>
+<span class=normal> 28</span>
+<span class=normal> 29</span>
+<span class=normal> 30</span>
+<span class=normal> 31</span>
+<span class=normal> 32</span>
+<span class=normal> 33</span>
+<span class=normal> 34</span>
+<span class=normal> 35</span>
+<span class=normal> 36</span>
+<span class=normal> 37</span>
+<span class=normal> 38</span>
+<span class=normal> 39</span>
+<span class=normal> 40</span>
+<span class=normal> 41</span>
+<span class=normal> 42</span>
+<span class=normal> 43</span>
+<span class=normal> 44</span>
+<span class=normal> 45</span>
+<span class=normal> 46</span>
+<span class=normal> 47</span>
+<span class=normal> 48</span>
+<span class=normal> 49</span>
+<span class=normal> 50</span>
+<span class=normal> 51</span>
+<span class=normal> 52</span>
+<span class=normal> 53</span>
+<span class=normal> 54</span>
+<span class=normal> 55</span>
+<span class=normal> 56</span>
+<span class=normal> 57</span>
+<span class=normal> 58</span>
+<span class=normal> 59</span>
+<span class=normal> 60</span>
+<span class=normal> 61</span>
+<span class=normal> 62</span>
+<span class=normal> 63</span>
+<span class=normal> 64</span>
+<span class=normal> 65</span>
+<span class=normal> 66</span>
+<span class=normal> 67</span>
+<span class=normal> 68</span>
+<span class=normal> 69</span>
+<span class=normal> 70</span>
+<span class=normal> 71</span>
+<span class=normal> 72</span>
+<span class=normal> 73</span>
+<span class=normal> 74</span>
+<span class=normal> 75</span>
+<span class=normal> 76</span>
+<span class=normal> 77</span>
+<span class=normal> 78</span>
+<span class=normal> 79</span>
+<span class=normal> 80</span>
+<span class=normal> 81</span>
+<span class=normal> 82</span>
+<span class=normal> 83</span>
+<span class=normal> 84</span>
+<span class=normal> 85</span>
+<span class=normal> 86</span>
+<span class=normal> 87</span>
+<span class=normal> 88</span>
+<span class=normal> 89</span>
+<span class=normal> 90</span>
+<span class=normal> 91</span>
+<span class=normal> 92</span>
+<span class=normal> 93</span>
+<span class=normal> 94</span>
+<span class=normal> 95</span>
+<span class=normal> 96</span>
+<span class=normal> 97</span>
+<span class=normal> 98</span>
+<span class=normal> 99</span>
+<span class=normal>100</span>
+<span class=normal>101</span>
+<span class=normal>102</span>
+<span class=normal>103</span>
+<span class=normal>104</span>
+<span class=normal>105</span>
+<span class=normal>106</span>
+<span class=normal>107</span>
+<span class=normal>108</span>
+<span class=normal>109</span>
+<span class=normal>110</span>
+<span class=normal>111</span>
+<span class=normal>112</span>
+<span class=normal>113</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>worker</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>arg</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE</span><span class=o>*</span><span class=w> </span><span class=n>q</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>is_slow_work</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 线程启动成功  </span>
+<span class=w>      </span><span class=n>uv_sem_post</span><span class=p>((</span><span class=n>uv_sem_t</span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=n>arg</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>arg</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 加锁互斥访问任务队列  </span>
+<span class=w>      </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>for</span><span class=w> </span><span class=p>(;;)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/* </span>
+<span class=cm>          1 队列为空 </span>
+<span class=cm>          2 队列不为空，但是队列中只有慢IO任务且正在执行的慢IO任务</span>
+<span class=cm>                个数达到阈值则空闲线程加一，防止慢IO占用过多线程，导致</span>
+<span class=cm>                其它快的任务无法得到执行 </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>        </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>)</span><span class=w> </span><span class=o>||</span><span class=w>  </span>
+<span class=w>            </span><span class=p>(</span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=o>&amp;</span><span class=n>run_slow_work_message</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w>  </span>
+<span class=w>            </span><span class=n>QUEUE_NEXT</span><span class=p>(</span><span class=o>&amp;</span><span class=n>run_slow_work_message</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=o>&amp;</span><span class=n>wq</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w>  </span>
+<span class=w>            </span><span class=n>slow_io_work_running</span><span class=w> </span><span class=o>&gt;=</span><span class=w> </span><span class=n>slow_work_thread_threshold</span><span class=p>()))</span><span class=w>       </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>idle_threads</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 阻塞，等待唤醒  </span>
+<span class=w>          </span><span class=n>uv_cond_wait</span><span class=p>(</span><span class=o>&amp;</span><span class=n>cond</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 被唤醒，开始干活，空闲线程数减一   </span>
+<span class=w>          </span><span class=n>idle_threads</span><span class=w> </span><span class=o>-=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 取出头结点，头指点可能是退出消息、慢IO，一般请求  </span>
+<span class=w>        </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>         </span><span class=c1>// 如果头结点是退出消息，则结束线程  </span>
+<span class=w>            </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>q</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=o>&amp;</span><span class=n>exit_message</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>              </span><span class=cm>/*</span>
+<span class=cm>                 唤醒其它因为没有任务正阻塞等待任务的线程，</span>
+<span class=cm>                  告诉它们准备退出 </span>
+<span class=cm>                */</span><span class=w> </span>
+<span class=w>          </span><span class=n>uv_cond_signal</span><span class=p>(</span><span class=o>&amp;</span><span class=n>cond</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 移除节点   </span>
+<span class=w>            </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 重置前后指针  </span>
+<span class=w>        </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>    </span>
+<span class=w>        </span><span class=n>is_slow_work</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>            </span><span class=cm>/*  </span>
+<span class=cm>          如果当前节点等于慢IO节点，上面的while只判断了是不是只有慢</span>
+<span class=cm>              IO任务且达到阈值，这里是任务队列里肯定有非慢IO任务，可能有</span>
+<span class=cm>              慢IO，如果有慢IO并且正在执行的个数达到阈值，则先不处理该慢</span>
+<span class=cm>              IO任务，继续判断是否还有非慢IO任务可执行。 </span>
+<span class=cm>            */</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>q</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=o>&amp;</span><span class=n>run_slow_work_message</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>   </span>
+<span class=w>          </span><span class=c1>// 达到阈值，该节点重新入队，因为刚才被删除了   </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>slow_io_work_running</span><span class=w> </span><span class=o>&gt;=</span><span class=w> </span><span class=n>slow_work_thread_threshold</span><span class=p>())</span><span class=w>          </span><span class=p>{</span><span class=w>  </span>
+<span class=w>            </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>,</span><span class=w> </span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=p>}</span><span class=w>  </span>
+<span class=w>          </span><span class=cm>/* </span>
+<span class=cm>                  没有慢IO任务则继续，这时候run_slow_work_message</span>
+<span class=cm>                  已经从队列中被删除，下次有慢IO的时候重新入队  </span>
+<span class=cm>                */</span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>slow_io_pending_wq</span><span class=p>))</span><span class=w>  </span>
+<span class=w>            </span><span class=k>continue</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 有慢IO，开始处理慢IO任务  </span>
+<span class=w>          </span><span class=n>is_slow_work</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>1</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=cm>/*</span>
+<span class=cm>                  正在处理慢IO任务的个数累加，用于其它线程判断慢IO任务个</span>
+<span class=cm>                  数是否达到阈值, slow_io_work_running是多个线程共享的变量</span>
+<span class=cm>                */</span><span class=w>  </span>
+<span class=w>          </span><span class=n>slow_io_work_running</span><span class=o>++</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 摘下一个慢IO任务  </span>
+<span class=w>          </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>slow_io_pending_wq</span><span class=p>);</span>
+<span class=w>                </span><span class=c1>// 从慢IO队列移除  </span>
+<span class=w>          </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=cm>/* </span>
+<span class=cm>              取出一个任务后，如果还有慢IO任务则把慢IO标记节点重新入</span>
+<span class=cm>                   队，表示还有慢IO任务，因为上面把该标记节点出队了  </span>
+<span class=cm>            */</span><span class=w>  </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>slow_io_pending_wq</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>            </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>run_slow_work_message</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 有空闲线程则唤醒它，因为还有任务处理  </span>
+<span class=w>            </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>idle_threads</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>              </span><span class=n>uv_cond_signal</span><span class=p>(</span><span class=o>&amp;</span><span class=n>cond</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 不需要操作队列了，尽快释放锁  </span>
+<span class=w>        </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// q是慢IO或者一般任务  </span>
+<span class=w>        </span><span class=n>w</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_DATA</span><span class=p>(</span><span class=n>q</span><span class=p>,</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=p>,</span><span class=w> </span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 执行业务的任务函数，该函数一般会阻塞  </span>
+<span class=w>        </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>work</span><span class=p>(</span><span class=n>w</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 准备操作loop的任务完成队列，加锁  </span>
+<span class=w>            </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 置空说明执行完了，见cancel逻辑  </span>
+<span class=w>        </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>work</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>    </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>              执行完任务,插入到loop的wq队列,在uv__work_done的时候会</span>
+<span class=cm>              执行该队列的节点  </span>
+<span class=cm>            */</span>
+<span class=w>        </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 通知loop的wq_async节点  </span>
+<span class=w>        </span><span class=n>uv_async_send</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_async</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>            </span><span class=c1>// 为下一轮操作任务队列加锁  </span>
+<span class=w>        </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>              执行完慢IO任务，记录正在执行的慢IO个数变量减1，</span>
+<span class=cm>              上面加锁保证了互斥访问这个变量 </span>
+<span class=cm>            */</span><span class=w> </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>is_slow_work</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>slow_io_work_running</span><span class=o>--</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到消费者的逻辑似乎比较复杂，对于慢IO类型的任务，Libuv限制了处理慢IO任务的线程数，避免耗时比较少的任务得不到处理。其余的逻辑和一般的线程池类似，就是互斥访问任务队列，然后取出节点执行，执行完后通知主线程。结构如图4-4所示。</p> <p><img alt src=https://img-blog.csdnimg.cn/20210420235148855.png></p> <h3 id=424>4.2.4 通知主线程<a class=headerlink href=#424 title="Permanent link">&para;</a></h3> <p>线程执行完任务后，并不是直接执行用户回调，而是通知主线程，由主线程统一处理，这是Node.js单线程事件循环的要求，也避免了多线程带来的复杂问题，我们看一下这块的逻辑。一切要从Libuv的初始化开始</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=n>uv_default_loop</span><span class=p>();</span><span class=o>-&gt;</span><span class=w> </span><span class=n>uv_loop_init</span><span class=p>();</span><span class=o>-&gt;</span><span class=w> </span><span class=n>uv_async_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_async</span><span class=p>,</span><span class=w> </span><span class=n>uv__work_done</span><span class=p>);</span>
+</code></pre></div></td></tr></table></div> <p>刚才我们已经分析过主线程和子线程的通信机制，wq_async是用于线程池中子线程和主线程通信的async handle，它对应的回调是uv__work_done。所以当一个线程池的线程任务完成时，通过uv_async_send(&amp;w-&gt;loop-&gt;wq_async)设置loop-&gt;wq_async.pending = 1，然后通知IO观察者，Libuv在Poll IO阶段就会执行该handle对应的回调uv__work_done函数。那么我们就看看这个函数的逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__work_done</span><span class=p>(</span><span class=n>uv_async_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE</span><span class=o>*</span><span class=w> </span><span class=n>q</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE</span><span class=w> </span><span class=n>wq</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 通过结构体字段获得结构体首地址  </span>
+<span class=w>      </span><span class=n>loop</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>container_of</span><span class=p>(</span><span class=n>handle</span><span class=p>,</span><span class=w> </span><span class=n>uv_loop_t</span><span class=p>,</span><span class=w> </span><span class=n>wq_async</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 准备处理队列，加锁  </span>
+<span class=w>      </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/*   </span>
+<span class=cm>        loop-&gt;wq是已完成的任务队列。把loop-&gt;wq队列的节点全部移到</span>
+<span class=cm>          wp变量中，这样一来可以尽快释放锁  </span>
+<span class=cm>        */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE_MOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 不需要使用了，解锁  </span>
+<span class=w>      </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// wq队列的节点来自子线程插入  </span>
+<span class=w>      </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>q</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>QUEUE_HEAD</span><span class=p>(</span><span class=o>&amp;</span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=n>q</span><span class=p>);</span><span class=w> </span>
+<span class=w>        </span><span class=n>w</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>container_of</span><span class=p>(</span><span class=n>q</span><span class=p>,</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=p>,</span><span class=w> </span><span class=n>wq</span><span class=p>);</span><span class=w> </span>
+<span class=w>            </span><span class=c1>// 等于uv__canceled说明这个任务被取消了 </span>
+<span class=w>        </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>work</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>uv__cancelled</span><span class=p>)</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>UV_ECANCELED</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 执行回调  </span>
+<span class=w>        </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>done</span><span class=p>(</span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=n>err</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>该函数的逻辑比较简单，逐个处理已完成的任务节点，执行回调，在Node.js中，这里的回调是C++层，然后再到JS层。结构图如图4-5所示。</p> <p><img alt src="https://img-blog.csdnimg.cn/20210420235212281.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"></p> <h3 id=425>4.2.5 取消任务<a class=headerlink href=#425 title="Permanent link">&para;</a></h3> <p>线程池的设计中，取消任务是一个比较重要的能力，因为在线程里执行的都是一些耗时或者引起阻塞的操作，如果能及时取消一个任务，将会减轻很多没必要的处理。不过Libuv实现中，只有当任务还在等待队列中才能被取消，如果一个任务正在被线程处理，则无法取消了。我们先看一下Libuv中是如何实现取消任务的。Libuv提供了uv__work_cancel函数支持用户取消提交的任务。我们看一下它的逻辑。 </p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>uv__work_cancel</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv_req_t</span><span class=o>*</span><span class=w> </span><span class=n>req</span><span class=p>,</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>cancelled</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 加锁，为了把节点移出队列  </span>
+<span class=w>      </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 加锁，为了判断w-&gt;wq是否为空  </span>
+<span class=w>      </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=cm>/* </span>
+<span class=cm>        cancelled为true说明任务还在线程池队列等待处理</span>
+<span class=cm>          1 处理完，w-&gt;work == NULL</span>
+<span class=cm>          2 处理中，QUEUE_EMPTY(&amp;w-&gt;wq)为true，因</span>
+<span class=cm>            为worker在摘下一个任务的时候，重置prev和next指针</span>
+<span class=cm>          3 未处理，!QUEUE_EMPTY(&amp;w-&gt;wq)是true 且w-&gt;work != NULL</span>
+<span class=cm>      */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>cancelled</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>!</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>)</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>work</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 从线程池任务队列中删除该节点  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>cancelled</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 正在执行或者已经执行完了，则不能取消  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>cancelled</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>UV_EBUSY</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 打取消标记，Libuv执行回调的时候用到  </span>
+<span class=w>      </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>work</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__cancelled</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>uv_mutex_lock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>       </span><span class=cm>/* </span>
+<span class=cm>         插入loop的wq队列，对于取消的动作，Libuv认为是任务执行完了。</span>
+<span class=cm>            所以插入已完成的队列，执行回调的时候会通知用户该任务的执行结果</span>
+<span class=cm>            是取消，错误码是UV_ECANCELED</span>
+<span class=cm>       */</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>wq</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 通知主线程有任务完成  </span>
+<span class=w>      </span><span class=n>uv_async_send</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_async</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_mutex_unlock</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>wq_mutex</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>在Libuv中，取消任务的方式就是把节点从线程池待处理队列中删除，然后打上取消的标记（w-&gt;work = uv__cancelled），接着把该节点插入已完成队列，Libuv在处理已完成队列的节点时，判断如果w-&gt;work == uv__cancelled则在执行用户回调时，传入错误码UV_ECANCELED，我们看到uv__work_cancel这个函数定义前面加了一个static，说明这个函数是只在本文件内使用的，Libuv对外提供的取消任务的接口是uv_cancel。</p> </article> </div> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> 回到页面顶部 </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; 2021 theanarkh </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/theanarkh target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> <a href=https://www.zhihu.com/people/theanarkh target=_blank rel=noopener title=www.zhihu.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 640 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M170.54 148.13v217.54l23.43.01 7.71 26.37 42.01-26.37h49.53V148.13zm97.75 193.93h-27.94l-27.9 17.51-5.08-17.47-11.9-.04V171.75h72.82zm-118.46-94.39H97.5c1.74-27.1 2.2-51.59 2.2-73.46h51.16s1.97-22.56-8.58-22.31h-88.5c3.49-13.12 7.87-26.66 13.12-40.67 0 0-24.07 0-32.27 21.57-3.39 8.9-13.21 43.14-30.7 78.12 5.89-.64 25.37-1.18 36.84-22.21 2.11-5.89 2.51-6.66 5.14-14.53h28.87c0 10.5-1.2 66.88-1.68 73.44H20.83c-11.74 0-15.56 23.62-15.56 23.62h65.58C66.45 321.1 42.83 363.12 0 396.34c20.49 5.85 40.91-.93 51-9.9 0 0 22.98-20.9 35.59-69.25l53.96 64.94s7.91-26.89-1.24-39.99c-7.58-8.92-28.06-33.06-36.79-41.81L87.9 311.95c4.36-13.98 6.99-27.55 7.87-40.67h61.65s-.09-23.62-7.59-23.62zm412.02-1.6c20.83-25.64 44.98-58.57 44.98-58.57s-18.65-14.8-27.38-4.06c-6 8.15-36.83 48.2-36.83 48.2zm-150.09-59.09c-9.01-8.25-25.91 2.13-25.91 2.13s39.52 55.04 41.12 57.45l19.46-13.73s-25.67-37.61-34.66-45.86h-.01zM640 258.35c-19.78 0-130.91.93-131.06.93v-101c4.81 0 12.42-.4 22.85-1.2 40.88-2.41 70.13-4 87.77-4.81 0 0 12.22-27.19-.59-33.44-3.07-1.18-23.17 4.58-23.17 4.58s-165.22 16.49-232.36 18.05c1.6 8.82 7.62 17.08 15.78 19.55 13.31 3.48 22.69 1.7 49.15.89 24.83-1.6 43.68-2.43 56.51-2.43v99.81H351.41s2.82 22.31 25.51 22.85h107.94v70.92c0 13.97-11.19 21.99-24.48 21.12-14.08.11-26.08-1.15-41.69-1.81 1.99 3.97 6.33 14.39 19.31 21.84 9.88 4.81 16.17 6.57 26.02 6.57 29.56 0 45.67-17.28 44.89-45.31v-73.32h122.36c9.68 0 8.7-23.78 8.7-23.78z"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"base": "..", "features": ["content.code.annotate", "navigation.indexes", "navigation.instant", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script> <script src=../assets/javascripts/bundle.83f73b43.min.js></script> <script src=../extra/image.js defer></script> </body> </html>

@@ -1,0 +1,1131 @@
+<!doctype html><html lang=zh class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="通过源码分析 Node.js 原理"><meta name=author content=theanarkh><link href=https://github.com/theanarkh/understand-nodejs/chapter08-DNS/ rel=canonical><link href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ rel=prev><link href=../chapter09-Unix%E5%9F%9F/ rel=next><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.5.44"><title>08-DNS - Node.js 源码剖析</title><link rel=stylesheet href=../assets/stylesheets/main.0253249f.min.css><link rel=stylesheet href=../assets/stylesheets/palette.06af60db.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#81-ip class=md-skip> 跳转至 </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=页眉> <a href=.. title="Node.js 源码剖析" class="md-header__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> Node.js 源码剖析 </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> 08-DNS </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=blue data-md-color-accent=blue aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=搜索 placeholder=搜索 autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=查找> <a href=javascript:void(0) class="md-search__icon md-icon" title=分享 aria-label=分享 data-clipboard data-clipboard-text data-md-component=search-share tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg> </a> <button type=reset class="md-search__icon md-icon" title=清空当前内容 aria-label=清空当前内容 tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> 正在初始化搜索引擎 </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> </nav> <nav class=md-tabs aria-label=标签 data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-tabs__link> 前言 </a> </li> <li class=md-tabs__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-tabs__link> Node.js基础和架构 </a> </li> <li class="md-tabs__item md-tabs__item--active"> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-tabs__link> Node.js核心模块的实现 </a> </li> <li class=md-tabs__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-tabs__link> 其他 </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=导航栏 data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title="Node.js 源码剖析" class="md-nav__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> Node.js 源码剖析 </label> <div class=md-nav__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class=md-nav__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-nav__link> <span class=md-ellipsis> 前言 </span> </a> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_3> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex=0> <span class=md-ellipsis> Node.js基础和架构 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=false> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Node.js基础和架构 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 01-Node.js组成和原理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ class=md-nav__link> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </a> </li> <li class=md-nav__item> <a href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ class=md-nav__link> <span class=md-ellipsis> 03-事件循环 </span> </a> </li> <li class=md-nav__item> <a href=../chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ class=md-nav__link> <span class=md-ellipsis> 04-线程池 </span> </a> </li> <li class=md-nav__item> <a href=../chapter05-Libuv%E6%B5%81/ class=md-nav__link> <span class=md-ellipsis> 05-Libuv流 </span> </a> </li> <li class=md-nav__item> <a href=../chapter06-C%2B%2B%E5%B1%82/ class=md-nav__link> <span class=md-ellipsis> 06-C++层 </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_4 checked> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex> <span class=md-ellipsis> Node.js核心模块的实现 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=true> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Node.js核心模块的实现 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 07-信号处理 </span> </a> </li> <li class="md-nav__item md-nav__item--active"> <input class="md-nav__toggle md-toggle" type=checkbox id=__toc> <label class="md-nav__link md-nav__link--active" for=__toc> <span class=md-ellipsis> 08-DNS </span> <span class="md-nav__icon md-icon"></span> </label> <a href=./ class="md-nav__link md-nav__link--active"> <span class=md-ellipsis> 08-DNS </span> </a> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#81-ip class=md-nav__link> <span class=md-ellipsis> 8.1 通过域名找IP </span> </a> </li> <li class=md-nav__item> <a href=#82-cares class=md-nav__link> <span class=md-ellipsis> 8.2 cares </span> </a> <nav class=md-nav aria-label="8.2 cares"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#821-cares class=md-nav__link> <span class=md-ellipsis> 8.2.1 cares使用和原理 </span> </a> </li> <li class=md-nav__item> <a href=#822-cares_wrapcc class=md-nav__link> <span class=md-ellipsis> 8.2.2 cares_wrap.cc的通用逻辑 </span> </a> </li> <li class=md-nav__item> <a href=#823 class=md-nav__link> <span class=md-ellipsis> 8.2.3 具体实现 </span> </a> </li> </ul> </nav> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../chapter09-Unix%E5%9F%9F/ class=md-nav__link> <span class=md-ellipsis> 09-Unix域 </span> </a> </li> <li class=md-nav__item> <a href=../chapter10-%E5%AE%9A%E6%97%B6%E5%99%A8/ class=md-nav__link> <span class=md-ellipsis> 10-定时器 </span> </a> </li> <li class=md-nav__item> <a href=../chapter11-setImmediate%E5%92%8CnextTick/ class=md-nav__link> <span class=md-ellipsis> 11-setImmediate和nextTick </span> </a> </li> <li class=md-nav__item> <a href=../chapter12-%E6%96%87%E4%BB%B6/ class=md-nav__link> <span class=md-ellipsis> 12-文件 </span> </a> </li> <li class=md-nav__item> <a href=../chapter13-%E8%BF%9B%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 13-进程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter14-%E7%BA%BF%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 14-线程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter15-Cluster/ class=md-nav__link> <span class=md-ellipsis> 15-Cluster </span> </a> </li> <li class=md-nav__item> <a href=../chapter16-UDP/ class=md-nav__link> <span class=md-ellipsis> 16-UDP </span> </a> </li> <li class=md-nav__item> <a href=../chapter17-TCP/ class=md-nav__link> <span class=md-ellipsis> 17-TCP </span> </a> </li> <li class=md-nav__item> <a href=../chapter18-HTTP/ class=md-nav__link> <span class=md-ellipsis> 18-HTTP </span> </a> </li> <li class=md-nav__item> <a href=../chapter19-%E6%A8%A1%E5%9D%97%E5%8A%A0%E8%BD%BD/ class=md-nav__link> <span class=md-ellipsis> 19-模块加载 </span> </a> </li> <li class=md-nav__item> <a href=../chapter21-JS%20Stream/ class=md-nav__link> <span class=md-ellipsis> 20-JS Stream </span> </a> </li> <li class=md-nav__item> <a href=../chapter22-events%E6%A8%A1%E5%9D%97/ class=md-nav__link> <span class=md-ellipsis> 21-events模块 </span> </a> </li> <li class=md-nav__item> <a href=../chapter23-Async%20hooks/ class=md-nav__link> <span class=md-ellipsis> 22-Async hooks </span> </a> </li> <li class=md-nav__item> <a href=../chapter24-Inspector/ class=md-nav__link> <span class=md-ellipsis> 23-Inspector </span> </a> </li> <li class=md-nav__item> <a href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ class=md-nav__link> <span class=md-ellipsis> 27-深入理解 Node.js 的 Buffer </span> </a> </li> <li class=md-nav__item> <a href=../chapter30-Node.js%20%E7%9A%84%20trace%20events%20%E6%9E%B6%E6%9E%84/ class=md-nav__link> <span class=md-ellipsis> 30-Node.js 的 trace events 架构 </span> </a> </li> <li class=md-nav__item> <a href=../chapter31-Node.js%20%E7%9A%84%20perf_hooks/ class=md-nav__link> <span class=md-ellipsis> 31-Node.js 的 perf_hooks </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> 其他 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> 其他 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 24-拓展Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter25-Node.js子线程调试和诊断指南 class=md-nav__link> <span class=md-ellipsis> 25-Node.js子线程调试和诊断指南 </span> </a> </li> <li class=md-nav__item> <a href=../chapter26-vscode%E8%B0%83%E8%AF%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 26-vscode调试Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter28-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E6%9E%B6%E6%9E%84%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 28-Node.js底层原理（架构篇） </span> </a> </li> <li class=md-nav__item> <a href=../chapter29-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E5%AE%9E%E7%8E%B0%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 29-Node.js底层原理（实现篇） </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#81-ip class=md-nav__link> <span class=md-ellipsis> 8.1 通过域名找IP </span> </a> </li> <li class=md-nav__item> <a href=#82-cares class=md-nav__link> <span class=md-ellipsis> 8.2 cares </span> </a> <nav class=md-nav aria-label="8.2 cares"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#821-cares class=md-nav__link> <span class=md-ellipsis> 8.2.1 cares使用和原理 </span> </a> </li> <li class=md-nav__item> <a href=#822-cares_wrapcc class=md-nav__link> <span class=md-ellipsis> 8.2.2 cares_wrap.cc的通用逻辑 </span> </a> </li> <li class=md-nav__item> <a href=#823 class=md-nav__link> <span class=md-ellipsis> 8.2.3 具体实现 </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <h1>08-DNS</h1> <p>Node.js的DNS模块使用了cares库和Libuv的线程池实现。cares是一个异步DNS解析库，它自己实现了DNS协议的封包和解析，配合Libuv事件驱动机制，在Node.js中实现异步的DNS解析。另外通过IP查询域名或者域名查询IP是直接调用操作系统提供的接口实现的，因为这两个函数是阻塞式的API，所以Node.js是通过Libuv的线程池实现异步查询。除了提供直接的DNS查询外，Node.js还提供了设置DNS服务器、新建一个DNS解析实例（Resolver）等功能。这些功能是使用cares实现的。下面我们开始分析DNS模块的原理和实现。 </p> <h2 id=81-ip>8.1 通过域名找IP<a class=headerlink href=#81-ip title="Permanent link">&para;</a></h2> <p>我们看一下在Node.js中如何查询一个域名对于的IP的信息</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=nx>dns</span><span class=p>.</span><span class=nx>lookup</span><span class=p>(</span><span class=s1>&#39;www.a.com&#39;</span><span class=p>,</span><span class=w> </span><span class=kd>function</span><span class=p>(</span><span class=nx>err</span><span class=p>,</span><span class=w> </span><span class=nx>address</span><span class=p>,</span><span class=w> </span><span class=nx>family</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span><span class=nx>address</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>});</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>DNS功能的JS层实现在dns.js中</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>req</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>GetAddrInfoReqWrap</span><span class=p>();</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>req</span><span class=p>.</span><span class=nx>callback</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>callback</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>req</span><span class=p>.</span><span class=nx>family</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>family</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>req</span><span class=p>.</span><span class=nx>hostname</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>hostname</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=nx>req</span><span class=p>.</span><span class=nx>oncomplete</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>all</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=nx>onlookupall</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=nx>onlookup</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>cares</span><span class=p>.</span><span class=nx>getaddrinfo</span><span class=p>(</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>req</span><span class=p>,</span><span class=w> </span><span class=nx>toASCII</span><span class=p>(</span><span class=nx>hostname</span><span class=p>),</span><span class=w> </span><span class=nx>family</span><span class=p>,</span><span class=w> </span><span class=nx>hints</span><span class=p>,</span><span class=w> </span><span class=nx>verbatim</span><span class=w>  </span>
+<span class=w>    </span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Node.js设置了一些参数后，调用cares_wrap.cc的getaddrinfo方法，在care_wrap.cc的初始化函数中我们看到， getaddrinfo函数对应的函数是GetAddrInfo。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>Initialize</span><span class=p>(</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>target</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                    </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=n>unused</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                    </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Context</span><span class=o>&gt;</span><span class=w> </span><span class=n>context</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Environment</span><span class=o>::</span><span class=n>GetCurrent</span><span class=p>(</span><span class=n>context</span><span class=p>);</span><span class=w> </span>
+<span class=w>      </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>SetMethod</span><span class=p>(</span><span class=n>target</span><span class=p>,</span><span class=w> </span><span class=s>&quot;getaddrinfo&quot;</span><span class=p>,</span><span class=w> </span><span class=n>GetAddrInfo</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>...</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>GetAddrInfo的主要逻辑如下</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>auto</span><span class=w> </span><span class=n>req_wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>GetAddrInfoReqWrap</span><span class=p>(</span><span class=n>env</span><span class=p>,</span><span class=w> </span><span class=n>req_wrap_obj</span><span class=p>,</span><span class=w> </span><span class=n>args</span><span class=p>[</span><span class=mi>4</span><span class=p>]</span><span class=o>-&gt;</span><span class=n>IsTrue</span><span class=p>());</span><span class=w>  </span>
+
+<span class=w>    </span><span class=k>struct</span><span class=w> </span><span class=nc>addrinfo</span><span class=w> </span><span class=n>hints</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=n>memset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>hints</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=k>struct</span><span class=w> </span><span class=nc>addrinfo</span><span class=p>));</span><span class=w>  </span>
+<span class=w>    </span><span class=n>hints</span><span class=p>.</span><span class=n>ai_family</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>family</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=n>hints</span><span class=p>.</span><span class=n>ai_socktype</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>SOCK_STREAM</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=n>hints</span><span class=p>.</span><span class=n>ai_flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>flags</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv_getaddrinfo</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>event_loop</span><span class=p>(),</span>
+<span class=w>                                </span><span class=n>req_wrap</span><span class=o>-&gt;</span><span class=n>req</span><span class=p>(),</span><span class=w> </span>
+<span class=w>                                </span><span class=n>AfterGetAddrInfo</span><span class=p>,</span>
+<span class=w>                                </span><span class=o>*</span><span class=n>hostname</span><span class=p>,</span>
+<span class=w>                                </span><span class=k>nullptr</span><span class=p>,</span>
+<span class=w>                                </span><span class=o>&amp;</span><span class=n>hints</span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>GetAddrInfo是对uv_getaddrinfo的封装，回调函数是AfterGetAddrInfo</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span>
+<span class=normal>54</span>
+<span class=normal>55</span>
+<span class=normal>56</span>
+<span class=normal>57</span>
+<span class=normal>58</span>
+<span class=normal>59</span>
+<span class=normal>60</span>
+<span class=normal>61</span>
+<span class=normal>62</span>
+<span class=normal>63</span>
+<span class=normal>64</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>int</span><span class=w> </span><span class=nf>uv_getaddrinfo</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                        </span><span class=c1>// 上层传进来的req  </span>
+<span class=w>                       </span><span class=n>uv_getaddrinfo_t</span><span class=o>*</span><span class=w> </span><span class=n>req</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                       </span><span class=c1>// 解析完后的上层回调  </span>
+<span class=w>                       </span><span class=n>uv_getaddrinfo_cb</span><span class=w> </span><span class=n>cb</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                       </span><span class=c1>// 需要解析的名字  </span>
+<span class=w>                       </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>hostname</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                       </span><span class=cm>/* </span>
+<span class=cm>                               查询的过滤条件：服务名。比如</span>
+<span class=cm>                                            http smtp。也可以是一个端口。</span>
+<span class=cm>                                            见下面注释 </span>
+<span class=cm>                                  */</span><span class=w>  </span>
+<span class=w>                       </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>service</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                       </span><span class=c1>// 其它查询过滤条件  </span>
+<span class=w>                       </span><span class=k>const</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>addrinfo</span><span class=o>*</span><span class=w> </span><span class=n>hints</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+
+<span class=w>      </span><span class=kt>size_t</span><span class=w> </span><span class=n>hostname_len</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>size_t</span><span class=w> </span><span class=n>service_len</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>size_t</span><span class=w> </span><span class=n>hints_len</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>size_t</span><span class=w> </span><span class=n>len</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>buf</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>hostname_len</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>hostname</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>strlen</span><span class=p>(</span><span class=n>hostname</span><span class=p>)</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=mi>1</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>service_len</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>service</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>strlen</span><span class=p>(</span><span class=n>service</span><span class=p>)</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=mi>1</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>hints_len</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>hints</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=o>*</span><span class=n>hints</span><span class=p>)</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>buf</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__malloc</span><span class=p>(</span><span class=n>hostname_len</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>service_len</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>hints_len</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__req_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=p>,</span><span class=w> </span><span class=n>UV_GETADDRINFO</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>loop</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>loop</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 设置请求的回调  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>cb</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>addrinfo</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hints</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>service</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hostname</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>retcode</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>len</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>hints</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hints</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>memcpy</span><span class=p>(</span><span class=n>buf</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>len</span><span class=p>,</span><span class=w> </span><span class=n>hints</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=o>*</span><span class=n>hints</span><span class=p>));</span><span class=w>  </span>
+<span class=w>        </span><span class=n>len</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=o>*</span><span class=n>hints</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>service</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>service</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>memcpy</span><span class=p>(</span><span class=n>buf</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>len</span><span class=p>,</span><span class=w> </span><span class=n>service</span><span class=p>,</span><span class=w> </span><span class=n>service_len</span><span class=p>);</span><span class=w> </span>
+<span class=w>        </span><span class=n>len</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=n>service_len</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>hostname</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hostname</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>memcpy</span><span class=p>(</span><span class=n>buf</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>len</span><span class=p>,</span><span class=w> </span><span class=n>hostname</span><span class=p>,</span><span class=w> </span><span class=n>hostname_len</span><span class=p>);</span>
+<span class=w>      </span><span class=c1>// 传了cb则是异步  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>cb</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__work_submit</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                </span><span class=o>&amp;</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>work_req</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                </span><span class=n>UV__WORK_SLOW_IO</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                </span><span class=n>uv__getaddrinfo_work</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                </span><span class=n>uv__getaddrinfo_done</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 阻塞式查询，然后执行回调  </span>
+<span class=w>        </span><span class=n>uv__getaddrinfo_work</span><span class=p>(</span><span class=o>&amp;</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>work_req</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__getaddrinfo_done</span><span class=p>(</span><span class=o>&amp;</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>work_req</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>retcode</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到这个函数首先是对一个request进行初始化，然后根据是否传了回调，决定走异步还是同步的模式。同步的方式比较简单，就是直接阻塞Libuv事件循环，直到解析完成。如果是异步，则给线程池提交一个慢IO的任务。其中工作函数是uv__getaddrinfo_work。回调是uv__getaddrinfo_done。我们看一下这两个函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// 解析的工作函数  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__getaddrinfo_work</span><span class=p>(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_getaddrinfo_t</span><span class=o>*</span><span class=w> </span><span class=n>req</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 根据结构体的字段获取结构体首地址  </span>
+<span class=w>      </span><span class=n>req</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>container_of</span><span class=p>(</span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=n>uv_getaddrinfo_t</span><span class=p>,</span><span class=w> </span><span class=n>work_req</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 阻塞在这  </span>
+<span class=w>      </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>getaddrinfo</span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hostname</span><span class=p>,</span><span class=w> </span>
+<span class=w>                            </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>service</span><span class=p>,</span><span class=w> </span>
+<span class=w>                            </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hints</span><span class=p>,</span><span class=w> </span>
+<span class=w>                            </span><span class=o>&amp;</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>addrinfo</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>retcode</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>uv__getaddrinfo_translate_error</span><span class=p>(</span><span class=n>err</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__getaddrinfo_work函数主要是调用了系统提供的getaddrinfo去做解析。该函数会导致进程阻塞。结果返回后，执行uv__getaddrinfo_done。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>uv__getaddrinfo_done</span><span class=p>(</span><span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv_getaddrinfo_t</span><span class=o>*</span><span class=w> </span><span class=n>req</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>req</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>container_of</span><span class=p>(</span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=n>uv_getaddrinfo_t</span><span class=p>,</span><span class=w> </span><span class=n>work_req</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>uv__req_unregister</span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 释放初始化时申请的内存  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hints</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__free</span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hints</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>service</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__free</span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>service</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hostname</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>uv__free</span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hostname</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>else</span><span class=w>  </span>
+<span class=w>        </span><span class=n>assert</span><span class=p>(</span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hints</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>service</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>hostname</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 解析请求被用户取消了  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>UV_ECANCELED</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>assert</span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>retcode</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>retcode</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>UV_EAI_CANCELED</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 执行上层回调  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>req</span><span class=o>-&gt;</span><span class=n>cb</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>cb</span><span class=p>(</span><span class=n>req</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>retcode</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=o>-&gt;</span><span class=n>addrinfo</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__getaddrinfo_done会执行C++层的回调，从而执行JS层的回调。</p> <h2 id=82-cares>8.2 cares<a class=headerlink href=#82-cares title="Permanent link">&para;</a></h2> <p>除了通过IP查询域名和域名查询IP外，其余的DNS功能都由cares实现，我们看一下cares的基本用法。</p> <h3 id=821-cares>8.2.1 cares使用和原理<a class=headerlink href=#821-cares title="Permanent link">&para;</a></h3> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=c1>// channel是cares的核心结构体</span>
+<span class=w>    </span><span class=n>ares_channel</span><span class=w> </span><span class=n>channel</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=k>struct</span><span class=w> </span><span class=nc>ares_options</span><span class=w> </span><span class=n>options</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// 初始化channel</span>
+<span class=w>    </span><span class=n>status</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ares_init_options</span><span class=p>(</span><span class=o>&amp;</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>options</span><span class=p>,</span><span class=w> </span><span class=n>optmask</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// 把 argv的数据存到addr</span>
+<span class=w>    </span><span class=n>ares_inet_pton</span><span class=p>(</span><span class=n>AF_INET</span><span class=p>,</span><span class=w> </span><span class=o>*</span><span class=n>argv</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>addr4</span><span class=p>);</span>
+<span class=w>    </span><span class=c1>// 把addr数据存到channel并发起DNS查询</span>
+<span class=w>    </span><span class=n>ares_gethostbyaddr</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=o>&amp;</span><span class=n>addr4</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=k>sizeof</span><span class=p>(</span><span class=n>addr4</span><span class=p>),</span><span class=w> </span>
+<span class=w>                       </span><span class=n>AF_INET</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=n>callback</span><span class=p>,</span><span class=o>*</span><span class=n>argv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=k>for</span><span class=w> </span><span class=p>(;;)</span><span class=w>  </span>
+<span class=w>        </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=kt>int</span><span class=w> </span><span class=n>res</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FD_ZERO</span><span class=p>(</span><span class=o>&amp;</span><span class=n>read_fds</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>FD_ZERO</span><span class=p>(</span><span class=o>&amp;</span><span class=n>write_fds</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 把channel对应的fd存到read_fd和write_fds  </span>
+<span class=w>          </span><span class=n>nfds</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ares_fds</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>read_fds</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>write_fds</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>nfds</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=w>            </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 设置超时时间  </span>
+<span class=w>          </span><span class=n>tvp</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ares_timeout</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=nb>NULL</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>tv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 阻塞在select，等待DNS回包  </span>
+<span class=w>          </span><span class=n>res</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>select</span><span class=p>(</span><span class=n>nfds</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>read_fds</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>write_fds</span><span class=p>,</span><span class=w> </span><span class=nb>NULL</span><span class=p>,</span><span class=w> </span><span class=n>tvp</span><span class=p>);</span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=mi>-1</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>res</span><span class=p>)</span><span class=w>  </span>
+<span class=w>            </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 处理DNS相应  </span>
+<span class=w>          </span><span class=n>ares_process</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>read_fds</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>write_fds</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>上面是一个典型的事件驱动模型，首先初始化一些信息，然后发起一个非阻塞的请求，接着阻塞在多路复用API，该API返回后，执行触发了事件的回调。</p> <h3 id=822-cares_wrapcc>8.2.2 cares_wrap.cc的通用逻辑<a class=headerlink href=#822-cares_wrapcc title="Permanent link">&para;</a></h3> <p>在Node.js中，Node.js和cares的整体交互如图8-1所示。 <br> <img alt src="https://img-blog.csdnimg.cn/cf528843e4ac4b1c8ce03407f502083d.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L1RIRUFOQVJLSA==,size_16,color_FFFFFF,t_70"><br> 图8-1. </p> <p>我们通过cares_wrap.cc分析其中的原理。我们从DNS模块提供的resolveCname函数开始。resolveCname函数由以下代码导出（dns.js）。 <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span></pre></div></td><td class=code><div><pre><span></span><code><span class=nx>bindDefaultResolver</span><span class=p>(</span><span class=nx>module</span><span class=p>.</span><span class=nx>exports</span><span class=p>,</span><span class=w> </span><span class=nx>getDefaultResolver</span><span class=p>())</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> 我们看一下这两个函数（dns/utils.js）。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>class</span><span class=w> </span><span class=nx>Resolver</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kr>constructor</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>this</span><span class=p>.</span><span class=nx>_handle</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>ChannelWrap</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// ...  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kd>let</span><span class=w> </span><span class=nx>defaultResolver</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>Resolver</span><span class=p>();</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>getDefaultResolver</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nx>defaultResolver</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>resolver</span><span class=p>(</span><span class=nx>bindingName</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=kd>function</span><span class=w> </span><span class=nx>query</span><span class=p>(</span><span class=nx>name</span><span class=p>,</span><span class=w> </span><span class=cm>/* options, */</span><span class=w> </span><span class=nx>callback</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=kd>let</span><span class=w> </span><span class=nx>options</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=kd>const</span><span class=w> </span><span class=nx>req</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=ow>new</span><span class=w> </span><span class=nx>QueryReqWrap</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>req</span><span class=p>.</span><span class=nx>bindingName</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>bindingName</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>req</span><span class=p>.</span><span class=nx>callback</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>callback</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>req</span><span class=p>.</span><span class=nx>hostname</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>name</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>req</span><span class=p>.</span><span class=nx>oncomplete</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>onresolve</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>req</span><span class=p>.</span><span class=nx>ttl</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>!!</span><span class=p>(</span><span class=nx>options</span><span class=w> </span><span class=o>&amp;&amp;</span><span class=w> </span><span class=nx>options</span><span class=p>.</span><span class=nx>ttl</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=kd>const</span><span class=w> </span><span class=nx>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>this</span><span class=p>.</span><span class=nx>_handle</span><span class=p>[</span><span class=nx>bindingName</span><span class=p>](</span><span class=nx>req</span><span class=p>,</span><span class=w> </span><span class=nx>toASCII</span><span class=p>(</span><span class=nx>name</span><span class=p>));</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=nx>err</span><span class=p>)</span><span class=w> </span><span class=k>throw</span><span class=w> </span><span class=nx>dnsException</span><span class=p>(</span><span class=nx>err</span><span class=p>,</span><span class=w> </span><span class=nx>bindingName</span><span class=p>,</span><span class=w> </span><span class=nx>name</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=nx>req</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>ObjectDefineProperty</span><span class=p>(</span><span class=nx>query</span><span class=p>,</span><span class=w> </span><span class=s1>&#39;name&#39;</span><span class=p>,</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=nx>value</span><span class=o>:</span><span class=w> </span><span class=nx>bindingName</span><span class=w> </span><span class=p>});</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=nx>query</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// 给原型链注入一个新的属性，defaultResolver中也生效  </span>
+<span class=w>    </span><span class=nx>Resolver</span><span class=p>.</span><span class=nx>prototype</span><span class=p>.</span><span class=nx>resolveCname</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>resolveMap</span><span class=p>.</span><span class=nx>CNAME</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>resolver</span><span class=p>(</span><span class=s1>&#39;queryCname&#39;</span><span class=p>);</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>getDefaultResolver导出的是一个Resolve对象，里面有resolveCname等一系列方法。接着看一下bindDefaultResolver，我们一会再看ChannelWrap。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kd>const</span><span class=w> </span><span class=nx>resolverKeys</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>[</span><span class=w> </span>
+<span class=w>      </span><span class=s1>&#39;resolveCname &#39;</span><span class=p>,</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// …</span>
+<span class=w>    </span><span class=p>]</span><span class=w>  </span>
+<span class=w>    </span><span class=kd>function</span><span class=w> </span><span class=nx>bindDefaultResolver</span><span class=p>(</span><span class=nx>target</span><span class=p>,</span><span class=w> </span><span class=nx>source</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=nx>resolverKeys</span><span class=p>.</span><span class=nx>forEach</span><span class=p>((</span><span class=nx>key</span><span class=p>)</span><span class=w> </span><span class=p>=&gt;</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=nx>target</span><span class=p>[</span><span class=nx>key</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nx>source</span><span class=p>[</span><span class=nx>key</span><span class=p>].</span><span class=nx>bind</span><span class=p>(</span><span class=nx>defaultResolver</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>});</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>看起来很绕，其实就是把Resolve对象的方法导出到DNS模块。这样用户就可以使用了。我们看到resolveCname是由resolver函数生成的，resolver函数对cares系列函数进行了封装，最终调用的是this._handle.queryCname函数。我们来看一下这个handle（ChannelWrap类对象）的实现（cares_wrap.cc）。我们先看一下cares_wrap.cc模块导出的API。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>FunctionTemplate</span><span class=o>&gt;</span><span class=w> </span><span class=n>channel_wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>NewFunctionTemplate</span><span class=p>(</span><span class=n>ChannelWrap</span><span class=o>::</span><span class=n>New</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=n>channel_wrap</span><span class=o>-&gt;</span><span class=n>InstanceTemplate</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>SetInternalFieldCount</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=n>channel_wrap</span><span class=o>-&gt;</span><span class=n>Inherit</span><span class=p>(</span><span class=n>AsyncWrap</span><span class=o>::</span><span class=n>GetConstructorTemplate</span><span class=p>(</span><span class=n>env</span><span class=p>));</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// Query是C++函数模板</span>
+<span class=w>    </span><span class=n>env</span><span class=o>-&gt;</span><span class=n>SetProtoMethod</span><span class=p>(</span><span class=n>channel_wrap</span><span class=p>,</span><span class=w> </span>
+<span class=w>                          </span><span class=s>&quot;queryCname&quot;</span><span class=p>,</span><span class=w> </span>
+<span class=w>                          </span><span class=n>Query</span><span class=o>&lt;</span><span class=n>QueryCnameWrap</span><span class=o>&gt;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// ...  </span>
+<span class=w>    </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>channelWrapString</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>FIXED_ONE_BYTE_STRING</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>(),</span><span class=w> </span><span class=s>&quot;ChannelWrap&quot;</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=n>channel_wrap</span><span class=o>-&gt;</span><span class=n>SetClassName</span><span class=p>(</span><span class=n>channelWrapString</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=n>target</span><span class=o>-&gt;</span><span class=n>Set</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>(),</span><span class=w> </span>
+<span class=w>    </span><span class=n>channelWrapString</span><span class=p>,</span><span class=n>channel_wrap</span><span class=o>-&gt;</span><span class=n>GetFunction</span><span class=p>(</span><span class=n>context</span><span class=p>).</span><span class=n>ToLocalChecked</span><span class=p>()).</span><span class=n>Check</span><span class=p>();</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>handle对应的就是以上代码导出的对象。当我们在JS层执行new ChannelWrap的时候。 最终会调用C++层创建一个对象，并且执行ChannelWrap::New。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>ChannelWrap::New</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>FunctionCallbackInfo</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Environment</span><span class=o>::</span><span class=n>GetCurrent</span><span class=p>(</span><span class=n>args</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>new</span><span class=w> </span><span class=n>ChannelWrap</span><span class=p>(</span><span class=n>env</span><span class=p>,</span><span class=w> </span><span class=n>args</span><span class=p>.</span><span class=n>This</span><span class=p>());</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看一下类ChannelWrap的定义。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>class</span><span class=w> </span><span class=nc>ChannelWrap</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=k>public</span><span class=w> </span><span class=n>AsyncWrap</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>     </span><span class=k>public</span><span class=o>:</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// ...  </span>
+
+<span class=w>     </span><span class=k>private</span><span class=o>:</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 超时管理  </span>
+<span class=w>      </span><span class=n>uv_timer_t</span><span class=o>*</span><span class=w> </span><span class=n>timer_handle_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// cares数据类型  </span>
+<span class=w>      </span><span class=n>ares_channel</span><span class=w> </span><span class=n>channel_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 标记查询结果  </span>
+<span class=w>      </span><span class=kt>bool</span><span class=w> </span><span class=n>query_last_ok_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 使用的DNS服务器  </span>
+<span class=w>      </span><span class=kt>bool</span><span class=w> </span><span class=n>is_servers_default_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 是否已经初始化cares库  </span>
+<span class=w>      </span><span class=kt>bool</span><span class=w> </span><span class=n>library_inited_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 正在发起的查询个数  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>active_query_count_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 发起查询的任务队列  </span>
+<span class=w>      </span><span class=n>node_ares_task_list</span><span class=w> </span><span class=n>task_list_</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>接着我们看看ChannelWrap构造函数的代码。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>ChannelWrap</span><span class=o>::</span><span class=n>ChannelWrap</span><span class=p>(...)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Setup</span><span class=p>();</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>ChannelWrap里直接调用了Setup</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>ChannelWrap::Setup</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>ares_options</span><span class=w> </span><span class=n>options</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>memset</span><span class=p>(</span><span class=o>&amp;</span><span class=n>options</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>options</span><span class=p>));</span><span class=w>  </span>
+<span class=w>      </span><span class=n>options</span><span class=p>.</span><span class=n>flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ARES_FLAG_NOCHECKRESP</span><span class=p>;</span><span class=w>   </span>
+<span class=w>      </span><span class=cm>/*</span>
+<span class=cm>        caresd socket状态（读写）发生变更时，执行的函数，</span>
+<span class=cm>        第一个入参是sock_state_cb_data</span>
+<span class=cm>      */</span>
+<span class=w>      </span><span class=n>options</span><span class=p>.</span><span class=n>sock_state_cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ares_sockstate_cb</span><span class=p>;</span><span class=w>  </span>
+<span class=w>     </span><span class=n>options</span><span class=p>.</span><span class=n>sock_state_cb_data</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>this</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>     </span><span class=c1>// 还没初始化则初始化 </span>
+<span class=w>     </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>library_inited_</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>       </span><span class=n>Mutex</span><span class=o>::</span><span class=n>ScopedLock</span><span class=w> </span><span class=n>lock</span><span class=p>(</span><span class=n>ares_library_mutex</span><span class=p>);</span><span class=w>  </span>
+<span class=w>       </span><span class=c1>// 初始化cares库  </span>
+<span class=w>       </span><span class=n>ares_library_init</span><span class=p>(</span><span class=n>ARES_LIB_INIT_ALL</span><span class=p>);</span><span class=w>  </span>
+<span class=w>     </span><span class=p>}</span><span class=w>  </span>
+<span class=w>     </span><span class=c1>// 设置使用cares的配置  </span>
+<span class=w>     </span><span class=n>ares_init_options</span><span class=p>(</span><span class=o>&amp;</span><span class=n>channel_</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=o>&amp;</span><span class=n>options</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=n>ARES_OPT_FLAGS</span><span class=w> </span><span class=o>|</span><span class=w> </span><span class=n>ARES_OPT_SOCK_STATE_CB</span><span class=p>);</span>
+<span class=w>     </span><span class=n>library_inited_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>true</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到，Node.js在这里初始化cares相关的逻辑。其中最重要的就是设置了cares socket状态变更时执行的回调ares_sockstate_cb（比如socket需要读取数据或者写入数据）。前面的cares使用例子中讲到了cares和事件驱动模块的配合使用，那么cares和Libuv是如何配合的呢？cares提供了一种机制，就是socket状态变更时通知事件驱动模块。DNS解析本质上也是网络IO，所以发起一个DNS查询也就是对应一个socket。DNS查询是由cares发起的，这就意味着socket是在cares中维护的，那Libuv怎么知道呢？正是cares提供的通知机制，使得Libuv知道发起DNS查询对应的socket，从而注册到Libuv中，等到事件触发后，再通知cares。下面我们看一下具体的实现。我们从发起一个cname查询开始分析。首先回顾一下cares_wrap模块导出的cname查询函数， env-&gt;SetProtoMethod(channel_wrap, "queryCname", Query<querycnamewrap>);Query是C++模板函数，QueryCnameWrap是C++类</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>template</span><span class=w> </span><span class=o>&lt;</span><span class=k>class</span><span class=w> </span><span class=nc>Wrap</span><span class=o>&gt;</span><span class=w>  </span>
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=n>Query</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=n>FunctionCallbackInfo</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;&amp;</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Environment</span><span class=o>*</span><span class=w> </span><span class=n>env</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Environment</span><span class=o>::</span><span class=n>GetCurrent</span><span class=p>(</span><span class=n>args</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ChannelWrap</span><span class=o>*</span><span class=w> </span><span class=n>channel</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// Holder中保存了ChannelWrap对象，解包出来</span>
+<span class=w>      </span><span class=n>ASSIGN_OR_RETURN_UNWRAP</span><span class=p>(</span><span class=o>&amp;</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>args</span><span class=p>.</span><span class=n>Holder</span><span class=p>());</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>req_wrap_obj</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>args</span><span class=p>[</span><span class=mi>0</span><span class=p>].</span><span class=n>As</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>string</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>args</span><span class=p>[</span><span class=mi>1</span><span class=p>].</span><span class=n>As</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=cm>/*</span>
+<span class=cm>          根据参数新建一个对象，这里是QueryCnameWrap，</span>
+<span class=cm>          并且保存对应的ChannelWrap对象和操作相关的对象</span>
+<span class=cm>        */</span>
+<span class=w>      </span><span class=n>Wrap</span><span class=o>*</span><span class=w> </span><span class=n>wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>Wrap</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>req_wrap_obj</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>node</span><span class=o>::</span><span class=n>Utf8Value</span><span class=w> </span><span class=nf>name</span><span class=p>(</span><span class=n>env</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>(),</span><span class=w> </span><span class=n>string</span><span class=p>);</span>
+<span class=w>        </span><span class=c1>// 发起请求数加一  </span>
+<span class=w>      </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>ModifyActivityQueryCount</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 调用Send函数发起查询</span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>err</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>Send</span><span class=p>(</span><span class=o>*</span><span class=n>name</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>err</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>ModifyActivityQueryCount</span><span class=p>(</span><span class=mi>-1</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>delete</span><span class=w> </span><span class=n>wrap</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>args</span><span class=p>.</span><span class=n>GetReturnValue</span><span class=p>().</span><span class=n>Set</span><span class=p>(</span><span class=n>err</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Query只实现了一些通用的逻辑，然后调用Send函数，具体的Send函数逻辑由各个具体的类实现。</p> <h3 id=823>8.2.3 具体实现<a class=headerlink href=#823 title="Permanent link">&para;</a></h3> <p>我们看一下QueryCnameWrap类。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>class</span><span class=w> </span><span class=nc>QueryCnameWrap</span><span class=o>:</span><span class=w> </span><span class=k>public</span><span class=w> </span><span class=n>QueryWrap</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>     </span><span class=k>public</span><span class=o>:</span><span class=w>  </span>
+<span class=w>      </span><span class=n>QueryCnameWrap</span><span class=p>(</span><span class=n>ChannelWrap</span><span class=o>*</span><span class=w> </span><span class=n>channel</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>req_wrap_obj</span><span class=p>)</span><span class=w>  </span>
+<span class=w>          </span><span class=o>:</span><span class=w> </span><span class=n>QueryWrap</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>req_wrap_obj</span><span class=p>,</span><span class=w> </span><span class=s>&quot;resolveCname&quot;</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>Send</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>name</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>         </span><span class=n>AresQuery</span><span class=p>(</span><span class=n>name</span><span class=p>,</span><span class=w> </span><span class=n>ns_c_in</span><span class=p>,</span><span class=w> </span><span class=n>ns_t_cname</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>     </span><span class=k>protected</span><span class=o>:</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>void</span><span class=w> </span><span class=n>Parse</span><span class=p>(</span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>len</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>HandleScope</span><span class=w> </span><span class=nf>handle_scope</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Context</span><span class=o>::</span><span class=n>Scope</span><span class=w> </span><span class=nf>context_scope</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>());</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Array</span><span class=o>&gt;</span><span class=w> </span><span class=n>ret</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Array</span><span class=o>::</span><span class=n>New</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>type</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ns_t_cname</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ParseGeneralReply</span><span class=p>(</span><span class=n>env</span><span class=p>(),</span><span class=w> </span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=n>len</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>type</span><span class=p>,</span><span class=w> </span><span class=n>ret</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=n>ARES_SUCCESS</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>ParseError</span><span class=p>(</span><span class=n>status</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>        </span><span class=k>this</span><span class=o>-&gt;</span><span class=n>CallOnComplete</span><span class=p>(</span><span class=n>ret</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>我们看到QueryCnameWrap类的实现非常简单，主要定义Send和Parse的实现，最终还是会调用基类对应的函数。我们看一下基类QueryWrap中AresQuery的实现。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>AresQuery</span><span class=p>(</span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>name</span><span class=p>,</span><span class=w>  </span>
+<span class=w>            </span><span class=kt>int</span><span class=w> </span><span class=n>dnsclass</span><span class=p>,</span><span class=w>  </span>
+<span class=w>            </span><span class=kt>int</span><span class=w> </span><span class=n>type</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>ares_query</span><span class=p>(</span><span class=n>channel_</span><span class=o>-&gt;</span><span class=n>cares_channel</span><span class=p>(),</span><span class=w> </span>
+<span class=w>                       </span><span class=n>name</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=n>dnsclass</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=n>type</span><span class=p>,</span><span class=w> </span>
+<span class=w>                       </span><span class=n>Callback</span><span class=p>,</span><span class=w>  </span>
+<span class=w>              </span><span class=k>static_cast</span><span class=o>&lt;</span><span class=kt>void</span><span class=o>*&gt;</span><span class=p>(</span><span class=k>this</span><span class=p>));</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>AresQuery函数提供统一发送查询操作。查询完成后执行Callback回调。接下来就涉及到cares和Node.js的具体交互了。Node.js把一个任务交给cares后，cares会新建一个socket，接着cares会通过Node.js设置的回调ares_sockstate_cb通知Node.js。我们看一下ares_query的关键逻辑。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>ares_query</span><span class=p>(</span><span class=n>ares_channel</span><span class=w> </span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=w> </span><span class=o>*</span><span class=n>name</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>dnsclass</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                    </span><span class=kt>int</span><span class=w> </span><span class=n>type</span><span class=p>,</span><span class=w> </span><span class=n>ares_callback</span><span class=w> </span><span class=n>callback</span><span class=p>,</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=o>*</span><span class=n>arg</span><span class=p>)</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>qquery</span><span class=w> </span><span class=o>*</span><span class=n>qquery</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=w> </span><span class=o>*</span><span class=n>qbuf</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>qlen</span><span class=p>,</span><span class=w> </span><span class=n>rd</span><span class=p>,</span><span class=w> </span><span class=n>status</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>qquery</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ares_malloc</span><span class=p>(</span><span class=k>sizeof</span><span class=p>(</span><span class=k>struct</span><span class=w> </span><span class=nc>qquery</span><span class=p>));</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 保存Node.js的回调，查询完成时回调  </span>
+<span class=w>      </span><span class=n>qquery</span><span class=o>-&gt;</span><span class=n>callback</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>callback</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>qquery</span><span class=o>-&gt;</span><span class=n>arg</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>arg</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ares_send</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>qbuf</span><span class=p>,</span><span class=w> </span><span class=n>qlen</span><span class=p>,</span><span class=w> </span><span class=n>qcallback</span><span class=p>,</span><span class=w> </span><span class=n>qquery</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>qcallback</span><span class=p>(</span><span class=kt>void</span><span class=w> </span><span class=o>*</span><span class=n>arg</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>timeouts</span><span class=p>,</span><span class=w> </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=w> </span><span class=o>*</span><span class=n>abuf</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>alen</span><span class=p>)</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>qquery</span><span class=w> </span><span class=o>*</span><span class=n>qquery</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=k>struct</span><span class=w> </span><span class=nc>qquery</span><span class=w> </span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=n>arg</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>ancount</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=kt>int</span><span class=w> </span><span class=n>rcode</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=n>ARES_SUCCESS</span><span class=p>)</span><span class=w>  </span>
+<span class=w>        </span><span class=n>qquery</span><span class=o>-&gt;</span><span class=n>callback</span><span class=p>(</span><span class=n>qquery</span><span class=o>-&gt;</span><span class=n>arg</span><span class=p>,</span><span class=w> </span><span class=n>status</span><span class=p>,</span><span class=w> </span><span class=n>timeouts</span><span class=p>,</span><span class=w> </span><span class=n>abuf</span><span class=p>,</span><span class=w> </span><span class=n>alen</span><span class=p>);</span>
+<span class=w>      </span><span class=k>else</span><span class=w>  </span>
+<span class=w>        </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// ...  </span>
+<span class=w>          </span><span class=c1>// 执行Node.js回调  </span>
+<span class=w>          </span><span class=n>qquery</span><span class=o>-&gt;</span><span class=n>callback</span><span class=p>(</span><span class=n>qquery</span><span class=o>-&gt;</span><span class=n>arg</span><span class=p>,</span><span class=w> </span>
+<span class=w>                              </span><span class=n>status</span><span class=p>,</span>
+<span class=w>                              </span><span class=n>timeouts</span><span class=p>,</span><span class=w> </span>
+<span class=w>                              </span><span class=n>abuf</span><span class=p>,</span><span class=w> </span>
+<span class=w>                              </span><span class=n>alen</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ares_free</span><span class=p>(</span><span class=n>qquery</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>ares_query保存了Node.js的回调，并且设置回调qcallback，查询成功后会回调qcallback，qcallback再回调Node.js。接着执行ares_send，ares_send会调用ares__send_query。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>ares__send_query</span><span class=p>(</span><span class=n>ares_channel</span><span class=w> </span><span class=n>channel</span><span class=p>,</span><span class=w> </span>
+<span class=w>                            </span><span class=k>struct</span><span class=w> </span><span class=nc>query</span><span class=w> </span><span class=o>*</span><span class=n>query</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                          </span><span class=k>struct</span><span class=w> </span><span class=nc>timeval</span><span class=w> </span><span class=o>*</span><span class=n>now</span><span class=p>)</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>struct</span><span class=w> </span><span class=nc>server_state</span><span class=w> </span><span class=o>*</span><span class=n>server</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=o>&amp;</span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>servers</span><span class=p>[</span><span class=n>query</span><span class=o>-&gt;</span><span class=n>server</span><span class=p>];</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>server</span><span class=o>-&gt;</span><span class=n>udp_socket</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>ARES_SOCKET_BAD</span><span class=p>)</span><span class=w>  </span>
+<span class=w>            </span><span class=p>{</span><span class=w>  </span>
+<span class=w>              </span><span class=c1>// 申请一个socket  </span>
+<span class=w>              </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>open_udp_socket</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>server</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=w>                </span><span class=p>{</span><span class=w>  </span>
+<span class=w>                  </span><span class=n>skip_server</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=o>-&gt;</span><span class=n>server</span><span class=p>);</span><span class=w>  </span>
+<span class=w>                  </span><span class=n>next_server</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=p>,</span><span class=w> </span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>                  </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>                </span><span class=p>}</span><span class=w>  </span>
+<span class=w>            </span><span class=p>}</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 发送DNS查询  </span>
+<span class=w>          </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>socket_write</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>server</span><span class=o>-&gt;</span><span class=n>udp_socket</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=o>-&gt;</span><span class=n>qbuf</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=o>-&gt;</span><span class=n>qlen</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=w>            </span><span class=p>{</span><span class=w>  </span>
+<span class=w>              </span><span class=n>skip_server</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=o>-&gt;</span><span class=n>server</span><span class=p>);</span><span class=w>  </span>
+<span class=w>              </span><span class=n>next_server</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>query</span><span class=p>,</span><span class=w> </span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>              </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>            </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>ares__send_query首先申请一个socket，然后发送数据。因为UDP不是面向连接的，可以直接发送。我们看一下open_udp_socket。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>open_udp_socket</span><span class=p>(</span><span class=n>ares_channel</span><span class=w> </span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>server_state</span><span class=w> </span><span class=o>*</span><span class=n>server</span><span class=p>)</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ares_socket_t</span><span class=w> </span><span class=n>s</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ares_socklen_t</span><span class=w> </span><span class=n>salen</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>union</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>struct</span><span class=w> </span><span class=nc>sockaddr_in</span><span class=w>  </span><span class=n>sa4</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>struct</span><span class=w> </span><span class=nc>sockaddr_in6</span><span class=w> </span><span class=n>sa6</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=n>saddr</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>sockaddr</span><span class=w> </span><span class=o>*</span><span class=n>sa</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 申请一个socket  </span>
+<span class=w>      </span><span class=n>s</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>open_socket</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>server</span><span class=o>-&gt;</span><span class=n>addr</span><span class=p>.</span><span class=n>family</span><span class=p>,</span><span class=w> </span><span class=n>SOCK_DGRAM</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>);</span><span class=w> </span>
+<span class=w>      </span><span class=c1>// 绑定服务器地址  </span>
+<span class=w>      </span><span class=n>connect_socket</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>s</span><span class=p>,</span><span class=w> </span><span class=n>sa</span><span class=p>,</span><span class=w> </span><span class=n>salen</span><span class=p>)</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 通知Node.js，1,0表示对socket的读事件感兴趣，因为发送了请求，等待响应  </span>
+<span class=w>      </span><span class=n>SOCK_STATE_CALLBACK</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>s</span><span class=p>,</span><span class=w> </span><span class=mi>1</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 保存socket</span>
+<span class=w>      </span><span class=n>server</span><span class=o>-&gt;</span><span class=n>udp_socket</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>s</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=cp>#define SOCK_STATE_CALLBACK(c, s, r, w)                                 \  </span>
+<span class=w>      </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                                                                  </span><span class=err>\</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>((</span><span class=n>c</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>sock_state_cb</span><span class=p>)</span><span class=w>                                             </span><span class=err>\</span><span class=w>  </span>
+<span class=w>          </span><span class=p>(</span><span class=n>c</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>sock_state_cb</span><span class=p>((</span><span class=n>c</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>sock_state_cb_data</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=n>s</span><span class=p>),</span><span class=w> </span><span class=p>(</span><span class=n>r</span><span class=p>),</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=p>));</span><span class=w>       </span><span class=err>\</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=n>WHILE_FALSE</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>ares__send_query函数做了三件事 1 申请了socket， 2 通知Node.js 3 发送了DNS查询请求 这时候流程走到了Node.js，我们看一下cares回调Node.js的时候，Node.js怎么处理的</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>struct</span><span class=w> </span><span class=nc>node_ares_task</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=k>public</span><span class=w> </span><span class=n>MemoryRetainer</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ChannelWrap</span><span class=o>*</span><span class=w> </span><span class=n>channel</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 关联的socket  </span>
+<span class=w>      </span><span class=n>ares_socket_t</span><span class=w> </span><span class=n>sock</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// IO观察者和回调  </span>
+<span class=w>      </span><span class=n>uv_poll_t</span><span class=w> </span><span class=n>poll_watcher</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>};</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>ares_sockstate_cb</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>data</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=n>ares_socket_t</span><span class=w> </span><span class=n>sock</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=kt>int</span><span class=w> </span><span class=n>read</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=kt>int</span><span class=w> </span><span class=n>write</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ChannelWrap</span><span class=o>*</span><span class=w> </span><span class=n>channel</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>static_cast</span><span class=o>&lt;</span><span class=n>ChannelWrap</span><span class=o>*&gt;</span><span class=p>(</span><span class=n>data</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>node_ares_task</span><span class=o>*</span><span class=w> </span><span class=n>task</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 任务  </span>
+<span class=w>      </span><span class=n>node_ares_task</span><span class=w> </span><span class=n>lookup_task</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>lookup_task</span><span class=p>.</span><span class=n>sock</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>sock</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 该任务是否已经存在  </span>
+<span class=w>      </span><span class=k>auto</span><span class=w> </span><span class=n>it</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>task_list</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>find</span><span class=p>(</span><span class=o>&amp;</span><span class=n>lookup_task</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>task</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=n>it</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>task_list</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>end</span><span class=p>())</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=k>nullptr</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=o>*</span><span class=n>it</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>read</span><span class=w> </span><span class=o>||</span><span class=w> </span><span class=n>write</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>task</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 开启定时器，超时后通知cares  </span>
+<span class=w>          </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>StartTimer</span><span class=p>();</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 创建一个任务  </span>
+<span class=w>          </span><span class=n>task</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ares_task_create</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>sock</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=c1>// 保存到任务列表  </span>
+<span class=w>          </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>task_list</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>insert</span><span class=p>(</span><span class=n>task</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 注册IO观察者到epoll，感兴趣的事件根据cares传的进行设置，有事件触发后执行回调ares_poll_cb  </span>
+<span class=w>        </span><span class=n>uv_poll_start</span><span class=p>(</span><span class=o>&amp;</span><span class=n>task</span><span class=o>-&gt;</span><span class=n>poll_watcher</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                      </span><span class=p>(</span><span class=n>read</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>UV_READABLE</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=o>|</span><span class=w> </span><span class=p>(</span><span class=n>write</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>UV_WRITABLE</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=mi>0</span><span class=p>),</span><span class=w>  </span>
+<span class=w>                      </span><span class=n>ares_poll_cb</span><span class=p>);</span><span class=w>  </span>
+
+<span class=w>      </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// socket关闭了，删除任务  </span>
+<span class=w>        </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>task_list</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>erase</span><span class=p>(</span><span class=n>it</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 关闭该任务对应观察者io，然后删除删除该任务  </span>
+<span class=w>        </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>CloseHandle</span><span class=p>(</span><span class=o>&amp;</span><span class=n>task</span><span class=o>-&gt;</span><span class=n>poll_watcher</span><span class=p>,</span><span class=w> </span><span class=n>ares_poll_close_cb</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 没有任务了，关闭定时器  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>task_list</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>empty</span><span class=p>())</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>CloseTimer</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>每一个DNS查询的任务，在Node.js中用node_ares_task 管理。它封装了请求对应的channel、查询请求对应的socket和uv_poll_t。我们看一下ares_task_create</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=n>node_ares_task</span><span class=o>*</span><span class=w> </span><span class=nf>ares_task_create</span><span class=p>(</span><span class=n>ChannelWrap</span><span class=o>*</span><span class=w> </span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>ares_socket_t</span><span class=w> </span><span class=n>sock</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>auto</span><span class=w> </span><span class=n>task</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>node_ares_task</span><span class=p>();</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>task</span><span class=o>-&gt;</span><span class=n>channel</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>channel</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=n>task</span><span class=o>-&gt;</span><span class=n>sock</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>sock</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=c1>// 初始化uv_poll_t，保存文件描述符sock到uv_poll_t  </span>
+<span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>uv_poll_init_socket</span><span class=p>(</span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>event_loop</span><span class=p>(),</span><span class=o>&amp;</span><span class=n>task</span><span class=o>-&gt;</span><span class=n>poll_watcher</span><span class=p>,</span><span class=w> </span><span class=n>sock</span><span class=p>)</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>delete</span><span class=w> </span><span class=n>task</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>return</span><span class=w> </span><span class=k>nullptr</span><span class=p>;</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=k>return</span><span class=w> </span><span class=n>task</span><span class=p>;</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>首先创建一个node_ares_task对象。然后初始化uv_poll_t并且把文件描述符保存到uv_poll_t。uv_poll_t是对文件描述符、回调、IO观察者的封装。文件描述符的事件触发时，会执行IO观察者的回调，从而执行uv_poll_t保存的回调。我们继续回到ares_sockstate_cb，当cares通知Node.js socket状态变更的时候，Node.js就会修改epoll节点的配置（感兴趣的事件）。当事件触发的时候，会执行ares_poll_cb。我们看一下该函数。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>ares_poll_cb</span><span class=p>(</span><span class=n>uv_poll_t</span><span class=o>*</span><span class=w> </span><span class=n>watcher</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>events</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>node_ares_task</span><span class=o>*</span><span class=w> </span><span class=n>task</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ContainerOf</span><span class=p>(</span><span class=o>&amp;</span><span class=n>node_ares_task</span><span class=o>::</span><span class=n>poll_watcher</span><span class=p>,</span><span class=w> </span><span class=n>watcher</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>ChannelWrap</span><span class=o>*</span><span class=w> </span><span class=n>channel</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>task</span><span class=o>-&gt;</span><span class=n>channel</span><span class=p>;</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 有事件触发，重置超时时间  </span>
+<span class=w>      </span><span class=n>uv_timer_again</span><span class=p>(</span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>timer_handle</span><span class=p>());</span><span class=w>  </span>
+
+<span class=w>      </span><span class=c1>// 通知cares处理响应  </span>
+<span class=w>      </span><span class=n>ares_process_fd</span><span class=p>(</span><span class=n>channel</span><span class=o>-&gt;</span><span class=n>cares_channel</span><span class=p>(),</span><span class=w>  </span>
+<span class=w>                      </span><span class=n>events</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_READABLE</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>task</span><span class=o>-&gt;</span><span class=n>sock</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=n>ARES_SOCKET_BAD</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                      </span><span class=n>events</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_WRITABLE</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>task</span><span class=o>-&gt;</span><span class=n>sock</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=n>ARES_SOCKET_BAD</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>当socket上感兴趣的事件触发时，Node.js调ares_process_fd处理。真正的处理函数是processfds。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>processfds</span><span class=p>(</span><span class=n>ares_channel</span><span class=w> </span><span class=n>channel</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=n>fd_set</span><span class=w> </span><span class=o>*</span><span class=n>read_fds</span><span class=p>,</span><span class=w> </span><span class=n>ares_socket_t</span><span class=w> </span><span class=n>read_fd</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=n>fd_set</span><span class=w> </span><span class=o>*</span><span class=n>write_fds</span><span class=p>,</span><span class=w> </span><span class=n>ares_socket_t</span><span class=w> </span><span class=n>write_fd</span><span class=p>)</span><span class=w>  </span>
+<span class=w>    </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=k>struct</span><span class=w> </span><span class=nc>timeval</span><span class=w> </span><span class=n>now</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ares__tvnow</span><span class=p>();</span><span class=w>  </span>
+
+<span class=w>      </span><span class=n>write_tcp_data</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>write_fds</span><span class=p>,</span><span class=w> </span><span class=n>write_fd</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>read_tcp_data</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>read_fds</span><span class=p>,</span><span class=w> </span><span class=n>read_fd</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=n>read_udp_packets</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>read_fds</span><span class=p>,</span><span class=w> </span><span class=n>read_fd</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>     </span><span class=n>process_timeouts</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>     </span><span class=n>process_broken_connections</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>processfds是统一的处理函数，在各自函数内会做相应的判断和处理。我们这里是收到了UDP响应。则会执行read_udp_packets</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>read_udp_packets</span><span class=p>(</span><span class=n>ares_channel</span><span class=w> </span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>fd_set</span><span class=w> </span><span class=o>*</span><span class=n>read_fds</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                                 </span><span class=n>ares_socket_t</span><span class=w> </span><span class=n>read_fd</span><span class=p>,</span><span class=w> </span><span class=k>struct</span><span class=w> </span><span class=nc>timeval</span><span class=w> </span><span class=o>*</span><span class=n>now</span><span class=p>){</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// 读取响应  </span>
+<span class=w>    </span><span class=n>count</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>socket_recvfrom</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>server</span><span class=o>-&gt;</span><span class=n>udp_socket</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=kt>void</span><span class=w> </span><span class=o>*</span><span class=p>)</span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=k>sizeof</span><span class=p>(</span><span class=n>buf</span><span class=p>),</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>from</span><span class=p>.</span><span class=n>sa</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>fromlen</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=c1>// 处理响应，最终调用query-&gt;callback回调Node.js  </span>
+<span class=w>    </span><span class=n>process_answer</span><span class=p>(</span><span class=n>channel</span><span class=p>,</span><span class=w> </span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=p>(</span><span class=kt>int</span><span class=p>)</span><span class=n>count</span><span class=p>,</span><span class=w> </span><span class=n>i</span><span class=p>,</span><span class=w> </span><span class=mi>0</span><span class=p>,</span><span class=w> </span><span class=n>now</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Cares读取响应然后解析响应，最后回调Node.js。Node.js设置的回调函数是Callback</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=k>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>Callback</span><span class=p>(</span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>arg</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>timeouts</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                           </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>answer_buf</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>answer_len</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>QueryWrap</span><span class=o>*</span><span class=w> </span><span class=n>wrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>FromCallbackPointer</span><span class=p>(</span><span class=n>arg</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>buf_copy</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>nullptr</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>ARES_SUCCESS</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>buf_copy</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>node</span><span class=o>::</span><span class=n>Malloc</span><span class=o>&lt;</span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=o>&gt;</span><span class=p>(</span><span class=n>answer_len</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=n>memcpy</span><span class=p>(</span><span class=n>buf_copy</span><span class=p>,</span><span class=w> </span><span class=n>answer_buf</span><span class=p>,</span><span class=w> </span><span class=n>answer_len</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>response_data_</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>std</span><span class=o>::</span><span class=n>make_unique</span><span class=o>&lt;</span><span class=n>ResponseData</span><span class=o>&gt;</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=n>ResponseData</span><span class=o>*</span><span class=w> </span><span class=n>data</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>response_data_</span><span class=p>.</span><span class=n>get</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=n>data</span><span class=o>-&gt;</span><span class=n>status</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>status</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>data</span><span class=o>-&gt;</span><span class=n>is_host</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>false</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=n>data</span><span class=o>-&gt;</span><span class=n>buf</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>MallocedBuffer</span><span class=o>&lt;</span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=o>&gt;</span><span class=p>(</span><span class=n>buf_copy</span><span class=p>,</span><span class=w> </span><span class=n>answer_len</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 执行QueueResponseCallback</span>
+<span class=w>        </span><span class=n>wrap</span><span class=o>-&gt;</span><span class=n>QueueResponseCallback</span><span class=p>(</span><span class=n>status</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>QueueResponseCallback</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>BaseObjectPtr</span><span class=o>&lt;</span><span class=n>QueryWrap</span><span class=o>&gt;</span><span class=w> </span><span class=n>strong_ref</span><span class=p>{</span><span class=k>this</span><span class=p>};</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 产生一个native immediate任务，在check阶段执行  </span>
+<span class=w>        </span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>SetImmediate</span><span class=p>([</span><span class=k>this</span><span class=p>,</span><span class=w> </span><span class=n>strong_ref</span><span class=p>](</span><span class=n>Environment</span><span class=o>*</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>           </span><span class=c1>// check阶段执行</span>
+<span class=w>          </span><span class=n>AfterResponse</span><span class=p>();</span><span class=w> </span>
+<span class=w>          </span><span class=c1>// Delete once strong_ref goes out of scope.  </span>
+<span class=w>          </span><span class=n>Detach</span><span class=p>();</span><span class=w>  </span>
+<span class=w>        </span><span class=p>});</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>channel_</span><span class=o>-&gt;</span><span class=n>set_query_last_ok</span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=n>ARES_ECONNREFUSED</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=n>channel_</span><span class=o>-&gt;</span><span class=n>ModifyActivityQueryCount</span><span class=p>(</span><span class=mi>-1</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>      </span><span class=kt>void</span><span class=w> </span><span class=nf>AfterResponse</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=k>const</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>response_data_</span><span class=o>-&gt;</span><span class=n>status</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=c1>// 调用对应的子类的Parse  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=n>ARES_SUCCESS</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>ParseError</span><span class=p>(</span><span class=n>status</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>response_data_</span><span class=o>-&gt;</span><span class=n>is_host</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>Parse</span><span class=p>(</span><span class=n>response_data_</span><span class=o>-&gt;</span><span class=n>buf</span><span class=p>.</span><span class=n>data</span><span class=p>,</span><span class=w> </span><span class=n>response_data_</span><span class=o>-&gt;</span><span class=n>buf</span><span class=p>.</span><span class=n>size</span><span class=p>);</span>
+<span class=w>        </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>Parse</span><span class=p>(</span><span class=n>response_data_</span><span class=o>-&gt;</span><span class=n>host</span><span class=p>.</span><span class=n>get</span><span class=p>());</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>任务完成后，Node.js会在check阶段（Node.js v10是使用async handle通知Libuv）加入一个节点，然后check阶段的时候执行对应子类的Parse函数，这里以QueryCnameWrap的Parse为例。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>Parse</span><span class=p>(</span><span class=kt>unsigned</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>len</span><span class=p>)</span><span class=w> </span><span class=k>override</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>HandleScope</span><span class=w> </span><span class=n>handle_scope</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Context</span><span class=o>::</span><span class=n>Scope</span><span class=w> </span><span class=n>context_scope</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>());</span><span class=w>  </span>
+
+<span class=w>        </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Array</span><span class=o>&gt;</span><span class=w> </span><span class=n>ret</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Array</span><span class=o>::</span><span class=n>New</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>type</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ns_t_cname</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ParseGeneralReply</span><span class=p>(</span><span class=n>env</span><span class=p>(),</span><span class=w> </span><span class=n>buf</span><span class=p>,</span><span class=w> </span><span class=n>len</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>type</span><span class=p>,</span><span class=w> </span><span class=n>ret</span><span class=p>);</span><span class=w>  </span>
+<span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>status</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=n>ARES_SUCCESS</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>          </span><span class=n>ParseError</span><span class=p>(</span><span class=n>status</span><span class=p>);</span><span class=w>  </span>
+<span class=w>          </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=w>        </span><span class=p>}</span><span class=w>  </span>
+
+<span class=w>        </span><span class=k>this</span><span class=o>-&gt;</span><span class=n>CallOnComplete</span><span class=p>(</span><span class=n>ret</span><span class=p>);</span><span class=w>  </span>
+<span class=w>      </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>收到DNS回复后，调用ParseGeneralReply解析回包，然后执行JS层DNS模块的回调。从而执行用户的回调。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=w>    </span><span class=kt>void</span><span class=w> </span><span class=nf>CallOnComplete</span><span class=p>(</span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=n>answer</span><span class=p>,</span><span class=w>  </span>
+<span class=w>                        </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=n>extra</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=p>())</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>      </span><span class=n>HandleScope</span><span class=w> </span><span class=n>handle_scope</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>());</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Context</span><span class=o>::</span><span class=n>Scope</span><span class=w> </span><span class=n>context_scope</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>context</span><span class=p>());</span><span class=w>  </span>
+<span class=w>      </span><span class=n>Local</span><span class=o>&lt;</span><span class=n>Value</span><span class=o>&gt;</span><span class=w> </span><span class=n>argv</span><span class=p>[]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=w>        </span><span class=n>Integer</span><span class=o>::</span><span class=n>New</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>isolate</span><span class=p>(),</span><span class=w> </span><span class=mi>0</span><span class=p>),</span><span class=w>  </span>
+<span class=w>        </span><span class=n>answer</span><span class=p>,</span><span class=w>  </span>
+<span class=w>        </span><span class=n>extra</span><span class=w>  </span>
+<span class=w>      </span><span class=p>};</span><span class=w>  </span>
+<span class=w>      </span><span class=k>const</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>argc</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>arraysize</span><span class=p>(</span><span class=n>argv</span><span class=p>)</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=n>extra</span><span class=p>.</span><span class=n>IsEmpty</span><span class=p>();</span><span class=w>  </span>
+<span class=w>      </span><span class=n>MakeCallback</span><span class=p>(</span><span class=n>env</span><span class=p>()</span><span class=o>-&gt;</span><span class=n>oncomplete_string</span><span class=p>(),</span><span class=w> </span><span class=n>argc</span><span class=p>,</span><span class=w> </span><span class=n>argv</span><span class=p>);</span><span class=w>  </span>
+<span class=w>    </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> </article> </div> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> 回到页面顶部 </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; 2021 theanarkh </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/theanarkh target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> <a href=https://www.zhihu.com/people/theanarkh target=_blank rel=noopener title=www.zhihu.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 640 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M170.54 148.13v217.54l23.43.01 7.71 26.37 42.01-26.37h49.53V148.13zm97.75 193.93h-27.94l-27.9 17.51-5.08-17.47-11.9-.04V171.75h72.82zm-118.46-94.39H97.5c1.74-27.1 2.2-51.59 2.2-73.46h51.16s1.97-22.56-8.58-22.31h-88.5c3.49-13.12 7.87-26.66 13.12-40.67 0 0-24.07 0-32.27 21.57-3.39 8.9-13.21 43.14-30.7 78.12 5.89-.64 25.37-1.18 36.84-22.21 2.11-5.89 2.51-6.66 5.14-14.53h28.87c0 10.5-1.2 66.88-1.68 73.44H20.83c-11.74 0-15.56 23.62-15.56 23.62h65.58C66.45 321.1 42.83 363.12 0 396.34c20.49 5.85 40.91-.93 51-9.9 0 0 22.98-20.9 35.59-69.25l53.96 64.94s7.91-26.89-1.24-39.99c-7.58-8.92-28.06-33.06-36.79-41.81L87.9 311.95c4.36-13.98 6.99-27.55 7.87-40.67h61.65s-.09-23.62-7.59-23.62zm412.02-1.6c20.83-25.64 44.98-58.57 44.98-58.57s-18.65-14.8-27.38-4.06c-6 8.15-36.83 48.2-36.83 48.2zm-150.09-59.09c-9.01-8.25-25.91 2.13-25.91 2.13s39.52 55.04 41.12 57.45l19.46-13.73s-25.67-37.61-34.66-45.86h-.01zM640 258.35c-19.78 0-130.91.93-131.06.93v-101c4.81 0 12.42-.4 22.85-1.2 40.88-2.41 70.13-4 87.77-4.81 0 0 12.22-27.19-.59-33.44-3.07-1.18-23.17 4.58-23.17 4.58s-165.22 16.49-232.36 18.05c1.6 8.82 7.62 17.08 15.78 19.55 13.31 3.48 22.69 1.7 49.15.89 24.83-1.6 43.68-2.43 56.51-2.43v99.81H351.41s2.82 22.31 25.51 22.85h107.94v70.92c0 13.97-11.19 21.99-24.48 21.12-14.08.11-26.08-1.15-41.69-1.81 1.99 3.97 6.33 14.39 19.31 21.84 9.88 4.81 16.17 6.57 26.02 6.57 29.56 0 45.67-17.28 44.89-45.31v-73.32h122.36c9.68 0 8.7-23.78 8.7-23.78z"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"base": "..", "features": ["content.code.annotate", "navigation.indexes", "navigation.instant", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script> <script src=../assets/javascripts/bundle.83f73b43.min.js></script> <script src=../extra/image.js defer></script> </body> </html>

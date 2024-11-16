@@ -1,0 +1,1112 @@
+<!doctype html><html lang=zh class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="通过源码分析 Node.js 原理"><meta name=author content=theanarkh><link href=https://github.com/theanarkh/understand-nodejs/chapter02-Libuv%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%92%8C%E9%80%9A%E7%94%A8%E9%80%BB%E8%BE%91/ rel=canonical><link href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ rel=prev><link href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ rel=next><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.5.44"><title>02-Libuv数据结构和通用逻辑 - Node.js 源码剖析</title><link rel=stylesheet href=../assets/stylesheets/main.0253249f.min.css><link rel=stylesheet href=../assets/stylesheets/palette.06af60db.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#libuv class=md-skip> 跳转至 </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=页眉> <a href=.. title="Node.js 源码剖析" class="md-header__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> Node.js 源码剖析 </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=blue data-md-color-accent=blue aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=搜索 placeholder=搜索 autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=查找> <a href=javascript:void(0) class="md-search__icon md-icon" title=分享 aria-label=分享 data-clipboard data-clipboard-text data-md-component=search-share tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg> </a> <button type=reset class="md-search__icon md-icon" title=清空当前内容 aria-label=清空当前内容 tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> 正在初始化搜索引擎 </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> </nav> <nav class=md-tabs aria-label=标签 data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-tabs__link> 前言 </a> </li> <li class="md-tabs__item md-tabs__item--active"> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-tabs__link> Node.js基础和架构 </a> </li> <li class=md-tabs__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-tabs__link> Node.js核心模块的实现 </a> </li> <li class=md-tabs__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-tabs__link> 其他 </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=导航栏 data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title="Node.js 源码剖析" class="md-nav__button md-logo" aria-label="Node.js 源码剖析" data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="m19 2-5 4.5v11l5-4.5zM6.5 5C4.55 5 2.45 5.4 1 6.5v14.66c0 .25.25.5.5.5.1 0 .15-.07.25-.07 1.35-.65 3.3-1.09 4.75-1.09 1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.31 4.75 1.06.1.05.15.03.25.03.25 0 .5-.25.5-.5V6.5c-.6-.45-1.25-.75-2-1V19c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V6.5C10.55 5.4 8.45 5 6.5 5"/></svg> </a> Node.js 源码剖析 </label> <div class=md-nav__source> <a href=https://github.com/theanarkh/understand-nodejs title=前往仓库 class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> understand-nodejs </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class=md-nav__item> <a href=../chapter00-%E5%89%8D%E8%A8%80/ class=md-nav__link> <span class=md-ellipsis> 前言 </span> </a> </li> <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_3 checked> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex> <span class=md-ellipsis> Node.js基础和架构 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=true> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Node.js基础和架构 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter01-Node.js%E7%BB%84%E6%88%90%E5%92%8C%E5%8E%9F%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 01-Node.js组成和原理 </span> </a> </li> <li class="md-nav__item md-nav__item--active"> <input class="md-nav__toggle md-toggle" type=checkbox id=__toc> <label class="md-nav__link md-nav__link--active" for=__toc> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> <span class="md-nav__icon md-icon"></span> </label> <a href=./ class="md-nav__link md-nav__link--active"> <span class=md-ellipsis> 02-Libuv数据结构和通用逻辑 </span> </a> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#21-uv_loop_s class=md-nav__link> <span class=md-ellipsis> 2.1 核心结构体uv_loop_s </span> </a> </li> <li class=md-nav__item> <a href=#22-uv_handle_t class=md-nav__link> <span class=md-ellipsis> 2.2 uv_handle_t </span> </a> <nav class=md-nav aria-label="2.2 uv_handle_t"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#221-uv_stream_s class=md-nav__link> <span class=md-ellipsis> 2.2.1 uv_stream_s </span> </a> </li> <li class=md-nav__item> <a href=#222-uv_async_s class=md-nav__link> <span class=md-ellipsis> 2.2.2 uv_async_s </span> </a> </li> <li class=md-nav__item> <a href=#223-uv_tcp_s class=md-nav__link> <span class=md-ellipsis> 2.2.3 uv_tcp_s </span> </a> </li> <li class=md-nav__item> <a href=#224-uv_udp_s class=md-nav__link> <span class=md-ellipsis> 2.2.4 uv_udp_s </span> </a> </li> <li class=md-nav__item> <a href=#225-uv_tty_s class=md-nav__link> <span class=md-ellipsis> 2.2.5 uv_tty_s </span> </a> </li> <li class=md-nav__item> <a href=#226-uv_pipe_s class=md-nav__link> <span class=md-ellipsis> 2.2.6 uv_pipe_s </span> </a> </li> <li class=md-nav__item> <a href=#227-uv_prepare_suv_check_suv_idle_s class=md-nav__link> <span class=md-ellipsis> 2.2.7 uv_prepare_s、uv_check_s、uv_idle_s </span> </a> </li> <li class=md-nav__item> <a href=#228-uv_timer_s class=md-nav__link> <span class=md-ellipsis> 2.2.8 uv_timer_s </span> </a> </li> <li class=md-nav__item> <a href=#229-uv_process_s class=md-nav__link> <span class=md-ellipsis> 2.2.9 uv_process_s </span> </a> </li> <li class=md-nav__item> <a href=#2210-uv_fs_event_s class=md-nav__link> <span class=md-ellipsis> 2.2.10 uv_fs_event_s </span> </a> </li> <li class=md-nav__item> <a href=#2211-uv_fs_poll_s class=md-nav__link> <span class=md-ellipsis> 2.2.11 uv_fs_poll_s </span> </a> </li> <li class=md-nav__item> <a href=#2212-uv_poll_s class=md-nav__link> <span class=md-ellipsis> 2.2.12 uv_poll_s </span> </a> </li> <li class=md-nav__item> <a href=#2113-uv_signal_s class=md-nav__link> <span class=md-ellipsis> 2.1.13 uv_signal_s </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#23-uv_req_s class=md-nav__link> <span class=md-ellipsis> 2.3 uv_req_s </span> </a> <nav class=md-nav aria-label="2.3 uv_req_s"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#231-uv_shutdown_s class=md-nav__link> <span class=md-ellipsis> 2.3.1 uv_shutdown_s </span> </a> </li> <li class=md-nav__item> <a href=#232-uv_write_s class=md-nav__link> <span class=md-ellipsis> 2.3.2 uv_write_s </span> </a> </li> <li class=md-nav__item> <a href=#233-uv_connect_s class=md-nav__link> <span class=md-ellipsis> 2.3.3 uv_connect_s </span> </a> </li> <li class=md-nav__item> <a href=#234-uv_udp_send_s class=md-nav__link> <span class=md-ellipsis> 2.3.4 uv_udp_send_s </span> </a> </li> <li class=md-nav__item> <a href=#235-uv_getaddrinfo_s class=md-nav__link> <span class=md-ellipsis> 2.3.5 uv_getaddrinfo_s </span> </a> </li> <li class=md-nav__item> <a href=#236-uv_getnameinfo_s class=md-nav__link> <span class=md-ellipsis> 2.3.6 uv_getnameinfo_s </span> </a> </li> <li class=md-nav__item> <a href=#237-uv_work_s class=md-nav__link> <span class=md-ellipsis> 2.3.7 uv_work_s </span> </a> </li> <li class=md-nav__item> <a href=#uv_fs_s class=md-nav__link> <span class=md-ellipsis> uv_fs_s </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#24-io class=md-nav__link> <span class=md-ellipsis> 2.4 IO观察者 </span> </a> <nav class=md-nav aria-label="2.4 IO观察者"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#241-io class=md-nav__link> <span class=md-ellipsis> 2.4.1 初始化IO观察者 </span> </a> </li> <li class=md-nav__item> <a href=#242iolibuv class=md-nav__link> <span class=md-ellipsis> 2.4.2注册一个IO观察者到Libuv。 </span> </a> </li> <li class=md-nav__item> <a href=#243-io class=md-nav__link> <span class=md-ellipsis> 2.4.3 撤销IO观察者或者事件 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#25-libuv class=md-nav__link> <span class=md-ellipsis> 2.5 Libuv通用逻辑 </span> </a> <nav class=md-nav aria-label="2.5 Libuv通用逻辑"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#251-uv__handle_init class=md-nav__link> <span class=md-ellipsis> 2.5.1 uv__handle_init </span> </a> </li> <li class=md-nav__item> <a href=#252-uv__handle_start class=md-nav__link> <span class=md-ellipsis> 2.5.2. uv__handle_start </span> </a> </li> <li class=md-nav__item> <a href=#253-uv__handle_stop class=md-nav__link> <span class=md-ellipsis> 2.5.3. uv__handle_stop </span> </a> </li> <li class=md-nav__item> <a href=#254-uv__req_init class=md-nav__link> <span class=md-ellipsis> 2.5.4. uv__req_init </span> </a> </li> <li class=md-nav__item> <a href=#255-uv__req_register class=md-nav__link> <span class=md-ellipsis> 2.5.5. uv__req_register </span> </a> </li> <li class=md-nav__item> <a href=#256-uv__req_unregister class=md-nav__link> <span class=md-ellipsis> 2.5.6. uv__req_unregister </span> </a> </li> <li class=md-nav__item> <a href=#257-uv__handle_ref class=md-nav__link> <span class=md-ellipsis> 2.5.7. uv__handle_ref </span> </a> </li> </ul> </nav> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../chapter03-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF/ class=md-nav__link> <span class=md-ellipsis> 03-事件循环 </span> </a> </li> <li class=md-nav__item> <a href=../chapter04-%E7%BA%BF%E7%A8%8B%E6%B1%A0/ class=md-nav__link> <span class=md-ellipsis> 04-线程池 </span> </a> </li> <li class=md-nav__item> <a href=../chapter05-Libuv%E6%B5%81/ class=md-nav__link> <span class=md-ellipsis> 05-Libuv流 </span> </a> </li> <li class=md-nav__item> <a href=../chapter06-C%2B%2B%E5%B1%82/ class=md-nav__link> <span class=md-ellipsis> 06-C++层 </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_4> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex=0> <span class=md-ellipsis> Node.js核心模块的实现 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=false> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Node.js核心模块的实现 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter07-%E4%BF%A1%E5%8F%B7%E5%A4%84%E7%90%86/ class=md-nav__link> <span class=md-ellipsis> 07-信号处理 </span> </a> </li> <li class=md-nav__item> <a href=../chapter08-DNS/ class=md-nav__link> <span class=md-ellipsis> 08-DNS </span> </a> </li> <li class=md-nav__item> <a href=../chapter09-Unix%E5%9F%9F/ class=md-nav__link> <span class=md-ellipsis> 09-Unix域 </span> </a> </li> <li class=md-nav__item> <a href=../chapter10-%E5%AE%9A%E6%97%B6%E5%99%A8/ class=md-nav__link> <span class=md-ellipsis> 10-定时器 </span> </a> </li> <li class=md-nav__item> <a href=../chapter11-setImmediate%E5%92%8CnextTick/ class=md-nav__link> <span class=md-ellipsis> 11-setImmediate和nextTick </span> </a> </li> <li class=md-nav__item> <a href=../chapter12-%E6%96%87%E4%BB%B6/ class=md-nav__link> <span class=md-ellipsis> 12-文件 </span> </a> </li> <li class=md-nav__item> <a href=../chapter13-%E8%BF%9B%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 13-进程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter14-%E7%BA%BF%E7%A8%8B/ class=md-nav__link> <span class=md-ellipsis> 14-线程 </span> </a> </li> <li class=md-nav__item> <a href=../chapter15-Cluster/ class=md-nav__link> <span class=md-ellipsis> 15-Cluster </span> </a> </li> <li class=md-nav__item> <a href=../chapter16-UDP/ class=md-nav__link> <span class=md-ellipsis> 16-UDP </span> </a> </li> <li class=md-nav__item> <a href=../chapter17-TCP/ class=md-nav__link> <span class=md-ellipsis> 17-TCP </span> </a> </li> <li class=md-nav__item> <a href=../chapter18-HTTP/ class=md-nav__link> <span class=md-ellipsis> 18-HTTP </span> </a> </li> <li class=md-nav__item> <a href=../chapter19-%E6%A8%A1%E5%9D%97%E5%8A%A0%E8%BD%BD/ class=md-nav__link> <span class=md-ellipsis> 19-模块加载 </span> </a> </li> <li class=md-nav__item> <a href=../chapter21-JS%20Stream/ class=md-nav__link> <span class=md-ellipsis> 20-JS Stream </span> </a> </li> <li class=md-nav__item> <a href=../chapter22-events%E6%A8%A1%E5%9D%97/ class=md-nav__link> <span class=md-ellipsis> 21-events模块 </span> </a> </li> <li class=md-nav__item> <a href=../chapter23-Async%20hooks/ class=md-nav__link> <span class=md-ellipsis> 22-Async hooks </span> </a> </li> <li class=md-nav__item> <a href=../chapter24-Inspector/ class=md-nav__link> <span class=md-ellipsis> 23-Inspector </span> </a> </li> <li class=md-nav__item> <a href=../chapter27-%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3%20Node.js%20%E7%9A%84%20Buffer/ class=md-nav__link> <span class=md-ellipsis> 27-深入理解 Node.js 的 Buffer </span> </a> </li> <li class=md-nav__item> <a href=../chapter30-Node.js%20%E7%9A%84%20trace%20events%20%E6%9E%B6%E6%9E%84/ class=md-nav__link> <span class=md-ellipsis> 30-Node.js 的 trace events 架构 </span> </a> </li> <li class=md-nav__item> <a href=../chapter31-Node.js%20%E7%9A%84%20perf_hooks/ class=md-nav__link> <span class=md-ellipsis> 31-Node.js 的 perf_hooks </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle " type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> 其他 </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> 其他 </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../chapter20-%E6%8B%93%E5%B1%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 24-拓展Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter25-Node.js子线程调试和诊断指南 class=md-nav__link> <span class=md-ellipsis> 25-Node.js子线程调试和诊断指南 </span> </a> </li> <li class=md-nav__item> <a href=../chapter26-vscode%E8%B0%83%E8%AF%95Node.js/ class=md-nav__link> <span class=md-ellipsis> 26-vscode调试Node.js </span> </a> </li> <li class=md-nav__item> <a href=../chapter28-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E6%9E%B6%E6%9E%84%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 28-Node.js底层原理（架构篇） </span> </a> </li> <li class=md-nav__item> <a href=../chapter29-Node.js%E5%BA%95%E5%B1%82%E5%8E%9F%E7%90%86%EF%BC%88%E5%AE%9E%E7%8E%B0%E7%AF%87%EF%BC%89/ class=md-nav__link> <span class=md-ellipsis> 29-Node.js底层原理（实现篇） </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label=目录> <label class=md-nav__title for=__toc> <span class="md-nav__icon md-icon"></span> 目录 </label> <ul class=md-nav__list data-md-component=toc data-md-scrollfix> <li class=md-nav__item> <a href=#21-uv_loop_s class=md-nav__link> <span class=md-ellipsis> 2.1 核心结构体uv_loop_s </span> </a> </li> <li class=md-nav__item> <a href=#22-uv_handle_t class=md-nav__link> <span class=md-ellipsis> 2.2 uv_handle_t </span> </a> <nav class=md-nav aria-label="2.2 uv_handle_t"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#221-uv_stream_s class=md-nav__link> <span class=md-ellipsis> 2.2.1 uv_stream_s </span> </a> </li> <li class=md-nav__item> <a href=#222-uv_async_s class=md-nav__link> <span class=md-ellipsis> 2.2.2 uv_async_s </span> </a> </li> <li class=md-nav__item> <a href=#223-uv_tcp_s class=md-nav__link> <span class=md-ellipsis> 2.2.3 uv_tcp_s </span> </a> </li> <li class=md-nav__item> <a href=#224-uv_udp_s class=md-nav__link> <span class=md-ellipsis> 2.2.4 uv_udp_s </span> </a> </li> <li class=md-nav__item> <a href=#225-uv_tty_s class=md-nav__link> <span class=md-ellipsis> 2.2.5 uv_tty_s </span> </a> </li> <li class=md-nav__item> <a href=#226-uv_pipe_s class=md-nav__link> <span class=md-ellipsis> 2.2.6 uv_pipe_s </span> </a> </li> <li class=md-nav__item> <a href=#227-uv_prepare_suv_check_suv_idle_s class=md-nav__link> <span class=md-ellipsis> 2.2.7 uv_prepare_s、uv_check_s、uv_idle_s </span> </a> </li> <li class=md-nav__item> <a href=#228-uv_timer_s class=md-nav__link> <span class=md-ellipsis> 2.2.8 uv_timer_s </span> </a> </li> <li class=md-nav__item> <a href=#229-uv_process_s class=md-nav__link> <span class=md-ellipsis> 2.2.9 uv_process_s </span> </a> </li> <li class=md-nav__item> <a href=#2210-uv_fs_event_s class=md-nav__link> <span class=md-ellipsis> 2.2.10 uv_fs_event_s </span> </a> </li> <li class=md-nav__item> <a href=#2211-uv_fs_poll_s class=md-nav__link> <span class=md-ellipsis> 2.2.11 uv_fs_poll_s </span> </a> </li> <li class=md-nav__item> <a href=#2212-uv_poll_s class=md-nav__link> <span class=md-ellipsis> 2.2.12 uv_poll_s </span> </a> </li> <li class=md-nav__item> <a href=#2113-uv_signal_s class=md-nav__link> <span class=md-ellipsis> 2.1.13 uv_signal_s </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#23-uv_req_s class=md-nav__link> <span class=md-ellipsis> 2.3 uv_req_s </span> </a> <nav class=md-nav aria-label="2.3 uv_req_s"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#231-uv_shutdown_s class=md-nav__link> <span class=md-ellipsis> 2.3.1 uv_shutdown_s </span> </a> </li> <li class=md-nav__item> <a href=#232-uv_write_s class=md-nav__link> <span class=md-ellipsis> 2.3.2 uv_write_s </span> </a> </li> <li class=md-nav__item> <a href=#233-uv_connect_s class=md-nav__link> <span class=md-ellipsis> 2.3.3 uv_connect_s </span> </a> </li> <li class=md-nav__item> <a href=#234-uv_udp_send_s class=md-nav__link> <span class=md-ellipsis> 2.3.4 uv_udp_send_s </span> </a> </li> <li class=md-nav__item> <a href=#235-uv_getaddrinfo_s class=md-nav__link> <span class=md-ellipsis> 2.3.5 uv_getaddrinfo_s </span> </a> </li> <li class=md-nav__item> <a href=#236-uv_getnameinfo_s class=md-nav__link> <span class=md-ellipsis> 2.3.6 uv_getnameinfo_s </span> </a> </li> <li class=md-nav__item> <a href=#237-uv_work_s class=md-nav__link> <span class=md-ellipsis> 2.3.7 uv_work_s </span> </a> </li> <li class=md-nav__item> <a href=#uv_fs_s class=md-nav__link> <span class=md-ellipsis> uv_fs_s </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#24-io class=md-nav__link> <span class=md-ellipsis> 2.4 IO观察者 </span> </a> <nav class=md-nav aria-label="2.4 IO观察者"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#241-io class=md-nav__link> <span class=md-ellipsis> 2.4.1 初始化IO观察者 </span> </a> </li> <li class=md-nav__item> <a href=#242iolibuv class=md-nav__link> <span class=md-ellipsis> 2.4.2注册一个IO观察者到Libuv。 </span> </a> </li> <li class=md-nav__item> <a href=#243-io class=md-nav__link> <span class=md-ellipsis> 2.4.3 撤销IO观察者或者事件 </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=#25-libuv class=md-nav__link> <span class=md-ellipsis> 2.5 Libuv通用逻辑 </span> </a> <nav class=md-nav aria-label="2.5 Libuv通用逻辑"> <ul class=md-nav__list> <li class=md-nav__item> <a href=#251-uv__handle_init class=md-nav__link> <span class=md-ellipsis> 2.5.1 uv__handle_init </span> </a> </li> <li class=md-nav__item> <a href=#252-uv__handle_start class=md-nav__link> <span class=md-ellipsis> 2.5.2. uv__handle_start </span> </a> </li> <li class=md-nav__item> <a href=#253-uv__handle_stop class=md-nav__link> <span class=md-ellipsis> 2.5.3. uv__handle_stop </span> </a> </li> <li class=md-nav__item> <a href=#254-uv__req_init class=md-nav__link> <span class=md-ellipsis> 2.5.4. uv__req_init </span> </a> </li> <li class=md-nav__item> <a href=#255-uv__req_register class=md-nav__link> <span class=md-ellipsis> 2.5.5. uv__req_register </span> </a> </li> <li class=md-nav__item> <a href=#256-uv__req_unregister class=md-nav__link> <span class=md-ellipsis> 2.5.6. uv__req_unregister </span> </a> </li> <li class=md-nav__item> <a href=#257-uv__handle_ref class=md-nav__link> <span class=md-ellipsis> 2.5.7. uv__handle_ref </span> </a> </li> </ul> </nav> </li> </ul> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <h1 id=libuv>第二章Libuv数据结构和通用逻辑<a class=headerlink href=#libuv title="Permanent link">&para;</a></h1> <h2 id=21-uv_loop_s>2.1 核心结构体uv_loop_s<a class=headerlink href=#21-uv_loop_s title="Permanent link">&para;</a></h2> <p>uv_loop_s是Libuv的核心数据结构，每一个事件循环对应一个uv_loop_s结构体。它记录了整个事件循环中的核心数据。我们来分析每一个字段的意义。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span>
+<span class=normal>54</span>
+<span class=normal>55</span>
+<span class=normal>56</span>
+<span class=normal>57</span>
+<span class=normal>58</span>
+<span class=normal>59</span>
+<span class=normal>60</span>
+<span class=normal>61</span>
+<span class=normal>62</span>
+<span class=normal>63</span>
+<span class=normal>64</span>
+<span class=normal>65</span>
+<span class=normal>66</span>
+<span class=normal>67</span>
+<span class=normal>68</span>
+<span class=normal>69</span>
+<span class=normal>70</span>
+<span class=normal>71</span>
+<span class=normal>72</span>
+<span class=normal>73</span>
+<span class=normal>74</span>
+<span class=normal>75</span>
+<span class=normal>76</span>
+<span class=normal>77</span>
+<span class=normal>78</span>
+<span class=normal>79</span>
+<span class=normal>80</span>
+<span class=normal>81</span>
+<span class=normal>82</span>
+<span class=normal>83</span>
+<span class=normal>84</span>
+<span class=normal>85</span>
+<span class=normal>86</span>
+<span class=normal>87</span>
+<span class=normal>88</span>
+<span class=normal>89</span>
+<span class=normal>90</span>
+<span class=normal>91</span>
+<span class=normal>92</span>
+<span class=normal>93</span>
+<span class=normal>94</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>用户自定义数据的字段</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>data</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=n>活跃的handle个数</span><span class=err>，</span><span class=n>会影响使用循环的退出</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>active_handles</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>handle队列</span><span class=err>，</span><span class=n>包括活跃和非活跃的</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>handle_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w> </span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>request个数</span><span class=err>，</span><span class=n>会影响事件循环的退出</span>
+<span class=k>union</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>unused</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>count</span><span class=p>;</span><span class=w> </span><span class=p>}</span><span class=w> </span><span class=n>active_reqs</span><span class=p>;</span>
+
+<span class=mi>5</span><span class=n>事件循环是否结束的标记</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>stop_flag</span><span class=p>;</span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>Libuv运行的一些标记</span><span class=err>，</span><span class=n>目前只有UV_LOOP_BLOCK_SIGPROF</span><span class=err>，</span><span class=n>主要是用于epoll_wait的时候屏蔽SIGPROF信号</span><span class=err>，</span><span class=n>提高性能</span><span class=err>，</span><span class=n>SIGPROF是调操作系统settimer函数设置从而触发的信号</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>long</span><span class=w> </span><span class=n>flags</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>7</span><span class=w> </span><span class=n>epoll的fd</span>
+<span class=kt>int</span><span class=w> </span><span class=n>backend_fd</span><span class=p>;</span><span class=w>                    </span>
+
+<span class=mi>8</span><span class=w> </span><span class=n>pending阶段的队列</span><span class=w>                   </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>pending_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>          </span>
+
+<span class=mi>9</span><span class=n>指向需要在epoll中注册事件的uv__io_t结构体队列</span><span class=w>            </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>watcher_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>      </span>
+
+<span class=mi>10</span><span class=w> </span><span class=n>watcher_queue队列的节点中有一个fd字段</span><span class=err>，</span><span class=n>watchers以fd为索引</span><span class=err>，</span><span class=n>记录fd所在的uv__io_t结构体</span><span class=w>                       </span>
+<span class=n>uv__io_t</span><span class=o>**</span><span class=w> </span><span class=n>watchers</span><span class=p>;</span><span class=w>               </span>
+
+<span class=mi>11</span><span class=w> </span><span class=n>watchers相关的数量</span><span class=err>，</span><span class=n>在maybe_resize函数里设置</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>nwatchers</span><span class=p>;</span>
+
+<span class=mi>12</span><span class=w> </span><span class=n>watchers里fd个数</span><span class=err>，</span><span class=n>一般为watcher_queue队列的节点数</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>nfds</span><span class=p>;</span><span class=w>      </span>
+
+<span class=mi>13</span><span class=n>线程池的子线程处理完任务后把对应的结构体插入到wq队列</span><span class=w>        </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>wq</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>               </span>
+
+<span class=mi>14</span><span class=n>控制wq队列互斥访问</span><span class=err>，</span><span class=n>否则多个子线程同时访问会有问题</span>
+<span class=n>uv_mutex_t</span><span class=w> </span><span class=n>wq_mutex</span><span class=p>;</span>
+
+<span class=mi>15</span><span class=n>用于线程池的子线程和主线程通信</span><span class=w>    </span>
+<span class=n>uv_async_t</span><span class=w> </span><span class=n>wq_async</span><span class=p>;</span><span class=w>   </span>
+
+<span class=mi>16</span><span class=n>用于读写锁的互斥变量</span>
+<span class=n>uv_rwlock_t</span><span class=w> </span><span class=n>cloexec_lock</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>17</span><span class=w> </span><span class=n>事件循环close阶段的队列</span><span class=err>，</span><span class=n>由uv_close产生</span>
+<span class=n>uv_handle_t</span><span class=o>*</span><span class=w> </span><span class=n>closing_handles</span><span class=p>;</span><span class=w>       </span>
+
+<span class=mi>18</span><span class=w> </span><span class=n>fork出来的进程队列</span><span class=w>                 </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>process_handles</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>    </span>
+
+<span class=mi>19</span><span class=w> </span><span class=n>事件循环的prepare阶段对应的任务队列</span><span class=w>                   </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>prepare_handles</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>        </span>
+
+<span class=mi>20</span><span class=w> </span><span class=n>事件循环的check阶段对应的任务队列</span><span class=w>              </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>check_handles</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>        </span>
+
+<span class=mi>21</span><span class=w> </span><span class=n>事件循环的idle阶段对应的任务队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>idle_handles</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span>
+
+<span class=mi>21</span><span class=w> </span><span class=n>async_handles队列</span><span class=err>，</span><span class=n>Poll</span><span class=w> </span><span class=n>IO阶段执行uv__async_io中遍历async_handles队列处理里面pending为1的节点</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>async_handles</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>         </span>
+
+<span class=mi>22</span><span class=n>用于监听是否有async</span><span class=w> </span><span class=n>handle任务需要处理</span>
+<span class=n>uv__io_t</span><span class=w> </span><span class=n>async_io_watcher</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>23</span><span class=n>用于保存子线程和主线程通信的写端fd</span><span class=w>                    </span>
+<span class=kt>int</span><span class=w> </span><span class=n>async_wfd</span><span class=p>;</span><span class=w>   </span>
+
+<span class=mi>24</span><span class=n>保存定时器二叉堆结构</span><span class=w>       </span>
+<span class=k>struct</span><span class=w> </span><span class=p>{</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>min</span><span class=p>;</span><span class=w> </span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>nelts</span><span class=p>;</span>
+<span class=p>}</span><span class=w> </span><span class=n>timer_heap</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>25</span><span class=w> </span><span class=n>管理定时器节点的id</span><span class=err>，</span><span class=n>不断叠加</span>
+<span class=kt>uint64_t</span><span class=w> </span><span class=n>timer_counter</span><span class=p>;</span><span class=w>      </span>
+
+<span class=mi>26</span><span class=n>当前时间</span><span class=err>，</span><span class=n>Libuv会在每次事件循环的开始和Poll</span><span class=w> </span><span class=n>IO阶段更新当前时间</span><span class=err>，</span><span class=n>然后在后续的各个阶段使用</span><span class=err>，</span><span class=n>减少对系统调用</span><span class=w>                      </span>
+<span class=kt>uint64_t</span><span class=w> </span><span class=n>time</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>27</span><span class=n>用于fork出来的进程和主进程通信的管道</span><span class=err>，</span><span class=n>用于子进程收到信号的时候通知主进程</span><span class=err>，</span><span class=n>然后主进程执行子进程节点注册的回调</span>
+<span class=kt>int</span><span class=w> </span><span class=n>signal_pipefd</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>                 </span>
+
+<span class=mi>28</span><span class=n>类似async_io_watcher</span><span class=err>，</span><span class=n>signal_io_watcher保存了管道读端fd和回调</span><span class=err>，</span><span class=n>然后注册到epoll中</span><span class=err>，</span><span class=n>在子进程收到信号的时候</span><span class=err>，</span><span class=n>通过write写到管道</span><span class=err>，</span><span class=n>最后在Poll</span><span class=w> </span><span class=n>IO阶段执行回调</span>
+<span class=n>uv__io_t</span><span class=w> </span><span class=n>signal_io_watcher</span><span class=p>;</span>
+<span class=mi>29</span><span class=w> </span><span class=n>用于管理子进程退出信号的handle</span>
+<span class=n>uv_signal_t</span><span class=w> </span><span class=n>child_watcher</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>30</span><span class=n>备用的fd</span><span class=w>       </span>
+<span class=kt>int</span><span class=w> </span><span class=n>emfile_fd</span><span class=p>;</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <h2 id=22-uv_handle_t>2.2 uv_handle_t<a class=headerlink href=#22-uv_handle_t title="Permanent link">&para;</a></h2> <p>在Libuv中，uv_handle_t类似C++中的基类，有很多子类继承于它，Libuv主要通过控制内存的布局得到继承的效果。handle代表生命周期比较长的对象。例如 1 一个处于active状态的prepare handle，它的回调会在每次事件循环化的时候被执行。 2 一个TCP handle在每次有连接到来时，执行它的回调。</p> <p>我们看一下uv_handle_t的定义</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>自定义数据</span><span class=err>，</span><span class=n>用于关联一些上下文</span><span class=p>,</span><span class=n>Node</span><span class=p>.</span><span class=n>js中用于关联handle所属的C</span><span class=o>++</span><span class=n>对象</span><span class=w>  </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>data</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>所属的事件循环</span><span class=w>     </span>
+<span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>handle类型</span><span class=w>   </span>
+<span class=n>uv_handle_type</span><span class=w> </span><span class=n>type</span><span class=p>;</span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>handle调用uv_close后</span><span class=err>，</span><span class=n>在closing阶段被执行的回调</span>
+<span class=n>uv_close_cb</span><span class=w> </span><span class=n>close_cb</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>用于组织handle队列的前置后置指针</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>handle_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>文件描述符</span><span class=w> </span>
+<span class=k>union</span><span class=w> </span><span class=p>{</span><span class=w>               </span>
+<span class=kt>int</span><span class=w> </span><span class=n>fd</span><span class=p>;</span><span class=w>             </span>
+<span class=w> </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>reserved</span><span class=p>[</span><span class=mi>4</span><span class=p>];</span><span class=w>  </span>
+<span class=p>}</span><span class=w> </span><span class=n>u</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>7</span><span class=w> </span><span class=n>当handle在close队列时</span><span class=err>，</span><span class=n>该字段指向下一个close节点</span><span class=w>     </span>
+<span class=n>uv_handle_t</span><span class=o>*</span><span class=w> </span><span class=n>next_closing</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>8</span><span class=w> </span><span class=n>handle的状态和标记</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>flags</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=221-uv_stream_s>2.2.1 uv_stream_s<a class=headerlink href=#221-uv_stream_s title="Permanent link">&para;</a></h3> <p>uv_stream_s是表示流的结构体。除了继承uv_handle_t的字段外，它额外定义下面字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>等待发送的字节数</span>
+<span class=kt>size_t</span><span class=w> </span><span class=n>write_queue_size</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>分配内存的函数</span><span class=w>       </span>
+<span class=n>uv_alloc_cb</span><span class=w> </span><span class=n>alloc_cb</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>读取数据成功时执行的回调</span><span class=w>            </span>
+<span class=n>uv_read_cb</span><span class=w> </span><span class=n>read_cb</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>发起连接对应的结构体</span>
+<span class=n>uv_connect_t</span><span class=w> </span><span class=o>*</span><span class=n>connect_req</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>关闭写端对应的结构体</span>
+<span class=n>uv_shutdown_t</span><span class=w> </span><span class=o>*</span><span class=n>shutdown_req</span><span class=p>;</span><span class=w>   </span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>用于插入epoll</span><span class=err>，</span><span class=n>注册读写事件</span>
+<span class=n>uv__io_t</span><span class=w> </span><span class=n>io_watcher</span><span class=p>;</span><span class=w>           </span>
+
+<span class=mi>7</span><span class=w> </span><span class=n>待发送队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>write_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>     </span>
+
+<span class=mi>8</span><span class=w> </span><span class=n>发送完成的队列</span><span class=w>     </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>write_completed_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span>
+
+<span class=mi>9</span><span class=w> </span><span class=n>收到连接时执行的回调</span>
+<span class=n>uv_connection_cb</span><span class=w> </span><span class=n>connection_cb</span><span class=p>;</span>
+
+<span class=mi>10</span><span class=w> </span><span class=n>socket操作失败的错误码</span>
+<span class=kt>int</span><span class=w> </span><span class=n>delayed_error</span><span class=p>;</span><span class=w>             </span>
+
+<span class=mi>11</span><span class=w> </span><span class=n>accept返回的fd</span>
+<span class=kt>int</span><span class=w> </span><span class=n>accepted_fd</span><span class=p>;</span><span class=w>               </span>
+
+<span class=mi>12</span><span class=w> </span><span class=n>已经accept了一个fd</span><span class=err>，</span><span class=n>又有新的fd</span><span class=err>，</span><span class=n>暂存起来</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>queued_fds</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=222-uv_async_s>2.2.2 uv_async_s<a class=headerlink href=#222-uv_async_s title="Permanent link">&para;</a></h3> <p>uv_async_s是Libuv中实现异步通信的结构体。继承于uv_handle_t，并额外定义了以下字段。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>异步事件触发时执行的回调</span>
+<span class=n>uv_async_cb</span><span class=w> </span><span class=n>async_cb</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>用于插入async</span><span class=o>-</span><span class=n>handles队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w> </span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>async_handles队列中的节点pending字段为1说明对应的事件触发了</span>
+<span class=kt>int</span><span class=w> </span><span class=n>pending</span><span class=p>;</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=223-uv_tcp_s>2.2.3 uv_tcp_s<a class=headerlink href=#223-uv_tcp_s title="Permanent link">&para;</a></h3> <p>uv_tcp_s继承uv_handle_s和uv_stream_s。</p> <h3 id=224-uv_udp_s>2.2.4 uv_udp_s<a class=headerlink href=#224-uv_udp_s title="Permanent link">&para;</a></h3> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>发送字节数</span>
+<span class=kt>size_t</span><span class=w> </span><span class=n>send_queue_size</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>写队列节点的个数</span>
+<span class=kt>size_t</span><span class=w> </span><span class=n>send_queue_count</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>分配接收数据的内存</span>
+<span class=n>uv_alloc_cb</span><span class=w> </span><span class=n>alloc_cb</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>接收完数据后执行的回调</span>
+<span class=n>uv_udp_recv_cb</span><span class=w> </span><span class=n>recv_cb</span><span class=p>;</span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>插入epoll里的IO观察者</span><span class=err>，</span><span class=n>实现数据读写</span>
+<span class=n>uv__io_t</span><span class=w> </span><span class=n>io_watcher</span><span class=p>;</span><span class=w>   </span>
+<span class=mi>6</span><span class=w> </span><span class=n>待发送队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>write_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span>
+
+<span class=mi>7</span><span class=w> </span><span class=n>发送完成的队列</span><span class=err>（</span><span class=n>发送成功或失败</span><span class=err>），</span><span class=n>和待发送队列相关</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>write_completed_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=225-uv_tty_s>2.2.5 uv_tty_s<a class=headerlink href=#225-uv_tty_s title="Permanent link">&para;</a></h3> <p>uv_tty_s继承于uv_handle_t和uv_stream_t。额外定义了下面字段。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>终端的参数</span><span class=w> </span>
+<span class=k>struct</span><span class=w> </span><span class=nc>termios</span><span class=w> </span><span class=n>orig_termios</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>终端的工作模式</span>
+<span class=kt>int</span><span class=w> </span><span class=n>mode</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=226-uv_pipe_s>2.2.6 uv_pipe_s<a class=headerlink href=#226-uv_pipe_s title="Permanent link">&para;</a></h3> <p>uv_pipe_s继承于uv_handle_t和uv_stream_t。额外定义了下面字段。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>标记管道是否可用于传递文件描述符</span>
+<span class=kt>int</span><span class=w> </span><span class=n>ipc</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>用于Unix域通信的文件路径</span>
+<span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>pipe_fname</span><span class=p>;</span><span class=w> </span>
+</code></pre></div></td></tr></table></div> <h3 id=227-uv_prepare_suv_check_suv_idle_s>2.2.7 uv_prepare_s、uv_check_s、uv_idle_s<a class=headerlink href=#227-uv_prepare_suv_check_suv_idle_s title="Permanent link">&para;</a></h3> <p>上面三个结构体定义是类似的，它们都继承uv_handle_t，额外定义了两个字段。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>prepare</span><span class=err>、</span><span class=n>check</span><span class=err>、</span><span class=n>idle阶段回调</span>
+<span class=n>uv_xxx_cb</span><span class=w> </span><span class=n>xxx_cb</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>用于插入prepare</span><span class=err>、</span><span class=n>check</span><span class=err>、</span><span class=n>idle队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>   </span>
+</code></pre></div></td></tr></table></div> <h3 id=228-uv_timer_s>2.2.8 uv_timer_s<a class=headerlink href=#228-uv_timer_s title="Permanent link">&para;</a></h3> <p>uv_timer_s继承uv_handle_t，额外定义了下面几个字段。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>超时回调</span><span class=w> </span>
+<span class=n>uv_timer_cb</span><span class=w> </span><span class=n>timer_cb</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>插入二叉堆的字段</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>heap_node</span><span class=p>[</span><span class=mi>3</span><span class=p>];</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>超时时间</span>
+<span class=kt>uint64_t</span><span class=w> </span><span class=n>timeout</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>超时后是否继续开始重新计时</span><span class=err>，</span><span class=n>是的话重新插入二叉堆</span>
+<span class=kt>uint64_t</span><span class=w> </span><span class=n>repeat</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>id标记</span><span class=err>，</span><span class=n>用于插入二叉堆的时候对比</span>
+<span class=kt>uint64_t</span><span class=w> </span><span class=n>start_id</span>
+</code></pre></div></td></tr></table></div> <h3 id=229-uv_process_s>2.2.9 uv_process_s<a class=headerlink href=#229-uv_process_s title="Permanent link">&para;</a></h3> <p>uv_process_s继承uv_handle_t，额外定义了</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>进程退出时执行的回调</span>
+<span class=n>uv_exit_cb</span><span class=w> </span><span class=n>exit_cb</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>进程id</span>
+<span class=kt>int</span><span class=w> </span><span class=n>pid</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>用于插入队列</span><span class=err>，</span><span class=n>进程队列或者pending队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>退出码</span><span class=err>，</span><span class=n>进程退出时设置</span>
+<span class=kt>int</span><span class=w> </span><span class=n>status</span><span class=p>;</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=2210-uv_fs_event_s>2.2.10 uv_fs_event_s<a class=headerlink href=#2210-uv_fs_event_s title="Permanent link">&para;</a></h3> <p>uv_fs_event_s用于监听文件改动。uv_fs_event_s继承uv_handle_t，额外定义了</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>监听的文件路径</span><span class=p>(</span><span class=n>文件或目录</span><span class=p>)</span>
+<span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>path</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>文件改变时执行的回调</span>
+<span class=n>uv_fs_event_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=2211-uv_fs_poll_s>2.2.11 uv_fs_poll_s<a class=headerlink href=#2211-uv_fs_poll_s title="Permanent link">&para;</a></h3> <p>uv_fs_poll_s继承uv_handle_t，额外定义了</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>poll_ctx指向poll_ctx结构体</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>poll_ctx</span><span class=p>;</span>
+
+<span class=k>struct</span><span class=w> </span><span class=nc>poll_ctx</span><span class=w> </span><span class=p>{</span>
+<span class=c1>// 对应的handle</span>
+<span class=n>uv_fs_poll_t</span><span class=o>*</span><span class=w> </span><span class=n>parent_handle</span><span class=p>;</span><span class=w> </span>
+<span class=c1>// 标记是否开始轮询和轮询时的失败原因</span>
+<span class=kt>int</span><span class=w> </span><span class=n>busy_polling</span><span class=p>;</span>
+<span class=c1>// 多久检测一次文件内容是否改变</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>interval</span><span class=p>;</span>
+<span class=c1>// 每一轮轮询时的开始时间</span>
+<span class=kt>uint64_t</span><span class=w> </span><span class=n>start_time</span><span class=p>;</span>
+<span class=c1>// 所属事件循环</span>
+<span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span>
+<span class=c1>// 文件改变时回调</span>
+<span class=n>uv_fs_poll_cb</span><span class=w> </span><span class=n>poll_cb</span><span class=p>;</span>
+<span class=c1>// 定时器，用于定时超时后轮询</span>
+<span class=n>uv_timer_t</span><span class=w> </span><span class=n>timer_handle</span><span class=p>;</span>
+<span class=c1>// 记录轮询的一下上下文信息，文件路径、回调等</span>
+<span class=n>uv_fs_t</span><span class=w> </span><span class=n>fs_req</span><span class=p>;</span><span class=w> </span>
+<span class=c1>// 轮询时保存操作系统返回的文件信息</span>
+<span class=n>uv_stat_t</span><span class=w> </span><span class=n>statbuf</span><span class=p>;</span>
+<span class=w> </span><span class=c1>// 监听的文件路径，字符串的值追加在结构体后面</span>
+<span class=kt>char</span><span class=w> </span><span class=n>path</span><span class=p>[</span><span class=mi>1</span><span class=p>];</span><span class=w> </span><span class=cm>/* variable length */</span>
+<span class=p>};</span>
+</code></pre></div></td></tr></table></div> <h3 id=2212-uv_poll_s>2.2.12 uv_poll_s<a class=headerlink href=#2212-uv_poll_s title="Permanent link">&para;</a></h3> <p>uv_poll_s继承于uv_handle_t，额外定义了下面字段。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>监听的fd有感兴趣的事件时执行的回调</span>
+<span class=n>uv_poll_cb</span><span class=w> </span><span class=n>poll_cb</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>保存了fd和回调的IO观察者</span><span class=err>，</span><span class=n>注册到epoll中</span>
+<span class=n>uv__io_t</span><span class=w> </span><span class=n>io_watcher</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=2113-uv_signal_s>2.1.13 uv_signal_s<a class=headerlink href=#2113-uv_signal_s title="Permanent link">&para;</a></h3> <p>uv_signal_s继承uv_handle_t，额外定义了以下字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>收到信号时的回调</span>
+<span class=n>uv_signal_cb</span><span class=w> </span><span class=n>signal_cb</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>注册的信号</span>
+<span class=kt>int</span><span class=w> </span><span class=n>signum</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>用于插入红黑树</span><span class=err>，</span><span class=n>进程把感兴趣的信号和回调封装成uv_signal_s</span><span class=err>，</span><span class=n>然后插入到红黑树</span><span class=err>，</span><span class=n>信号到来时</span><span class=err>，</span><span class=n>进程在信号处理号中把通知写入管道</span><span class=err>，</span><span class=n>通知Libuv</span><span class=err>。</span><span class=n>Libuv在Poll</span><span class=w> </span><span class=n>IO阶段会执行进程对应的回调</span><span class=err>。</span><span class=n>红黑树节点的定义如下</span>
+<span class=k>struct</span><span class=w> </span><span class=p>{</span><span class=w>                         </span>
+<span class=k>struct</span><span class=w> </span><span class=nc>uv_signal_s</span><span class=o>*</span><span class=w> </span><span class=n>rbe_left</span><span class=p>;</span><span class=w>  </span>
+<span class=k>struct</span><span class=w> </span><span class=nc>uv_signal_s</span><span class=o>*</span><span class=w> </span><span class=n>rbe_right</span><span class=p>;</span><span class=w> </span>
+<span class=k>struct</span><span class=w> </span><span class=nc>uv_signal_s</span><span class=o>*</span><span class=w> </span><span class=n>rbe_parent</span><span class=p>;</span>
+<span class=kt>int</span><span class=w> </span><span class=n>rbe_color</span><span class=p>;</span><span class=w>                 </span>
+<span class=p>}</span><span class=w> </span><span class=n>tree_entry</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>收到的信号个数</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>caught_signals</span><span class=p>;</span><span class=w>     </span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>已经处理的信号个数</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>dispatched_signals</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h2 id=23-uv_req_s>2.3 uv_req_s<a class=headerlink href=#23-uv_req_s title="Permanent link">&para;</a></h2> <p>在Libuv中，uv_req_s也类似C++基类的作用，有很多子类继承于它，request代表一次请求，比如读写一个文件，读写socket，查询DNS。任务完成后这个request就结束了。request可以和handle结合使用，比如在一个TCP服务器上（handle）写一个数据（request），也可以单独使用一个request，比如DNS查询或者文件读写。我们看一下uv_req_s的定义。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>自定义数据</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>data</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>request类型</span>
+<span class=n>uv_req_type</span><span class=w> </span><span class=n>type</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>保留字段</span><span class=w> </span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>reserved</span><span class=p>[</span><span class=mi>6</span><span class=p>];</span>
+</code></pre></div></td></tr></table></div> <h3 id=231-uv_shutdown_s>2.3.1 uv_shutdown_s<a class=headerlink href=#231-uv_shutdown_s title="Permanent link">&para;</a></h3> <p>uv_shutdown_s用于关闭流的写端，额外定义的字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>要关闭的流</span><span class=err>，</span><span class=n>比如TCP</span>
+<span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>关闭流的写端后执行的回调</span>
+<span class=n>uv_shutdown_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=232-uv_write_s>2.3.2 uv_write_s<a class=headerlink href=#232-uv_write_s title="Permanent link">&para;</a></h3> <p>uv_write_s表示一次写请求，比如在TCP流上发送数据，额外定义的字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>写完后的回调</span>
+<span class=n>uv_write_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>需要传递的文件描述符</span><span class=err>，</span><span class=n>在send_handle中</span>
+<span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>send_handle</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>关联的handle</span>
+<span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>用于插入队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>     </span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>保存需要写的数据相关的字段</span><span class=err>（</span><span class=n>写入的buffer个数</span><span class=err>，</span><span class=n>当前写成功的位置等</span><span class=err>）</span><span class=w>     </span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>write_index</span><span class=p>;</span>
+<span class=n>uv_buf_t</span><span class=o>*</span><span class=w> </span><span class=n>bufs</span><span class=p>;</span><span class=w>          </span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>nbufs</span><span class=p>;</span><span class=w>                 </span>
+<span class=n>uv_buf_t</span><span class=w> </span><span class=n>bufsml</span><span class=p>[</span><span class=mi>4</span><span class=p>];</span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>写出错的错误码</span><span class=w> </span>
+<span class=kt>int</span><span class=w> </span><span class=n>error</span><span class=p>;</span><span class=w>    </span>
+</code></pre></div></td></tr></table></div> <h3 id=233-uv_connect_s>2.3.3 uv_connect_s<a class=headerlink href=#233-uv_connect_s title="Permanent link">&para;</a></h3> <p>uv_connect_s表示发起连接请求，比如TCP连接，额外定义的字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>连接成功后执行的回调</span>
+<span class=n>uv_connect_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>对应的流</span><span class=err>，</span><span class=n>比如tcp</span>
+<span class=n>uv_stream_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>用于插入队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w> </span>
+</code></pre></div></td></tr></table></div> <h3 id=234-uv_udp_send_s>2.3.4 uv_udp_send_s<a class=headerlink href=#234-uv_udp_send_s title="Permanent link">&para;</a></h3> <p>uv_udp_send_s表示一次发送UDP数据的请求</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>所属udp的handle</span><span class=err>，</span><span class=n>udp_send_s代表一次发送</span>
+<span class=n>uv_udp_t</span><span class=o>*</span><span class=w> </span><span class=n>handle</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>回调</span>
+<span class=n>uv_udp_send_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>用于插入待发送队列</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>              </span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>发送的目的地址</span>
+<span class=k>struct</span><span class=w> </span><span class=nc>sockaddr_storage</span><span class=w> </span><span class=n>addr</span><span class=p>;</span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>保存了发送数据的缓冲区和个数</span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>nbufs</span><span class=p>;</span><span class=w>           </span>
+<span class=n>uv_buf_t</span><span class=o>*</span><span class=w> </span><span class=n>bufs</span><span class=p>;</span><span class=w>               </span>
+<span class=n>uv_buf_t</span><span class=w> </span><span class=n>bufsml</span><span class=p>[</span><span class=mi>4</span><span class=p>];</span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>发送状态或成功发送的字节数</span>
+<span class=kt>ssize_t</span><span class=w> </span><span class=n>status</span><span class=p>;</span><span class=w>              </span>
+
+<span class=mi>7</span><span class=w> </span><span class=n>发送完执行的回调</span><span class=err>（</span><span class=n>发送成功或失败</span><span class=err>）</span>
+<span class=n>uv_udp_send_cb</span><span class=w> </span><span class=n>send_cb</span><span class=p>;</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=235-uv_getaddrinfo_s>2.3.5 uv_getaddrinfo_s<a class=headerlink href=#235-uv_getaddrinfo_s title="Permanent link">&para;</a></h3> <p>uv_getaddrinfo_s表示一次通过域名查询IP的DNS请求，额外定义的字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>所属事件循环</span>
+<span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>用于异步DNS解析时插入线程池任务队列的节点</span>
+<span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=w> </span><span class=n>work_req</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>DNS解析完后执行的回调</span>
+<span class=n>uv_getaddrinfo_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span><span class=w>     </span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>DNS查询的配置</span>
+<span class=k>struct</span><span class=w> </span><span class=nc>addrinfo</span><span class=o>*</span><span class=w> </span><span class=n>hints</span><span class=p>;</span><span class=w>   </span>
+<span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>hostname</span><span class=p>;</span><span class=w>           </span>
+<span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>service</span><span class=p>;</span><span class=w>         </span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>DNS解析结果</span><span class=w>   </span>
+<span class=k>struct</span><span class=w> </span><span class=nc>addrinfo</span><span class=o>*</span><span class=w> </span><span class=n>addrinfo</span><span class=p>;</span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>DNS解析的返回码</span>
+<span class=kt>int</span><span class=w> </span><span class=n>retcode</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=236-uv_getnameinfo_s>2.3.6 uv_getnameinfo_s<a class=headerlink href=#236-uv_getnameinfo_s title="Permanent link">&para;</a></h3> <p>uv_getnameinfo_s表示一次通过IP查询域名的DNS查询请求，额外定义的字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>所属事件循环</span><span class=w> </span>
+<span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>用于异步DNS解析时插入线程池任务队列的节点</span>
+<span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=w> </span><span class=n>work_req</span><span class=p>;</span><span class=w>        </span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>socket转域名完成的回调</span>
+<span class=n>uv_getnameinfo_cb</span><span class=w> </span><span class=n>getnameinfo_cb</span><span class=p>;</span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>需要转域名的socket结构体</span>
+<span class=k>struct</span><span class=w> </span><span class=nc>sockaddr_storage</span><span class=w> </span><span class=n>storage</span><span class=p>;</span><span class=w> </span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>指示查询返回的信息</span>
+<span class=kt>int</span><span class=w> </span><span class=n>flags</span><span class=p>;</span><span class=w>                       </span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>查询返回的信息</span>
+<span class=kt>char</span><span class=w> </span><span class=n>host</span><span class=p>[</span><span class=n>NI_MAXHOST</span><span class=p>];</span><span class=w>           </span>
+<span class=kt>char</span><span class=w> </span><span class=n>service</span><span class=p>[</span><span class=n>NI_MAXSERV</span><span class=p>];</span><span class=w>        </span>
+
+<span class=mi>7</span><span class=w> </span><span class=n>查询返回码</span>
+<span class=kt>int</span><span class=w> </span><span class=n>retcode</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=237-uv_work_s>2.3.7 uv_work_s<a class=headerlink href=#237-uv_work_s title="Permanent link">&para;</a></h3> <p>uv_work_s用于往线程池提交任务，额外定义的字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>所属事件循环</span>
+<span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>处理任务的函数</span>
+<span class=n>uv_work_cb</span><span class=w> </span><span class=n>work_cb</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=w> </span><span class=n>处理完任务后执行的函数</span>
+<span class=n>uv_after_work_cb</span><span class=w> </span><span class=n>after_work_cb</span><span class=p>;</span>
+
+<span class=mi>4</span><span class=n>封装一个work插入到线程池队列</span><span class=err>，</span><span class=n>work_req的work和done函数是对上面work_cb和after_work_cb的封装</span>
+<span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=w> </span><span class=n>work_req</span><span class=p>;</span>
+</code></pre></div></td></tr></table></div> <h3 id=uv_fs_s>uv_fs_s<a class=headerlink href=#uv_fs_s title="Permanent link">&para;</a></h3> <p>uv_fs_s表示一次文件操作请求，额外定义的字段</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span>
+<span class=normal>33</span>
+<span class=normal>34</span>
+<span class=normal>35</span>
+<span class=normal>36</span>
+<span class=normal>37</span>
+<span class=normal>38</span>
+<span class=normal>39</span>
+<span class=normal>40</span>
+<span class=normal>41</span>
+<span class=normal>42</span>
+<span class=normal>43</span>
+<span class=normal>44</span>
+<span class=normal>45</span>
+<span class=normal>46</span>
+<span class=normal>47</span>
+<span class=normal>48</span>
+<span class=normal>49</span>
+<span class=normal>50</span>
+<span class=normal>51</span>
+<span class=normal>52</span>
+<span class=normal>53</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mi>1</span><span class=w> </span><span class=n>文件操作类型</span>
+<span class=n>uv_fs_type</span><span class=w> </span><span class=n>fs_type</span><span class=p>;</span>
+
+<span class=mi>2</span><span class=w> </span><span class=n>所属事件循环</span>
+<span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>;</span>
+
+<span class=mi>3</span><span class=n>文件操作完成的回调</span>
+<span class=n>uv_fs_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span>
+
+<span class=mi>4</span><span class=w> </span><span class=n>文件操作的返回码</span>
+<span class=kt>ssize_t</span><span class=w> </span><span class=n>result</span><span class=p>;</span>
+
+<span class=mi>5</span><span class=w> </span><span class=n>文件操作返回的数据</span>
+<span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>ptr</span><span class=p>;</span>
+
+<span class=mi>6</span><span class=w> </span><span class=n>文件操作路径</span>
+<span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=o>*</span><span class=w> </span><span class=n>path</span><span class=p>;</span>
+
+<span class=mi>7</span><span class=w> </span><span class=n>文件的stat信息</span>
+<span class=n>uv_stat_t</span><span class=w> </span><span class=n>statbuf</span><span class=p>;</span><span class=w>  </span>
+
+<span class=mi>8</span><span class=w> </span><span class=n>文件操作涉及到两个路径时</span><span class=err>，</span><span class=n>保存目的路径</span>
+<span class=k>const</span><span class=w> </span><span class=kt>char</span><span class=w> </span><span class=o>*</span><span class=n>new_path</span><span class=p>;</span><span class=w>    </span>
+
+<span class=mi>9</span><span class=w> </span><span class=n>文件描述符</span>
+<span class=n>uv_file</span><span class=w> </span><span class=n>file</span><span class=p>;</span><span class=w>            </span>
+
+<span class=mi>10</span><span class=w> </span><span class=n>文件标记</span>
+<span class=kt>int</span><span class=w> </span><span class=n>flags</span><span class=p>;</span><span class=w>               </span>
+
+<span class=mi>11</span><span class=w> </span><span class=n>操作模式</span>
+<span class=kt>mode_t</span><span class=w> </span><span class=n>mode</span><span class=p>;</span><span class=w>      </span>
+
+<span class=mi>12</span><span class=w> </span><span class=n>写文件时传入的数据和个数</span><span class=w>       </span>
+<span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>nbufs</span><span class=p>;</span><span class=w>      </span>
+<span class=n>uv_buf_t</span><span class=o>*</span><span class=w> </span><span class=n>bufs</span><span class=p>;</span><span class=w>          </span>
+
+<span class=mi>13</span><span class=w> </span><span class=n>文件偏移</span>
+<span class=kt>off_t</span><span class=w> </span><span class=n>off</span><span class=p>;</span><span class=w>               </span>
+
+<span class=mi>14</span><span class=w> </span><span class=n>保存需要设置的uid和gid</span><span class=err>，</span><span class=n>例如chmod的时候</span>
+<span class=n>uv_uid_t</span><span class=w> </span><span class=n>uid</span><span class=p>;</span><span class=w>            </span>
+<span class=n>uv_gid_t</span><span class=w> </span><span class=n>gid</span><span class=p>;</span><span class=w>            </span>
+
+<span class=mi>15</span><span class=w> </span><span class=n>保存需要设置的文件修改</span><span class=err>、</span><span class=n>访问时间</span><span class=err>，</span><span class=n>例如fs</span><span class=p>.</span><span class=n>utimes的时候</span>
+<span class=kt>double</span><span class=w> </span><span class=n>atime</span><span class=p>;</span><span class=w>            </span>
+<span class=kt>double</span><span class=w> </span><span class=n>mtime</span><span class=p>;</span><span class=w>            </span>
+
+<span class=mi>16</span><span class=w> </span><span class=n>异步的时候用于插入任务队列</span><span class=err>，</span><span class=n>保存工作函数</span><span class=err>，</span><span class=n>回调函数</span>
+<span class=k>struct</span><span class=w> </span><span class=nc>uv__work</span><span class=w> </span><span class=n>work_req</span><span class=p>;</span>
+
+<span class=mi>17</span><span class=w> </span><span class=n>保存读取数据或者长度</span><span class=err>。</span><span class=n>例如read和sendfile</span>
+<span class=n>uv_buf_t</span><span class=w> </span><span class=n>bufsml</span><span class=p>[</span><span class=mi>4</span><span class=p>];</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h2 id=24-io>2.4 IO观察者<a class=headerlink href=#24-io title="Permanent link">&para;</a></h2> <p>IO观察者是Libuv中的核心概念和数据结构。我们看一下它的定义</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=k>struct</span><span class=w> </span><span class=nc>uv__io_s</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=mf>2.</span><span class=w>    </span><span class=c1>// 事件触发后的回调  </span>
+<span class=mf>3.</span><span class=w>    </span><span class=n>uv__io_cb</span><span class=w> </span><span class=n>cb</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>4.</span><span class=w>    </span><span class=c1>// 用于插入队列  </span>
+<span class=mf>5.</span><span class=w>    </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>pending_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span>
+<span class=mf>6.</span><span class=w>    </span><span class=kt>void</span><span class=o>*</span><span class=w> </span><span class=n>watcher_queue</span><span class=p>[</span><span class=mi>2</span><span class=p>];</span><span class=w>  </span>
+<span class=mf>7.</span><span class=w>    </span><span class=c1>// 保存本次感兴趣的事件，在插入IO观察者队列时设置  </span>
+<span class=mf>8.</span><span class=w>    </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>pevents</span><span class=p>;</span><span class=w> </span>
+<span class=mf>9.</span><span class=w>    </span><span class=c1>// 保存当前感兴趣的事件  </span>
+<span class=mf>10.</span><span class=w>   </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>events</span><span class=p>;</span><span class=w>   </span>
+<span class=mf>11.</span><span class=w>   </span><span class=kt>int</span><span class=w> </span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>12.</span><span class=w> </span><span class=p>};</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>IO观察者封装了文件描述符、事件和回调，然后插入到loop维护的IO观察者队列，在Poll IO阶段，Libuv会根据IO观察者描述的信息，往底层的事件驱动模块注册文件描述符感兴趣的事件。当注册的事件触发的时候，IO观察者的回调就会被执行。我们看如何初IO观察者的一些逻辑。</p> <h3 id=241-io>2.4.1 初始化IO观察者<a class=headerlink href=#241-io title="Permanent link">&para;</a></h3> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=kt>void</span><span class=w> </span><span class=n>uv__io_init</span><span class=p>(</span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=n>uv__io_cb</span><span class=w> </span><span class=n>cb</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>fd</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=mf>2.</span><span class=w>    </span><span class=c1>// 初始化队列，回调，需要监听的fd  </span>
+<span class=mf>3.</span><span class=w>    </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pending_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>4.</span><span class=w>    </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>5.</span><span class=w>    </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>cb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>cb</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>6.</span><span class=w>    </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>fd</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>7.</span><span class=w>    </span><span class=c1>// 上次加入epoll时感兴趣的事件，在执行完epoll操作函数后设置  </span>
+<span class=mf>8.</span><span class=w>    </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>events</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>9.</span><span class=w>    </span><span class=c1>// 当前感兴趣的事件，在再次执行epoll函数之前设置  </span>
+<span class=mf>10.</span><span class=w>   </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pevents</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>11.</span><span class=w> </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=242iolibuv>2.4.2注册一个IO观察者到Libuv。<a class=headerlink href=#242iolibuv title="Permanent link">&para;</a></h3> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=kt>void</span><span class=w> </span><span class=n>uv__io_start</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>events</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=mf>2.</span><span class=w>    </span><span class=c1>// 设置当前感兴趣的事件  </span>
+<span class=mf>3.</span><span class=w>    </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pevents</span><span class=w> </span><span class=o>|=</span><span class=w> </span><span class=n>events</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>4.</span><span class=w>    </span><span class=c1>// 可能需要扩容  </span>
+<span class=mf>5.</span><span class=w>    </span><span class=n>maybe_resize</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=mi>1</span><span class=p>);</span><span class=w> </span>
+<span class=mf>6.</span><span class=w>      </span><span class=c1>// 事件没有变化则直接返回 </span>
+<span class=mf>7.</span><span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>events</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pevents</span><span class=p>)</span><span class=w>  </span>
+<span class=mf>8.</span><span class=w>      </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>9.</span><span class=w>    </span><span class=c1>// IO观察者没有挂载在其它地方则插入Libuv的IO观察者队列  </span>
+<span class=mf>10.</span><span class=w>   </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>))</span><span class=w>  </span>
+<span class=mf>11.</span><span class=w>     </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>12.</span><span class=w>   </span><span class=c1>// 保存映射关系  </span>
+<span class=mf>13.</span><span class=w>   </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>]</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=mf>14.</span><span class=w>     </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>w</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>15.</span><span class=w>     </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>nfds</span><span class=o>++</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>16.</span><span class=w>   </span><span class=p>}</span><span class=w>  </span>
+<span class=mf>17.</span><span class=w> </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>uv__io_start函数就是把一个IO观察者插入到Libuv的观察者队列中，并且在watchers数组中保存一个映射关系。Libuv在Poll IO阶段会处理IO观察者队列。</p> <h3 id=243-io>2.4.3 撤销IO观察者或者事件<a class=headerlink href=#243-io title="Permanent link">&para;</a></h3> <p>uv__io_stop修改IO观察者感兴趣的事件，如果还有感兴趣的事件的话，IO观察者还会在队列里，否则移出</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal> 1</span>
+<span class=normal> 2</span>
+<span class=normal> 3</span>
+<span class=normal> 4</span>
+<span class=normal> 5</span>
+<span class=normal> 6</span>
+<span class=normal> 7</span>
+<span class=normal> 8</span>
+<span class=normal> 9</span>
+<span class=normal>10</span>
+<span class=normal>11</span>
+<span class=normal>12</span>
+<span class=normal>13</span>
+<span class=normal>14</span>
+<span class=normal>15</span>
+<span class=normal>16</span>
+<span class=normal>17</span>
+<span class=normal>18</span>
+<span class=normal>19</span>
+<span class=normal>20</span>
+<span class=normal>21</span>
+<span class=normal>22</span>
+<span class=normal>23</span>
+<span class=normal>24</span>
+<span class=normal>25</span>
+<span class=normal>26</span>
+<span class=normal>27</span>
+<span class=normal>28</span>
+<span class=normal>29</span>
+<span class=normal>30</span>
+<span class=normal>31</span>
+<span class=normal>32</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=kt>void</span><span class=w> </span><span class=n>uv__io_stop</span><span class=p>(</span><span class=n>uv_loop_t</span><span class=o>*</span><span class=w> </span><span class=n>loop</span><span class=p>,</span><span class=w> </span>
+<span class=mf>2.</span><span class=w>                    </span><span class=n>uv__io_t</span><span class=o>*</span><span class=w> </span><span class=n>w</span><span class=p>,</span><span class=w> </span>
+<span class=mf>3.</span><span class=w>                    </span><span class=kt>unsigned</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>events</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=mf>4.</span><span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>-1</span><span class=p>)</span><span class=w>  </span>
+<span class=mf>5.</span><span class=w>      </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>6.</span><span class=w>    </span><span class=n>assert</span><span class=p>(</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=w> </span><span class=o>&gt;=</span><span class=w> </span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>7.</span><span class=w>    </span><span class=k>if</span><span class=w> </span><span class=p>((</span><span class=kt>unsigned</span><span class=p>)</span><span class=w> </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=w> </span><span class=o>&gt;=</span><span class=w> </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>nwatchers</span><span class=p>)</span><span class=w>  </span>
+<span class=mf>8.</span><span class=w>      </span><span class=k>return</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>9.</span><span class=w>    </span><span class=c1>// 清除之前注册的事件，保存在pevents里，表示当前感兴趣的事件  </span>
+<span class=mf>10.</span><span class=w>   </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pevents</span><span class=w> </span><span class=o>&amp;=</span><span class=w> </span><span class=o>~</span><span class=n>events</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>11.</span><span class=w>   </span><span class=c1>// 对所有事件都不感兴趣了  </span>
+<span class=mf>12.</span><span class=w>   </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>pevents</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=mf>13.</span><span class=w>     </span><span class=c1>// 移出IO观察者队列  </span>
+<span class=mf>14.</span><span class=w>     </span><span class=n>QUEUE_REMOVE</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>15.</span><span class=w>     </span><span class=c1>// 重置  </span>
+<span class=mf>16.</span><span class=w>     </span><span class=n>QUEUE_INIT</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>17.</span><span class=w>     </span><span class=c1>// 重置  </span>
+<span class=mf>18.</span><span class=w>     </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>]</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=nb>NULL</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>  </span>
+<span class=mf>19.</span><span class=w>       </span><span class=n>assert</span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>]</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>w</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>20.</span><span class=w>       </span><span class=n>assert</span><span class=p>(</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>nfds</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=mi>0</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>21.</span><span class=w>       </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watchers</span><span class=p>[</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>fd</span><span class=p>]</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>22.</span><span class=w>       </span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>nfds</span><span class=o>--</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>23.</span><span class=w>       </span><span class=n>w</span><span class=o>-&gt;</span><span class=n>events</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>24.</span><span class=w>     </span><span class=p>}</span><span class=w>  </span>
+<span class=mf>25.</span><span class=w>   </span><span class=p>}</span><span class=w>  </span>
+<span class=mf>26.</span><span class=w>   </span><span class=cm>/* </span>
+<span class=cm>27.     之前还没有插入IO观察者队列，则插入， </span>
+<span class=cm>28.     等到Poll IO时处理，否则不需要处理 </span>
+<span class=cm>29.     */</span><span class=w>  </span>
+<span class=mf>30.</span><span class=w>   </span><span class=k>else</span><span class=w> </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>QUEUE_EMPTY</span><span class=p>(</span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>))</span><span class=w>  </span>
+<span class=mf>31.</span><span class=w>     </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=n>w</span><span class=o>-&gt;</span><span class=n>watcher_queue</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>32.</span><span class=w> </span><span class=p>}</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h2 id=25-libuv>2.5 Libuv通用逻辑<a class=headerlink href=#25-libuv title="Permanent link">&para;</a></h2> <h3 id=251-uv__handle_init>2.5.1 uv__handle_init<a class=headerlink href=#251-uv__handle_init title="Permanent link">&para;</a></h3> <p>uv__handle_init初始化handle的类型，设置REF标记，插入handle队列。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__handle_init</span><span class=p>(</span><span class=n>loop_</span><span class=p>,</span><span class=w> </span><span class=n>h</span><span class=p>,</span><span class=w> </span><span class=n>type_</span><span class=p>)</span><span class=w>  </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                           </span>
+<span class=mf>3.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>loop</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=n>loop_</span><span class=p>);</span><span class=w>        </span>
+<span class=mf>4.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>type</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=n>type_</span><span class=p>);</span><span class=w>        </span>
+<span class=mf>5.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>UV_HANDLE_REF</span><span class=p>;</span><span class=w>                 </span>
+<span class=mf>6.</span><span class=w>      </span><span class=n>QUEUE_INSERT_TAIL</span><span class=p>(</span><span class=o>&amp;</span><span class=p>(</span><span class=n>loop_</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>handle_queue</span><span class=p>,</span><span class=w> </span><span class=o>&amp;</span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>handle_queue</span><span class=p>);</span>
+<span class=mf>7.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>next_closing</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nb>NULL</span><span class=w> </span>
+<span class=mf>8.</span><span class=w>    </span><span class=p>}</span><span class=w>                              </span>
+<span class=mf>9.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=252-uv__handle_start>2.5.2. uv__handle_start<a class=headerlink href=#252-uv__handle_start title="Permanent link">&para;</a></h3> <p>uv__handle_start设置标记handle为ACTIVE，如果设置了REF标记，则active handle的个数加一，active handle数会影响事件循环的退出。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__handle_start</span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=w>           </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                           </span>
+<span class=mf>3.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_ACTIVE</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=k>break</span><span class=p>;</span><span class=w>                            </span>
+<span class=mf>4.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>|=</span><span class=w> </span><span class=n>UV_HANDLE_ACTIVE</span><span class=p>;</span><span class=w>              </span>
+<span class=mf>5.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_REF</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w>   </span>
+<span class=mf>6.</span><span class=w>        </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>loop</span><span class=o>-&gt;</span><span class=n>active_handles</span><span class=o>++</span><span class=p>;</span><span class=w>       </span>
+<span class=mf>7.</span><span class=w>    </span><span class=p>}</span><span class=w>                             </span>
+<span class=mf>8.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=253-uv__handle_stop>2.5.3. uv__handle_stop<a class=headerlink href=#253-uv__handle_stop title="Permanent link">&para;</a></h3> <p>uv__handle_stop和uv__handle_start相反。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__handle_stop</span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=w>           </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                         </span>
+<span class=mf>3.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_ACTIVE</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=k>break</span><span class=p>;</span><span class=w>    </span>
+<span class=mf>4.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;=</span><span class=w> </span><span class=o>~</span><span class=n>UV_HANDLE_ACTIVE</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>5.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_REF</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=n>uv__active_handle_rm</span><span class=p>(</span><span class=n>h</span><span class=p>);</span><span class=w>  </span>
+<span class=mf>6.</span><span class=w>    </span><span class=p>}</span><span class=w>                              </span>
+<span class=mf>7.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <p>Libuv中handle有REF和ACTIVE两个状态。当一个handle调用xxx_init函数的时候，它首先被打上REF标记，并且插入loop-&gt;handle队列。当handle调用xxx_start函数的时候，它被打上ACTIVE标记，并且记录active handle的个数加一。只有REF并且ACTIVE状态的handle才会影响事件循环的退出。</p> <h3 id=254-uv__req_init>2.5.4. uv__req_init<a class=headerlink href=#254-uv__req_init title="Permanent link">&para;</a></h3> <p>uv__req_init初始化请求的类型，记录请求的个数，会影响事件循环的退出。</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__req_init</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=p>,</span><span class=w> </span><span class=n>typ</span><span class=p>)</span><span class=w> </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                          </span>
+<span class=mf>3.</span><span class=w>      </span><span class=p>(</span><span class=n>req</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>type</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=n>typ</span><span class=p>);</span><span class=w>      </span>
+<span class=mf>4.</span><span class=w>      </span><span class=p>(</span><span class=n>loop</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>active_reqs</span><span class=p>.</span><span class=n>count</span><span class=o>++</span><span class=p>;</span>
+<span class=mf>5.</span><span class=w>    </span><span class=p>}</span><span class=w>                            </span>
+<span class=mf>6.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w> </span>
+</code></pre></div></td></tr></table></div> <h3 id=255-uv__req_register>2.5.5. uv__req_register<a class=headerlink href=#255-uv__req_register title="Permanent link">&para;</a></h3> <p>请求的个数加一</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__req_register</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=p>)</span><span class=w>            </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                           </span>
+<span class=mf>3.</span><span class=w>      </span><span class=p>(</span><span class=n>loop</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>active_reqs</span><span class=p>.</span><span class=n>count</span><span class=o>++</span><span class=p>;</span><span class=w> </span>
+<span class=mf>4.</span><span class=w>    </span><span class=p>}</span><span class=w>                            </span>
+<span class=mf>5.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=256-uv__req_unregister>2.5.6. uv__req_unregister<a class=headerlink href=#256-uv__req_unregister title="Permanent link">&para;</a></h3> <p>请求个数减一</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__req_unregister</span><span class=p>(</span><span class=n>loop</span><span class=p>,</span><span class=w> </span><span class=n>req</span><span class=p>)</span><span class=w> </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                          </span>
+<span class=mf>3.</span><span class=w>      </span><span class=n>assert</span><span class=p>(</span><span class=n>uv__has_active_reqs</span><span class=p>(</span><span class=n>loop</span><span class=p>));</span><span class=w> </span>
+<span class=mf>4.</span><span class=w>      </span><span class=p>(</span><span class=n>loop</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>active_reqs</span><span class=p>.</span><span class=n>count</span><span class=o>--</span><span class=p>;</span>
+<span class=mf>5.</span><span class=w>     </span><span class=p>}</span><span class=w>                              </span>
+<span class=mf>6.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> <h3 id=257-uv__handle_ref>2.5.7. uv__handle_ref<a class=headerlink href=#257-uv__handle_ref title="Permanent link">&para;</a></h3> <p>uv__handle_ref标记handle为REF状态，如果handle是ACTIVE状态，则active handle数加一</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span>
+<span class=normal>9</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__handle_ref</span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=w>             </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                           </span>
+<span class=mf>3.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_REF</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=k>break</span><span class=p>;</span><span class=w>         </span>
+<span class=mf>4.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>|=</span><span class=w> </span><span class=n>UV_HANDLE_REF</span><span class=p>;</span><span class=w>     </span>
+<span class=mf>5.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_CLOSING</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=k>break</span><span class=p>;</span><span class=w>   </span>
+<span class=mf>6.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_ACTIVE</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=n>uv__active_handle_add</span><span class=p>(</span><span class=n>h</span><span class=p>);</span>
+<span class=mf>7.</span><span class=w>    </span><span class=p>}</span><span class=w>                              </span>
+<span class=mf>8.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+<span class=mf>9.</span><span class=w>  </span><span class=n>uv__handle_unref</span>
+</code></pre></div></td></tr></table></div> <p>uv__handle_unref去掉handle的REF状态，如果handle是ACTIVE状态，则active handle数减一</p> <div class=highlight><table class=highlighttable><tr><td class=linenos><div class=linenodiv><pre><span></span><span class=normal>1</span>
+<span class=normal>2</span>
+<span class=normal>3</span>
+<span class=normal>4</span>
+<span class=normal>5</span>
+<span class=normal>6</span>
+<span class=normal>7</span>
+<span class=normal>8</span></pre></div></td><td class=code><div><pre><span></span><code><span class=mf>1.</span><span class=w>  </span><span class=err>#</span><span class=n>define</span><span class=w> </span><span class=n>uv__handle_unref</span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=w>               </span>
+<span class=mf>2.</span><span class=w>    </span><span class=k>do</span><span class=w> </span><span class=p>{</span><span class=w>                           </span>
+<span class=mf>3.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_REF</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=k>break</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>4.</span><span class=w>      </span><span class=p>(</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;=</span><span class=w> </span><span class=o>~</span><span class=n>UV_HANDLE_REF</span><span class=p>;</span><span class=w>  </span>
+<span class=mf>5.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_CLOSING</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=k>break</span><span class=p>;</span>
+<span class=mf>6.</span><span class=w>      </span><span class=k>if</span><span class=w> </span><span class=p>(((</span><span class=n>h</span><span class=p>)</span><span class=o>-&gt;</span><span class=n>flags</span><span class=w> </span><span class=o>&amp;</span><span class=w> </span><span class=n>UV_HANDLE_ACTIVE</span><span class=p>)</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=mi>0</span><span class=p>)</span><span class=w> </span><span class=n>uv__active_handle_rm</span><span class=p>(</span><span class=n>h</span><span class=p>);</span><span class=w> </span>
+<span class=mf>7.</span><span class=w>    </span><span class=p>}</span><span class=w>                            </span>
+<span class=mf>8.</span><span class=w>    </span><span class=k>while</span><span class=w> </span><span class=p>(</span><span class=mi>0</span><span class=p>)</span><span class=w>  </span>
+</code></pre></div></td></tr></table></div> </article> </div> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> 回到页面顶部 </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; 2021 theanarkh </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/theanarkh target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 496 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> <a href=https://www.zhihu.com/people/theanarkh target=_blank rel=noopener title=www.zhihu.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 640 512"><!-- Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M170.54 148.13v217.54l23.43.01 7.71 26.37 42.01-26.37h49.53V148.13zm97.75 193.93h-27.94l-27.9 17.51-5.08-17.47-11.9-.04V171.75h72.82zm-118.46-94.39H97.5c1.74-27.1 2.2-51.59 2.2-73.46h51.16s1.97-22.56-8.58-22.31h-88.5c3.49-13.12 7.87-26.66 13.12-40.67 0 0-24.07 0-32.27 21.57-3.39 8.9-13.21 43.14-30.7 78.12 5.89-.64 25.37-1.18 36.84-22.21 2.11-5.89 2.51-6.66 5.14-14.53h28.87c0 10.5-1.2 66.88-1.68 73.44H20.83c-11.74 0-15.56 23.62-15.56 23.62h65.58C66.45 321.1 42.83 363.12 0 396.34c20.49 5.85 40.91-.93 51-9.9 0 0 22.98-20.9 35.59-69.25l53.96 64.94s7.91-26.89-1.24-39.99c-7.58-8.92-28.06-33.06-36.79-41.81L87.9 311.95c4.36-13.98 6.99-27.55 7.87-40.67h61.65s-.09-23.62-7.59-23.62zm412.02-1.6c20.83-25.64 44.98-58.57 44.98-58.57s-18.65-14.8-27.38-4.06c-6 8.15-36.83 48.2-36.83 48.2zm-150.09-59.09c-9.01-8.25-25.91 2.13-25.91 2.13s39.52 55.04 41.12 57.45l19.46-13.73s-25.67-37.61-34.66-45.86h-.01zM640 258.35c-19.78 0-130.91.93-131.06.93v-101c4.81 0 12.42-.4 22.85-1.2 40.88-2.41 70.13-4 87.77-4.81 0 0 12.22-27.19-.59-33.44-3.07-1.18-23.17 4.58-23.17 4.58s-165.22 16.49-232.36 18.05c1.6 8.82 7.62 17.08 15.78 19.55 13.31 3.48 22.69 1.7 49.15.89 24.83-1.6 43.68-2.43 56.51-2.43v99.81H351.41s2.82 22.31 25.51 22.85h107.94v70.92c0 13.97-11.19 21.99-24.48 21.12-14.08.11-26.08-1.15-41.69-1.81 1.99 3.97 6.33 14.39 19.31 21.84 9.88 4.81 16.17 6.57 26.02 6.57 29.56 0 45.67-17.28 44.89-45.31v-73.32h122.36c9.68 0 8.7-23.78 8.7-23.78z"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"base": "..", "features": ["content.code.annotate", "navigation.indexes", "navigation.instant", "navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.share", "search.suggest"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}}</script> <script src=../assets/javascripts/bundle.83f73b43.min.js></script> <script src=../extra/image.js defer></script> </body> </html>
