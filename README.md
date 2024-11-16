@@ -6,6 +6,7 @@
 * [JavaScript 运行时 Demo](https://github.com/theanarkh/js-runtime-demo)<br/>
 * [No.js: 基于 V8 和 io_uring 的 JavaScript 运行时](https://github.com/theanarkh/No.js)<br/>
 * [Deer: 基于 V8 和 kqueue 的 JavaScript 运行时](https://github.com/theanarkh/Deer)<br/>
+* [No.js: 基于 V8 和 Libuv 的 JavaScript 运行时](https://github.com/theanarkh/nojs)<br/>
 * [Node.js V10.x 源码注释](https://github.com/theanarkh/read-nodejs-code)<br/>
 * [Libuv 源码注释](https://github.com/theanarkh/read-libuv-code)<br/>
 
